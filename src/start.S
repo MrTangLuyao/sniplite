@@ -3,7 +3,7 @@
  * exit code.
  *   default:    wWinMain(module, NULL, NULL, SW_SHOWDEFAULT)   (sniplite.exe, setup)
  *   -DCONSOLE:  wmain(argc, argv), argv split from GetCommandLineW by the same
- *               rules as the C runtime (cmdline_split, util.S)  (sniplite.com) */
+ *               rules as the C runtime (cmdline_split, util.c)  (sniplite.com) */
 #include "asm.inc"
 
 #ifndef CONSOLE

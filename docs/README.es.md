@@ -56,7 +56,7 @@ Muy poco: menos de 1 MB.
 
 **¿Por qué es tan rápido?**
 
-Las partes que deben ser rápidas (captura, composición, dibujo, la pantalla de captura y las imágenes fijadas) están escritas en ensamblador x86-64 y el resto en C, sin el runtime de C. La captura se lee directamente de la tarjeta gráfica y se entrega a Windows para componerla en la GPU, mucho más rápido que los métodos habituales de captura en Windows.
+Las partes que deben ser rápidas (captura, composición, dibujo y la pantalla de captura) están escritas en ensamblador x86-64 y el resto en C, sin el runtime de C. La captura se lee directamente de la tarjeta gráfica y se entrega a Windows para componerla en la GPU, mucho más rápido que los métodos habituales de captura en Windows.
 
 **¿Cuánta memoria usa?**
 

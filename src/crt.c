@@ -59,6 +59,14 @@ wchar_t *wcsrchr(const wchar_t *s, wchar_t c)
     }
 }
 
+size_t wcslen(const wchar_t *s)
+{
+    const wchar_t *e = s;
+    while (*e)
+        e++;
+    return (size_t)(e - s);
+}
+
 int wcsncmp(const wchar_t *a, const wchar_t *b, size_t n)
 {
     for (; n; n--, a++, b++)
@@ -80,3 +88,16 @@ wchar_t *wcsstr(const wchar_t *s, const wchar_t *t)
     }
     return NULL;
 }
+
+/* ---- the little arithmetic pin.c asks the library for; values are finite here ---- */
+
+/* Round half away from zero. The largest float below one half is added, so that a
+ * value just under .5 is not carried up by the addition: x + 0.5f would turn
+ * 0.49999997f into 1. */
+long lroundf(float x)
+{
+    return (long)(x + (x < 0 ? -0.49999997f : 0.49999997f));
+}
+
+float fminf(float a, float b) { return a < b ? a : b; }
+float fmaxf(float a, float b) { return a > b ? a : b; }

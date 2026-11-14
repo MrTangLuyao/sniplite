@@ -56,7 +56,7 @@ Tiny: under 1 MB.
 
 **Why is it so fast?**
 
-The parts that have to be fast (capture, composition, drawing, the capture overlay and pins) are written in x86-64 assembly and the rest in C, with no C runtime. A screenshot is read straight from the graphics card and handed to Windows to compose on the GPU, which is much faster than the usual ways of capturing the screen on Windows.
+The parts that have to be fast (capture, composition, drawing and the capture overlay) are written in x86-64 assembly and the rest in C, with no C runtime. A screenshot is read straight from the graphics card and handed to Windows to compose on the GPU, which is much faster than the usual ways of capturing the screen on Windows.
 
 **How much memory does it use?**
 

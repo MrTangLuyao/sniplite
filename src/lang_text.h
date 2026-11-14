@@ -803,7 +803,7 @@ X(OV_SAVE_FAILED,
   "Échec de l'enregistrement. Vérifiez le chemin et les droits.",
   "Speichern fehlgeschlagen. Pfad und Rechte prüfen.", "Error al guardar. Revisa la ruta y los permisos.")
 
-/* ---- pins (pin.S) ---- */
+/* ---- pins (pin.c) ---- */
 X(PIN_OPACITY, "不透明度 %d%%", "不透明度 %d%%", "Opacity %d%%", "不透明度 %d%%", "불투명도 %d%%", "Opacité %d%%",
   "Deckkraft %d%%", "Opacidad %d%%")
 X(PIN_COPIED, "已复制", "已複製", "Copied", "コピーしました", "복사됨", "Copié", "Kopiert", "Copiado")

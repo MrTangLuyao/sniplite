@@ -56,7 +56,7 @@ Winzig: unter 1 MB.
 
 **Warum ist es so schnell?**
 
-Die Teile, die schnell sein müssen (Aufnahme, Komposition, Zeichnen, Aufnahmeansicht und Pins), sind in x86-64-Assembler geschrieben, der Rest in C, ohne C-Laufzeitbibliothek. Ein Screenshot wird direkt von der Grafikkarte gelesen und Windows zur Komposition auf der GPU übergeben; das ist viel schneller als die üblichen Aufnahmewege unter Windows.
+Die Teile, die schnell sein müssen (Aufnahme, Komposition, Zeichnen und Aufnahmeansicht), sind in x86-64-Assembler geschrieben, der Rest in C, ohne C-Laufzeitbibliothek. Ein Screenshot wird direkt von der Grafikkarte gelesen und Windows zur Komposition auf der GPU übergeben; das ist viel schneller als die üblichen Aufnahmewege unter Windows.
 
 **Wie viel Speicher braucht es?**
 

@@ -24,7 +24,7 @@
  * buffers go to the heap.
  *
  * No C runtime: never call memcpy, memset, wcslen, sqrtf, ... Use kernel32,
- * user32 etc. (call qword ptr [rip + __imp_Name]), the helpers in util.S, or
+ * user32 etc. (call qword ptr [rip + __imp_Name]), the helpers in util.c, or
  * inline code (rep movsb / rep stosb are fast on every current CPU). */
         .intel_syntax noprefix
 

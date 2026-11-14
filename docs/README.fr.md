@@ -56,7 +56,7 @@ Minuscule : moins de 1 Mo.
 
 **Pourquoi est-il si rapide ?**
 
-Les parties qui doivent aller vite (capture, composition, dessin, écran de capture et épingles) sont écrites en assembleur x86-64, le reste en C, sans bibliothèque d'exécution C. La capture est lue directement depuis la carte graphique et confiée à Windows pour être composée sur le GPU, ce qui est bien plus rapide que les méthodes de capture habituelles de Windows.
+Les parties qui doivent aller vite (capture, composition, dessin et écran de capture) sont écrites en assembleur x86-64, le reste en C, sans bibliothèque d'exécution C. La capture est lue directement depuis la carte graphique et confiée à Windows pour être composée sur le GPU, ce qui est bien plus rapide que les méthodes de capture habituelles de Windows.
 
 **Combien de mémoire utilise-t-il ?**
 
