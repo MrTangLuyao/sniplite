@@ -58,6 +58,19 @@ Winzig: unter 1 MB.
 
 Die Teile, die schnell sein müssen (Aufnahme, Komposition, Zeichnen und Aufnahmeansicht), sind in x86-64-Assembler geschrieben, der Rest in C, ohne C-Laufzeitbibliothek. Ein Screenshot wird direkt von der Grafikkarte gelesen und Windows zur Komposition auf der GPU übergeben; das ist viel schneller als die üblichen Aufnahmewege unter Windows.
 
+**Wie schneidet es im Vergleich ab?**
+
+| Programm | Download | Speicher im Leerlauf | Vom Tastenkürzel bis bereit |
+| --- | --- | --- | --- |
+| **sniplite** | 0,3 MB | 11 MB | 12 ms |
+| Snipaste 2.11.3 | 19 MB | 50 MB | 121 ms |
+| PixPin 3.6.6 | 66 MB | 31 MB | 142 ms |
+| Greenshot 1.3.328 | 4 MB | 16 MB | 252 ms |
+| Flameshot 15.0.0 | 18 MB | 6 MB | nicht gemessen |
+| ShareX 22.4.0 | 139 MB | 58 MB | nicht gemessen |
+
+<sub>Das ist ein informeller Test, nur zur Orientierung.</sub>
+
 **Wie viel Speicher braucht es?**
 
 Meist etwa 50 MB, fast alles davon belegt der Grafiktreiber, direkt nach einer Aufnahme kurz etwas mehr. Wer weniger möchte, wählt in den Einstellungen auf der Seite Aufnahme den Modus Sparsam: etwa 2 MB, dafür langsamere Aufnahmen.

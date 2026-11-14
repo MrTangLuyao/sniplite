@@ -58,6 +58,19 @@ Minuscule : moins de 1 Mo.
 
 Les parties qui doivent aller vite (capture, composition, dessin et écran de capture) sont écrites en assembleur x86-64, le reste en C, sans bibliothèque d'exécution C. La capture est lue directement depuis la carte graphique et confiée à Windows pour être composée sur le GPU, ce qui est bien plus rapide que les méthodes de capture habituelles de Windows.
 
+**Et par rapport aux autres outils ?**
+
+| Outil | Téléchargement | Mémoire au repos | Délai après le raccourci |
+| --- | --- | --- | --- |
+| **sniplite** | 0,3 Mo | 11 Mo | 12 ms |
+| Snipaste 2.11.3 | 19 Mo | 50 Mo | 121 ms |
+| PixPin 3.6.6 | 66 Mo | 31 Mo | 142 ms |
+| Greenshot 1.3.328 | 4 Mo | 16 Mo | 252 ms |
+| Flameshot 15.0.0 | 18 Mo | 6 Mo | non mesuré |
+| ShareX 22.4.0 | 139 Mo | 58 Mo | non mesuré |
+
+<sub>Test informel, à titre indicatif seulement.</sub>
+
 **Combien de mémoire utilise-t-il ?**
 
 Environ 50 Mo la plupart du temps, presque entièrement pris par le pilote graphique, et un peu plus juste après une capture. Pour en utiliser moins, choisissez « Économe » dans l'onglet Capture des préférences : environ 2 Mo, avec des captures plus lentes.

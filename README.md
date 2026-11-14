@@ -58,6 +58,19 @@ Tiny: under 1 MB.
 
 The parts that have to be fast (capture, composition, drawing and the capture overlay) are written in x86-64 assembly and the rest in C, with no C runtime. A screenshot is read straight from the graphics card and handed to Windows to compose on the GPU, which is much faster than the usual ways of capturing the screen on Windows.
 
+**How does it compare with other tools?**
+
+| Tool | Download | Memory when idle | Hotkey to ready |
+| --- | --- | --- | --- |
+| **sniplite** | 0.3 MB | 11 MB | 12 ms |
+| Snipaste 2.11.3 | 19 MB | 50 MB | 121 ms |
+| PixPin 3.6.6 | 66 MB | 31 MB | 142 ms |
+| Greenshot 1.3.328 | 4 MB | 16 MB | 252 ms |
+| Flameshot 15.0.0 | 18 MB | 6 MB | not measured |
+| ShareX 22.4.0 | 139 MB | 58 MB | not measured |
+
+<sub>This is an informal test, for reference only.</sub>
+
 **How much memory does it use?**
 
 About 50 MB most of the time, nearly all of it held by the graphics driver, and a little more right after a capture. To use less, choose Low memory on the Capture page of Settings: about 2 MB, with slower captures.
