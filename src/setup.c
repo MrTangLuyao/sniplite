@@ -2,15 +2,18 @@
  *
  * Per-user (no admin, no UAC), no registry. Copies the two program files that are
  * embedded as resources into %LOCALAPPDATA%\Programs\sniplite, adds a Start menu
- * folder (sniplite, 卸载 sniplite), optionally the Startup shortcut, then starts
+ * folder (sniplite and its uninstaller), optionally the Startup shortcut, then starts
  * sniplite. The new files are written first (*.new); only then is a running
  * sniplite closed and both files swapped in, or neither. Replaced files are moved
  * aside as *.old (allowed even while they run); sniplite deletes them on its next start.
  *
- *   sniplite_win_setup_amd64.exe            window with one checkbox (开机启动)
- *   sniplite_win_setup_amd64.exe /S         silent; a fresh install turns 开机启动 on
- *   sniplite_win_setup_amd64.exe /update    silent, keeps the current 开机启动 choice
- * Exit code 0 = installed, 1 = failed or cancelled. */
+ *   sniplite_win_setup_amd64.exe            window with one checkbox (start with Windows)
+ *   sniplite_win_setup_amd64.exe /S         silent; a fresh install turns that on
+ *   sniplite_win_setup_amd64.exe /update    silent, keeps the current choice
+ * Exit code 0 = installed, 1 = failed or cancelled.
+ *
+ * The window speaks the language sniplite is set to (an installed sniplite.ini),
+ * else the language of Windows. */
 #include "common.h"
 #include "install.h"
 #include "resource.h"
@@ -199,7 +202,15 @@ static bool install(int autostart)
             CreateDirectoryW(menu, NULL);
             if (join(lnk, menu, MENU_APP_LNK))
                 make_link(lnk, NULL);
-            if (join(lnk, menu, MENU_UNINSTALL_LNK))
+            WCHAR name[UNINSTALL_LNK_MAX];
+            for (int i = 0; i < LG_COUNT; i++) { /* one left by an install in another language */
+                uninstall_lnk(i, name);
+                if (join(lnk, menu, name))
+                    DeleteFileW(lnk);
+            }
+            lstrcpynW(name, T(UNINST_TITLE), UNINSTALL_LNK_MAX - 4);
+            lstrcatW(name, L".lnk");
+            if (join(lnk, menu, name))
                 make_link(lnk, L"--uninstall");
         }
         if (autostart >= 0 && special(CSIDL_STARTUP, STARTUP_LNK, lnk)) {
@@ -249,8 +260,13 @@ static INT_PTR CALLBACK dlg_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         I.title_font = CreateFontIndirectW(&lf);
         SendDlgItemMessageW(h, IDC_S_TITLE, WM_SETFONT, (WPARAM)I.title_font, TRUE);
         SetDlgItemTextW(h, IDC_S_TITLE, L"sniplite " SNIPLITE_VERSION);
-        WCHAR t[MAX_PATH + 16];
-        wsprintfW(t, L"安装到 %s", I.dir);
+        SetWindowTextW(h, T(S_CAPTION));
+        SetDlgItemTextW(h, IDC_S_SUB, T(S_SUB));
+        SetDlgItemTextW(h, IDC_S_AUTOSTART, T(S_AUTOSTART));
+        SetDlgItemTextW(h, IDOK, T(S_INSTALL));
+        SetDlgItemTextW(h, IDCANCEL, T(S_CANCEL));
+        WCHAR t[MAX_PATH + 64];
+        wsprintfW(t, T(S_PATH), I.dir);
         SetDlgItemTextW(h, IDC_S_PATH, t);
         /* first install: on by default; reinstall/upgrade: show the current choice */
         CheckDlgButton(h, IDC_S_AUTOSTART, !exists(I.exe) || autostart_on() ? BST_CHECKED : BST_UNCHECKED);
@@ -272,14 +288,14 @@ static INT_PTR CALLBACK dlg_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
                 I.done = true;
                 WCHAR ini[MAX_PATH]; /* own settings may use other keys */
                 bool own = join(ini, I.dir, L"sniplite.ini") && exists(ini);
-                SetDlgItemTextW(h, IDC_S_PATH, own ? L"装好了，sniplite 已在后台运行。" : L"装好了，按 F1 截图，按 F3 贴图。");
+                SetDlgItemTextW(h, IDC_S_PATH, own ? T(S_DONE_OWN) : T(S_DONE));
                 ShowWindow(GetDlgItem(h, IDC_S_AUTOSTART), SW_HIDE);
                 ShowWindow(GetDlgItem(h, IDCANCEL), SW_HIDE);
-                SetDlgItemTextW(h, IDOK, L"完成");
+                SetDlgItemTextW(h, IDOK, T(S_FINISH));
                 EnableWindow(GetDlgItem(h, IDOK), TRUE);
                 SetFocus(GetDlgItem(h, IDOK));
             } else {
-                MessageBoxW(h, L"安装失败：无法写入程序文件。", L"安装 sniplite", MB_OK | MB_ICONERROR);
+                MessageBoxW(h, T(S_FAILED), T(S_CAPTION), MB_OK | MB_ICONERROR);
                 EnableWindow(GetDlgItem(h, IDOK), TRUE);
                 EnableWindow(GetDlgItem(h, IDCANCEL), TRUE);
                 SendMessageW(h, WM_NEXTDLGCTL, (WPARAM)GetDlgItem(h, IDOK), TRUE);
@@ -314,8 +330,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
     }
     if (!ExpandEnvironmentStringsW(INSTALL_DIR, I.dir, MAX_PATH) || I.dir[0] == L'%' || !join(I.exe, I.dir, L"sniplite.exe"))
         return 1;
+    WCHAR ini[MAX_PATH];
+    lang_init(join(ini, I.dir, L"sniplite.ini") ? ini : L"");
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     if (silent || update)
         return install(update || exists(I.exe) ? -1 : 1) ? 0 : 1;
-    return (int)DialogBoxParamW(inst, MAKEINTRESOURCEW(IDD_SETUP), NULL, dlg_proc, 0);
+    return (int)lang_dialog_box(inst, IDD_SETUP, NULL, dlg_proc);
 }

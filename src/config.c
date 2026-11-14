@@ -2,6 +2,7 @@
  * sniplite.ini lives next to the exe and is only written from the preferences window;
  * without it everything uses the defaults. */
 #include "config.h"
+#include "lang.h"
 
 static const struct {
     const WCHAR *name;
@@ -102,15 +103,7 @@ void config_defaults(Config *c)
     c->auto_update = true;
 }
 
-void config_path(WCHAR *out, int cap)
-{
-    DWORD n = GetModuleFileNameW(NULL, out, (DWORD)cap);
-    WCHAR *sl = n && n < (DWORD)cap ? wcsrchr(out, L'\\') : NULL;
-    if (sl && (sl - out) + 13 < cap)
-        lstrcpyW(sl + 1, L"sniplite.ini");
-    else
-        out[0] = 0;
-}
+void config_path(WCHAR *out, int cap) { ini_path(out, cap); }
 
 static const WCHAR *kHkKeys[HK_COUNT] = {NULL, L"hotkey", L"pin_hotkey", L"toggle_hotkey"};
 
@@ -144,9 +137,9 @@ bool config_save(const Config *c)
     if (!path[0])
         return false;
     Str s = {0};
-    str_add(&s, L"; sniplite 设置（删除本文件即恢复默认）\r\n");
-    str_add(&s, L"; 热键写法：F1、Ctrl+Alt+A、Shift+PrtSc，none 表示不用\r\n");
-    str_add(&s, L"; capture：dxgi 最快，gdi 最省内存\r\n");
+    str_add(&s, T(INI_1));
+    str_add(&s, T(INI_2));
+    str_add(&s, T(INI_3));
     str_add(&s, L"[sniplite]\r\n");
     for (int id = 1; id < HK_COUNT; id++) {
         WCHAR k[40];
@@ -155,6 +148,8 @@ bool config_save(const Config *c)
     }
     str_addf(&s, L"capture=%s\r\ntray=%d\r\nauto_update=%d\r\n", c->gdi ? L"gdi" : L"dxgi", c->tray ? 1 : 0,
              c->auto_update ? 1 : 0);
+    if (lang_choice() != LG_AUTO) /* kept by lang.c; without the line the language follows Windows */
+        str_addf(&s, L"lang=%s\r\n", lang_code(lang_choice()));
     /* UTF-8 without BOM: Notepad shows the comments, and the ASCII keys/values
      * read back fine through GetPrivateProfileString. */
     int n = WideCharToMultiByte(CP_UTF8, 0, s.p, s.n, NULL, 0, NULL, NULL);

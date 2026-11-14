@@ -1,9 +1,9 @@
-/* util.S: small helpers shared by every module (and by the console client), in
- * x86-64 assembly. Same symbols, signatures and results as the C version
- * (common.h); tests/util_test.c compares the two. */
+/* util.S: small helpers shared by every module and by the console client
+ * (declared in common.h): memory, growable strings, rectangles, command-line
+ * splitting, DPI, the Img bitmap. */
 #include "asm.inc"
 
-/* Windows values used here (checked by tests/util_layout_test.c) */
+/* Windows values used here */
 #define W_HEAP_ZERO_MEMORY 8
 #define W_CSTR_EQUAL 2
 #define W_MONITOR_DEFAULTTONEAREST 2

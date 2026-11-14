@@ -1,84 +1,95 @@
 <div align="center">
 
-<img src="pics/icon.png" width="96" alt="sniplite 图标">
+<img src="pics/icon.png" width="96" alt="sniplite icon">
 
 # sniplite
 
-**极度轻量的截图贴图工具，核心用汇编开发**
+**A tiny, fast screenshot and pin tool, with its core written in assembly**
 
-[![版本](https://img.shields.io/github/v/tag/MrTangLuyao/sniplite?sort=date&label=%E7%89%88%E6%9C%AC&style=flat-square&color=1677e5)](https://github.com/MrTangLuyao/sniplite/releases) [![系统](https://img.shields.io/badge/%E7%B3%BB%E7%BB%9F-Windows%2010%20%2F%2011-3b82f6?style=flat-square)](#下载) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-3b82f6?style=flat-square)](LICENSE)
+[![English](https://img.shields.io/badge/English-1677e5?style=flat-square)](README.md) [![简体中文](https://img.shields.io/badge/%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-eaeef2?style=flat-square)](docs/README.zh-CN.md) [![繁體中文](https://img.shields.io/badge/%E7%B9%81%E9%AB%94%E4%B8%AD%E6%96%87-eaeef2?style=flat-square)](docs/README.zh-TW.md) [![日本語](https://img.shields.io/badge/%E6%97%A5%E6%9C%AC%E8%AA%9E-eaeef2?style=flat-square)](docs/README.ja.md) [![한국어](https://img.shields.io/badge/%ED%95%9C%EA%B5%AD%EC%96%B4-eaeef2?style=flat-square)](docs/README.ko.md) [![Français](https://img.shields.io/badge/Fran%C3%A7ais-eaeef2?style=flat-square)](docs/README.fr.md) [![Deutsch](https://img.shields.io/badge/Deutsch-eaeef2?style=flat-square)](docs/README.de.md) [![Español](https://img.shields.io/badge/Espa%C3%B1ol-eaeef2?style=flat-square)](docs/README.es.md)
 
-[**下载**](#下载) · [默认快捷键](#默认快捷键) · [常见问题](#常见问题)
+[![version](https://img.shields.io/github/v/tag/MrTangLuyao/sniplite?sort=date&label=version&style=flat-square&color=1677e5)](https://github.com/MrTangLuyao/sniplite/releases) [![system](https://img.shields.io/badge/system-Windows%2010%20%2F%2011-3b82f6?style=flat-square)](#download) [![license](https://img.shields.io/badge/license-MIT-3b82f6?style=flat-square)](LICENSE)
 
-<img src="pics/demo-edit.png" alt="框选一块区域，直接在上面画圈、箭头、文字和序号" width="66%">
+[**Download**](#download) | [Default shortcuts](#default-shortcuts) | [FAQ](#faq)
+
+<img src="pics/demo-edit.png" alt="Select an area and draw circles, arrows, text and numbers right on it" width="66%">
 <br>
-<img src="pics/demo-select.png" alt="截图前自动识别鼠标下的窗口和控件，放大镜能看清像素和颜色" width="32.5%"> <img src="pics/demo-pin.png" alt="把截图或文字钉在屏幕最上层，滚轮缩放" width="32.5%">
+<img src="pics/demo-select.png" alt="Before a capture, the window or control under the mouse is found for you; the magnifier shows pixels and colors" width="32.5%"> <img src="pics/demo-pin.png" alt="Pin a screenshot or text on top of the screen; the wheel zooms" width="32.5%">
 
 </div>
 
-## 特色
+## Features
 
-- **快**：按F1截图 领先99%截图软件的截图速度
-- **轻**：本体不到200KB，无需安装任何运行库，截图和绘图的核心代码用汇编编写
-- **能贴图**：把截图钉在屏幕最上层，切到别的窗口也挡不住，对照着看很方便
-- **够用**：功能全面，截图，贴图，箭头，文字，马赛克 样样都有
-- **干净**：没有广告，开源，无日志，不收集数据
+- **Fast**: press F1 and the screenshot is there, sooner than in 99% of screenshot tools
+- **Light**: about 220 KB, nothing else to install; the capture and drawing core is written in assembly
+- **Pins**: pin a screenshot on top of every other window, so it stays in view while you work
+- **Complete**: screenshots, pins, arrows, text, mosaic: it is all there
+- **Clean**: no ads, open source, no logs, no data collected
+- **Multilingual**: 8 languages, following Windows unless you pick one
 
-## 下载
+## Download
 
-到 [Releases](https://github.com/MrTangLuyao/sniplite/releases/latest) 下载最新版安装。
+Get the latest installer from [Releases](https://github.com/MrTangLuyao/sniplite/releases/latest).
 
 > [!TIP]
-> 图标在任务栏右下角，没看到的话点一下那里的小箭头。想让它一直显示，在 Windows 设置里搜索“其他系统托盘图标”，把 sniplite 打开。
+> The icon is at the right end of the taskbar; click the small arrow there if you do not see it. To keep it in view, search Windows Settings for "Other system tray icons" and turn sniplite on.
 
-## 默认快捷键
+## Default shortcuts
 
-| 按键 | 作用 |
+| Key | What it does |
 | --- | --- |
-| **F1** | 截图 |
-| **F3** | 把复制的图片或文字贴到屏幕上 |
-| **Shift+F3** | 隐藏 / 显示所有贴图 |
-| **Enter** | 复制截图 |
-| **Ctrl+S** | 保存截图 |
-| **Ctrl+T** | 把截图贴到屏幕上 |
-| **Esc** | 取消截图 |
-| **滚轮** | 截图时换窗口范围，贴图时缩放 |
-| **双击** | 关闭贴图 |
+| **F1** | Capture |
+| **F3** | Pin the copied image or text to the screen |
+| **Shift+F3** | Hide / show all pins |
+| **Enter** | Copy the capture |
+| **Ctrl+S** | Save the capture |
+| **Ctrl+T** | Pin the capture to the screen |
+| **Esc** | Cancel the capture |
+| **Wheel** | Capturing: pick a bigger or smaller window; on a pin: zoom |
+| **Double-click** | Close a pin |
 
-## 常见问题
+## FAQ
 
-**软件有多大？**
+**How big is it?**
 
-极其轻量，不到 1 MB。
+Tiny: under 1 MB.
 
-**为什么这么快？**
+**Why is it so fast?**
 
-截图、画面合成、绘制、截图界面和贴图这些要快的部分用 x86-64 汇编编写，其余部分用 C，整个程序不依赖 C 运行库。截图直接从显卡读取屏幕画面，交给系统在显卡上合成显示，比 Windows 常用的截屏方法快很多。
+The parts that have to be fast (capture, composition, drawing, the capture overlay and pins) are written in x86-64 assembly and the rest in C, with no C runtime. A screenshot is read straight from the graphics card and handed to Windows to compose on the GPU, which is much faster than the usual ways of capturing the screen on Windows.
 
-**占多少内存？**
+**How much memory does it use?**
 
-平时大约 50 MB，主要是显卡驱动占的，刚截完图会短暂多占一些。想更省的话，可以在首选项的截屏页里选省内存，只占 2 MB 左右，代价是截图会慢一点。
+About 50 MB most of the time, nearly all of it held by the graphics driver, and a little more right after a capture. To use less, choose Low memory on the Capture page of Settings: about 2 MB, with slower captures.
 
-**会在电脑上留下什么？**
+**What does it leave on my computer?**
 
-不用管理员权限，不改注册表。改过设置后会多一个设置文件，删掉它就恢复默认。
+It needs no administrator rights and does not touch the registry. Changing a setting creates one settings file; delete it to get the defaults back.
 
-**怎么更新？**
+**How do I change the language?**
 
-软件每天会到 GitHub 看一眼有没有新版本，有的话右下角会提示，点一下就能更新。只查版本号，不上传任何数据，不想要可以在首选项里关掉。
+sniplite follows the language of Windows. To use another, open Settings from the tray icon and pick it under Language.
 
-**怎么卸载？**
+**How do I update?**
 
-在开始菜单的 sniplite 文件夹里点“卸载 sniplite”，程序、设置和快捷方式都会删掉。
+Once a day sniplite asks GitHub whether there is a newer version. If there is, a notification appears at the bottom right, and one click updates. Only the version number is checked and nothing is uploaded; you can turn this off in Settings.
 
-**能用命令行吗？**
+**How do I uninstall it?**
 
-能，运行 sniplite help 就能看到用法。
+Click "Uninstall sniplite" in the sniplite folder of the Start menu. The program, its settings and its shortcuts are removed.
 
-## 自己编译
+**Is there a command line?**
 
-装好 [w64devkit](https://github.com/skeeto/w64devkit)（或其他 MinGW-w64），把它的 `bin` 文件夹加进 PATH，然后运行 `build.bat`，程序会生成在 `build` 文件夹里。源码在 `src` 里：要快的部分是汇编文件（`.S`），由 gcc 调用 GNU 汇编器编译，其余是 C 文件（`.c`）。不链接 C 运行库，只用到 Windows 自带的系统库。
+Yes. Run `sniplite help` to see it.
 
-## 许可证
+## Settings
+
+<img src="pics/ui/en.png" alt="The five pages of the settings, the shortcut list and the installer">
+
+## Build it yourself
+
+Install [w64devkit](https://github.com/skeeto/w64devkit) (or another MinGW-w64), add its `bin` folder to PATH and run `build.bat`; the programs appear in the `build` folder. The source is in `src`: the fast parts are assembly files (`.S`), assembled by gcc with the GNU assembler, the rest is C (`.c`). No C runtime is linked, only the system libraries that come with Windows.
+
+## License
 
 [MIT](LICENSE)

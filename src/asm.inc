@@ -94,7 +94,8 @@
  * with the readable text in a comment above, in .rdata:
  *         / * L"截图" * /
  *   w_capture: .short 0x622A, 0x56FE, 0
- * Generate the lists with a script from the C source; never type them by hand. */
+ * Generate the lists with a script; never type them by hand. Texts the user reads
+ * are not written this way: they come from the language table (lang.inc). */
 
 /* ---- shared constants (common.h, config.h) --------------------------------------- */
 
@@ -118,7 +119,7 @@
 #define HK_TOGGLE 3
 #define HK_COUNT 4
 
-/* ---- shared structures (offsets checked by tests/layout_test.c) ------------------- */
+/* ---- shared structures ------------------------------------------------------------ */
 
 /* RECT */
 #define RC_L 0
@@ -157,14 +158,6 @@
 #define STR_CAP 12
 #define STR_SIZE 16
 
-/* Config (config.h) */
-#define CFG_MOD 0               /* UINT[HK_COUNT] */
-#define CFG_VK 16               /* UINT[HK_COUNT] */
-#define CFG_GDI 32              /* bool */
-#define CFG_TRAY 33
-#define CFG_AUTO_UPDATE 34
-#define CFG_SIZE 36
-
 /* OvTiming (overlay.h): doubles */
 #define OVT_TOTAL 0
 #define OVT_GRAB 8
@@ -175,7 +168,7 @@
 
 /* ---- floating point without the C runtime (SSE2) --------------------------------------- */
 
-/* dst = (int)floorf(src). Out-of-range values give 0x80000000 like the C cast. */
+/* dst = (int)floorf(src). Out-of-range values give 0x80000000, like a C cast. */
 .macro FLOORI dst, src, tmp
         cvttss2si \dst, \src
         cmp \dst, 0x80000000

@@ -1,4 +1,5 @@
-/* Preferences window: tabs 常规 / 截屏 / 控制 / 更新 / 关于, changes apply immediately.
+/* Preferences window: five tabs (general, capture, hotkeys, update, about); changes
+ * apply immediately.
  *
  * Every change is written to sniplite.ini and the background process is told to
  * reload it (`_reload`), which also reports whether each hotkey could be
@@ -12,6 +13,7 @@
 #include "image.h"
 #include "resource.h"
 #include "install.h"
+#include "lang.h"
 #include "update.h"
 #include <commctrl.h>
 #include <shlobj.h>
@@ -45,6 +47,8 @@ static struct {
     bool installing; /* the installer is swapping files: keep the window open */
     WCHAR tag[32];   /* newer release found by the check */
     WCHAR setup[MAX_PATH];
+    bool reopen;     /* the language changed: show the window again, in that language */
+    POINT at;        /* where it was */
 } S;
 
 /* ---- talking to the background process ------------------------------------ */
@@ -202,13 +206,13 @@ static void hk_paint(HWND h, HkField *f)
             if (m & MOD_ALT) lstrcatW(t, L"Alt+");
             if (m & MOD_SHIFT) lstrcatW(t, L"Shift+");
         } else {
-            lstrcpyW(t, L"按下快捷键");
+            lstrcpynW(t, T(HKF_PRESS), COUNTOF(t));
         }
         tc = accent;
     } else if (f->vk) {
         hotkey_format(f->mod, f->vk, t);
     } else {
-        lstrcpyW(t, L"未设置");
+        lstrcpynW(t, T(UNSET), COUNTOF(t));
         tc = GetSysColor(COLOR_GRAYTEXT);
     }
     HGDIOBJ of = SelectObject(mem, f->font ? (HGDIOBJ)f->font : GetStockObject(DEFAULT_GUI_FONT));
@@ -388,28 +392,31 @@ static void show_hotkeys(void)
 
 typedef BOOL(WINAPI *PFN_SetWindowTheme)(HWND, LPCWSTR, LPCWSTR);
 
+/* One row: what it does, and its keys. The keys are a fixed name (the same in every
+ * language), else a text, else the global hotkey `hk` as it is set. */
 typedef struct {
-    int group;
-    const WCHAR *what, *keys; /* keys NULL: the configured global hotkey `hk` */
+    int group; /* 0..2: S_SC_G_CAPTURE + group */
+    int what;  /* S_... */
+    const WCHAR *keys;
+    int keys_s; /* S_..., 0: none */
     int hk;
 } Shortcut;
 
-static const WCHAR *kGroups[] = {L"截图", L"贴图", L"小技巧"};
 static const Shortcut kShortcuts[] = {
-    {0, L"开始截图", NULL, HK_CAPTURE},
-    {0, L"选中整个窗口", L"单击", 0},
-    {0, L"复制", L"Enter 或 双击", 0},
-    {0, L"保存", L"Ctrl+S", 0},
-    {0, L"贴到屏幕", L"Ctrl+T", 0},
-    {0, L"撤销", L"Ctrl+Z", 0},
-    {0, L"退出", L"Esc", 0},
-    {1, L"把剪贴板贴出来", NULL, HK_PIN},
-    {1, L"放大缩小", L"滚轮", 0},
-    {1, L"调透明度", L"Ctrl+滚轮", 0},
-    {1, L"关掉", L"双击 或 Esc", 0},
-    {2, L"选大一点 / 小一点", L"截图时滚轮", 0},
-    {2, L"挪一个像素", L"方向键", 0},
-    {2, L"取颜色", L"截图时按 C", 0},
+    {0, S_SC_START, NULL, 0, HK_CAPTURE},
+    {0, S_SC_WINDOW, NULL, S_K_CLICK, 0},
+    {0, S_SC_COPY, NULL, S_K_ENTER_DBL, 0},
+    {0, S_SC_SAVE, L"Ctrl+S", 0, 0},
+    {0, S_SC_PIN, L"Ctrl+T", 0, 0},
+    {0, S_SC_UNDO, L"Ctrl+Z", 0, 0},
+    {0, S_SC_CANCEL, L"Esc", 0, 0},
+    {1, S_SC_PIN_CLIP, NULL, 0, HK_PIN},
+    {1, S_SC_ZOOM, NULL, S_K_WHEEL, 0},
+    {1, S_SC_OPACITY, NULL, S_K_CTRL_WHEEL, 0},
+    {1, S_SC_CLOSE, NULL, S_K_DBL_ESC, 0},
+    {2, S_SC_GROW, NULL, S_K_WHEEL_CAP, 0},
+    {2, S_SC_NUDGE, NULL, S_K_ARROWS, 0},
+    {2, S_SC_COLOR, NULL, S_K_C_CAP, 0},
 };
 
 static void fill_shortcuts(HWND list)
@@ -427,28 +434,28 @@ static void fill_shortcuts(HWND list)
     col.pszText = L"";
     SendMessageW(list, LVM_INSERTCOLUMNW, 1, (LPARAM)&col);
     SendMessageW(list, LVM_ENABLEGROUPVIEW, TRUE, 0);
-    for (int g = 0; g < COUNTOF(kGroups); g++) {
+    for (int g = 0; g < 3; g++) {
         LVGROUP lg = {0};
         lg.cbSize = sizeof lg;
         lg.mask = LVGF_HEADER | LVGF_GROUPID;
-        lg.pszHeader = (WCHAR *)kGroups[g];
+        lg.pszHeader = (WCHAR *)g_tr[S_SC_G_CAPTURE + g];
         lg.iGroupId = g;
         SendMessageW(list, LVM_INSERTGROUP, (WPARAM)-1, (LPARAM)&lg);
     }
     for (int i = 0; i < COUNTOF(kShortcuts); i++) {
         const Shortcut *s = &kShortcuts[i];
         WCHAR keys[40];
-        if (s->keys)
-            lstrcpynW(keys, s->keys, COUNTOF(keys));
+        if (s->keys || s->keys_s)
+            lstrcpynW(keys, s->keys ? s->keys : g_tr[s->keys_s], COUNTOF(keys));
         else if (S.cfg.vk[s->hk])
             hotkey_format(S.cfg.mod[s->hk], S.cfg.vk[s->hk], keys);
         else
-            lstrcpyW(keys, L"（未设置）");
+            lstrcpynW(keys, T(SC_UNSET), COUNTOF(keys));
         LVITEMW it = {0};
         it.mask = LVIF_TEXT | LVIF_GROUPID;
         it.iItem = i;
         it.iGroupId = s->group;
-        it.pszText = (WCHAR *)s->what;
+        it.pszText = (WCHAR *)g_tr[s->what];
         int row = (int)SendMessageW(list, LVM_INSERTITEMW, 0, (LPARAM)&it);
         it.mask = LVIF_TEXT;
         it.iItem = row;
@@ -470,10 +477,15 @@ static INT_PTR CALLBACK shortcuts_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         HICON small = LoadImageW(S.inst, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
                                  GetSystemMetrics(SM_CYSMICON), 0);
         SendMessageW(h, WM_SETICON, ICON_SMALL, (LPARAM)small);
+        SetPropW(h, SHORTCUTS_MARK, (HANDLE)1);
+        SetWindowTextW(h, T(SHORTCUTS_TITLE));
+        SetDlgItemTextW(h, IDOK, T(OK_BTN));
         fill_shortcuts(GetDlgItem(h, IDC_LIST));
         SetForegroundWindow(h);
         return TRUE;
     }
+    if (m == WM_DESTROY)
+        RemovePropW(h, SHORTCUTS_MARK);
     if ((m == WM_COMMAND && (LOWORD(wp) == IDOK || LOWORD(wp) == IDCANCEL)) || m == WM_CLOSE) {
         EndDialog(h, 0);
         return TRUE;
@@ -483,7 +495,7 @@ static INT_PTR CALLBACK shortcuts_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
 
 static void show_help(HWND owner)
 {
-    DialogBoxParamW(S.inst, MAKEINTRESOURCEW(IDD_SHORTCUTS), owner, shortcuts_proc, 0);
+    lang_dialog_box(S.inst, IDD_SHORTCUTS, owner, shortcuts_proc);
 }
 
 /* ---- update page: check, download, install (each step on a worker thread) ---------- */
@@ -535,9 +547,9 @@ static void upd_check(void)
     if (S.busy)
         return;
     upd_buttons(false, false);
-    upd_status(L"正在检查...");
+    upd_status(T(U_CHECKING));
     if (!upd_run(check_thread)) {
-        upd_status(L"检查失败。");
+        upd_status(T(U_CHECK_FAILED));
         upd_buttons(true, false);
     }
 }
@@ -550,22 +562,22 @@ static void upd_checked(int state)
     case UPD_NEWER:
         lstrcpynW(S.tag, g_upd.tag, COUNTOF(S.tag));
         if (!update_installed_copy()) { /* e.g. built from source: the installer would not touch it */
-            wsprintfW(t, L"有新版本：%s，请到 GitHub 下载。", S.tag);
+            wsprintfW(t, T(U_NEWER_MANUAL), S.tag);
             upd_status(t);
             break;
         }
-        wsprintfW(t, L"有新版本：%s", S.tag);
+        wsprintfW(t, T(U_NEWER), S.tag);
         upd_status(t);
         upd_buttons(true, true);
         return;
     case UPD_LATEST:
-        upd_status(L"已是最新版本。");
+        upd_status(T(U_LATEST));
         break;
     case UPD_NONE:
-        upd_status(L"还没有发布的版本。");
+        upd_status(T(U_NONE));
         break;
     default:
-        upd_status(L"检查失败，请检查网络。");
+        upd_status(T(U_NET_FAILED));
         break;
     }
     upd_buttons(true, false);
@@ -623,13 +635,13 @@ static void upd_install(void)
 {
     if (S.busy || !S.tag[0])
         return;
-    if (daemon_pins() > 0 && MessageBoxW(S.dlg, L"更新时 sniplite 会重新启动，屏幕上的贴图会关掉。\n要继续吗？",
-                                         SETTINGS_TITLE, MB_OKCANCEL | MB_ICONQUESTION) != IDOK)
+    if (daemon_pins() > 0 &&
+        MessageBoxW(S.dlg, T(U_CONFIRM), T(SETTINGS_TITLE), MB_OKCANCEL | MB_ICONQUESTION) != IDOK)
         return;
     upd_buttons(false, false);
-    upd_status(L"正在下载...");
+    upd_status(T(U_DOWNLOADING));
     if (!upd_run(fetch_thread)) {
-        upd_status(L"下载失败，请稍后再试。");
+        upd_status(T(U_DOWNLOAD_FAILED));
         upd_buttons(true, true);
     }
 }
@@ -638,11 +650,11 @@ static void upd_fetched(bool ok)
 {
     if (!ok) {
         S.busy = false;
-        upd_status(L"下载失败，请稍后再试。");
+        upd_status(T(U_DOWNLOAD_FAILED));
         upd_buttons(true, true);
         return;
     }
-    upd_status(L"正在安装...");
+    upd_status(T(U_INSTALLING));
     Str cmd = {0};
     str_add_quoted(&cmd, S.setup);
     str_add(&cmd, L" /update");
@@ -662,7 +674,7 @@ static void upd_fetched(bool ok)
     if (!t) {
         S.busy = S.installing = false;
         DeleteFileW(S.setup);
-        upd_status(L"安装失败。");
+        upd_status(T(U_INSTALL_FAILED));
         upd_buttons(true, true);
     }
 }
@@ -676,7 +688,7 @@ static void upd_done(DWORD code)
         EndDialog(S.dlg, 0);
         return;
     }
-    upd_status(L"安装失败。");
+    upd_status(T(U_INSTALL_FAILED));
     upd_buttons(true, true);
 }
 
@@ -687,9 +699,34 @@ static void ensure_ini(WCHAR *path)
         config_save(&S.cfg);
 }
 
+/* Another language: keep it, tell the background process, and show this window
+ * again in it, where it was. A dialog is laid out once, for the font it is created
+ * with, so it is not changed in place. */
+static void set_language(int lang)
+{
+    lang_choose(lang);
+    apply();
+    RECT rc;
+    GetWindowRect(S.dlg, &rc);
+    S.at.x = rc.left;
+    S.at.y = rc.top;
+    S.reopen = true;
+    EndDialog(S.dlg, 0);
+}
+
 static void page_command(HWND page, int id, int code, HWND ctl)
 {
     WCHAR path[MAX_PATH], arg[MAX_PATH + 16];
+    if (id == IDC_LANG) {
+        int lang = (int)SendMessageW(ctl, CB_GETCURSEL, 0, 0) - 1; /* the first entry is LG_AUTO */
+        if (code != CBN_SELCHANGE || lang == lang_choice())
+            return;
+        if (S.busy) /* a worker thread is about to report to this window */
+            SendMessageW(ctl, CB_SETCURSEL, (WPARAM)(lang_choice() + 1), 0);
+        else
+            set_language(lang);
+        return;
+    }
     if (id >= IDC_HK_FIELD1 && id <= IDC_HK_FIELD3) {
         int hk = id - IDC_HK_FIELD1 + 1;
         if (code == HKN_BEGIN) {
@@ -715,7 +752,7 @@ static void page_command(HWND page, int id, int code, HWND ctl)
     case IDC_AUTOSTART: {
         bool on = IsDlgButtonChecked(page, IDC_AUTOSTART) == BST_CHECKED;
         if (!autostart_set(on)) {
-            MessageBoxW(S.dlg, on ? L"无法创建开机启动快捷方式。" : L"无法删除开机启动快捷方式。", SETTINGS_TITLE,
+            MessageBoxW(S.dlg, on ? T(AUTOSTART_ADD_FAILED) : T(AUTOSTART_DEL_FAILED), T(SETTINGS_TITLE),
                         MB_OK | MB_ICONWARNING);
             CheckDlgButton(page, IDC_AUTOSTART, autostart_on() ? BST_CHECKED : BST_UNCHECKED);
         }
@@ -763,6 +800,10 @@ static void page_command(HWND page, int id, int code, HWND ctl)
             CheckDlgButton(page, IDC_TRAY, d.tray ? BST_CHECKED : BST_UNCHECKED);
             if (autostart_on() || autostart_set(true)) /* on by default */
                 CheckDlgButton(page, IDC_AUTOSTART, BST_CHECKED);
+            if (lang_choice() != LG_AUTO && !S.busy) {
+                set_language(LG_AUTO);
+                return;
+            }
         } else if (page == S.page[PG_CAPTURE]) {
             S.cfg.gdi = d.gdi;
             CheckRadioButton(page, IDC_DXGI, IDC_GDI, d.gdi ? IDC_GDI : IDC_DXGI);
@@ -816,6 +857,37 @@ static INT_PTR CALLBACK page_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
 
 /* ---- main window ------------------------------------------------------------------------- */
 
+/* The controls with a text of their own (the .rc has the places and sizes only). */
+static const struct {
+    unsigned char page;
+    unsigned char id; /* IDC_... */
+    unsigned char s;  /* S_... */
+} kTexts[] = {
+    {PG_GENERAL, IDC_AUTOSTART, S_G_AUTOSTART},
+    {PG_GENERAL, IDC_TRAY, S_G_TRAY},
+    {PG_GENERAL, IDC_LANG_LABEL, S_G_LANG},
+    {PG_GENERAL, IDC_INI_GROUP, S_G_INI_GROUP},
+    {PG_GENERAL, IDC_PATH_LABEL, S_G_PATH},
+    {PG_GENERAL, IDC_OPEN_DIR, S_G_OPEN_DIR},
+    {PG_GENERAL, IDC_OPEN_INI, S_G_OPEN_INI},
+    {PG_CAPTURE, IDC_MODE_LABEL, S_C_MODE},
+    {PG_CAPTURE, IDC_DXGI, S_C_DXGI},
+    {PG_CAPTURE, IDC_GDI, S_C_GDI},
+    {PG_CAPTURE, IDC_HINT, S_C_HINT},
+    {PG_HOTKEYS, IDC_HK_LABEL1, S_H_CAPTURE},
+    {PG_HOTKEYS, IDC_HK_LABEL2, S_H_PIN},
+    {PG_HOTKEYS, IDC_HK_LABEL3, S_H_TOGGLE},
+    {PG_HOTKEYS, IDC_HINT, S_H_HINT},
+    {PG_HOTKEYS, IDC_BUILTIN, S_H_BUILTIN},
+    {PG_UPDATE, IDC_U_CHECK, S_U_CHECK_BTN},
+    {PG_UPDATE, IDC_U_INSTALL, S_U_INSTALL_BTN},
+    {PG_UPDATE, IDC_U_AUTO, S_U_AUTO},
+    {PG_UPDATE, IDC_HINT, S_U_HINT},
+    {PG_ABOUT, IDC_TAGLINE, S_TAGLINE},
+    {PG_ABOUT, IDC_LICENSE, S_A_LICENSE},
+};
+_Static_assert(S_COUNT <= 256, "kTexts keeps text numbers in a byte");
+
 static void select_page(int i)
 {
     for (int k = 0; k < PG_COUNT; k++)
@@ -834,7 +906,8 @@ static INT_PTR CALLBACK main_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
                                  GetSystemMetrics(SM_CYSMICON), 0);
         SendMessageW(h, WM_SETICON, ICON_BIG, (LPARAM)big);
         SendMessageW(h, WM_SETICON, ICON_SMALL, (LPARAM)small);
-        static const WCHAR *names[PG_COUNT] = {L"常规", L"截屏", L"控制", L"更新", L"关于"};
+        SetPropW(h, SETTINGS_MARK, (HANDLE)1);
+        SetWindowTextW(h, T(SETTINGS_TITLE));
         static const int ids[PG_COUNT] = {IDD_PAGE_GENERAL, IDD_PAGE_CAPTURE, IDD_PAGE_HOTKEYS, IDD_PAGE_UPDATE,
                                            IDD_PAGE_ABOUT};
         RECT rc;
@@ -843,24 +916,34 @@ static INT_PTR CALLBACK main_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         for (int i = 0; i < PG_COUNT; i++) {
             TCITEMW ti = {0};
             ti.mask = TCIF_TEXT;
-            ti.pszText = (WCHAR *)names[i];
+            ti.pszText = (WCHAR *)g_tr[S_TAB_GENERAL + i];
             SendMessageW(S.tabs, TCM_INSERTITEMW, (WPARAM)i, (LPARAM)&ti);
         }
         SendMessageW(S.tabs, TCM_ADJUSTRECT, FALSE, (LPARAM)&rc);
         for (int i = 0; i < PG_COUNT; i++) {
-            S.page[i] = CreateDialogParamW(S.inst, MAKEINTRESOURCEW(ids[i]), h, page_proc, 0);
+            S.page[i] = lang_dialog_create(S.inst, ids[i], h, page_proc);
             SetWindowPos(S.page[i], HWND_TOP, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, SWP_NOACTIVATE);
+            SetDlgItemTextW(S.page[i], IDC_DEFAULTS, T(DEFAULTS));
         }
+        for (int i = 0; i < COUNTOF(kTexts); i++)
+            SetDlgItemTextW(S.page[kTexts[i].page], kTexts[i].id, g_tr[kTexts[i].s]);
         HWND g = S.page[PG_GENERAL], c = S.page[PG_CAPTURE];
         CheckDlgButton(g, IDC_AUTOSTART, autostart_on() ? BST_CHECKED : BST_UNCHECKED);
         CheckDlgButton(g, IDC_TRAY, S.cfg.tray ? BST_CHECKED : BST_UNCHECKED);
+        WCHAR t[96]; /* the languages: what Windows uses, then each by its own name */
+        wsprintfW(t, T(G_LANG_AUTO), lang_name(lang_system()));
+        SendDlgItemMessageW(g, IDC_LANG, CB_ADDSTRING, 0, (LPARAM)t);
+        for (int i = 0; i < LG_COUNT; i++)
+            SendDlgItemMessageW(g, IDC_LANG, CB_ADDSTRING, 0, (LPARAM)lang_name(i));
+        SendDlgItemMessageW(g, IDC_LANG, CB_SETCURSEL, (WPARAM)(lang_choice() + 1), 0);
         WCHAR ini[MAX_PATH];
         config_path(ini, MAX_PATH);
         SetDlgItemTextW(g, IDC_INI_PATH, ini);
         CheckRadioButton(c, IDC_DXGI, IDC_GDI, S.cfg.gdi ? IDC_GDI : IDC_DXGI);
         SetDlgItemTextW(S.page[PG_ABOUT], IDC_VERSION, L"sniplite " SNIPLITE_VERSION);
         HWND u = S.page[PG_UPDATE];
-        SetDlgItemTextW(u, IDC_U_VERSION, L"当前版本：" SNIPLITE_VERSION);
+        wsprintfW(t, T(U_VERSION), SNIPLITE_VERSION);
+        SetDlgItemTextW(u, IDC_U_VERSION, t);
         CheckDlgButton(u, IDC_U_AUTO, S.cfg.auto_update ? BST_CHECKED : BST_UNCHECKED);
         ShowWindow(GetDlgItem(u, IDC_U_INSTALL), SW_HIDE);
         show_hotkeys();
@@ -870,8 +953,17 @@ static INT_PTR CALLBACK main_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         if (S.start_page == PG_UPDATE)
             upd_check();
         SetForegroundWindow(h);
+        if (S.reopen) { /* back where it was, on the control that was used */
+            S.reopen = false;
+            SetWindowPos(h, NULL, S.at.x, S.at.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+            SetFocus(GetDlgItem(g, IDC_LANG));
+            return FALSE;
+        }
         return TRUE;
     }
+    case WM_DESTROY:
+        RemovePropW(h, SETTINGS_MARK);
+        return FALSE;
     case WM_NOTIFY: {
         const NMHDR *nm = (const NMHDR *)lp;
         if (nm->idFrom == IDC_TABS && nm->code == TCN_SELCHANGE)
@@ -884,9 +976,9 @@ static INT_PTR CALLBACK main_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
     case WM_APP_UPD_PROGRESS: {
         WCHAR t[48];
         if ((int)wp >= 0)
-            wsprintfW(t, L"正在下载... %d%%", (int)wp);
+            wsprintfW(t, T(U_DOWNLOAD_PCT), (int)wp);
         else
-            lstrcpyW(t, L"正在下载...");
+            lstrcpynW(t, T(U_DOWNLOADING), COUNTOF(t));
         upd_status(t);
         return TRUE;
     }
@@ -947,9 +1039,7 @@ static void helper_init(HINSTANCE inst)
 int settings_main(HINSTANCE inst, const WCHAR *page)
 {
     S.start_page = page && arg_eq(page, L"update") ? PG_UPDATE : PG_GENERAL;
-    HWND open = FindWindowW(L"#32770", SETTINGS_TITLE);
-    for (HWND o; open && (o = GetWindow(open, GW_OWNER));) /* a message box of that window */
-        open = o;
+    HWND open = ipc_find_dialog(SETTINGS_MARK);
     if (open) {
         if (S.start_page != PG_GENERAL)
             PostMessageW(open, WM_APP_SHOW_PAGE, (WPARAM)S.start_page, 0);
@@ -958,7 +1048,10 @@ int settings_main(HINSTANCE inst, const WCHAR *page)
         return 0;
     }
     helper_init(inst);
-    DialogBoxParamW(inst, MAKEINTRESOURCEW(IDD_SETTINGS), NULL, main_proc, 0);
+    do { /* again after the language was changed */
+        lang_dialog_box(inst, IDD_SETTINGS, NULL, main_proc);
+        S.start_page = PG_GENERAL;
+    } while (S.reopen);
     if (S.busy && !S.installing && S.setup[0]) /* closed right after a download */
         DeleteFileW(S.setup);
     if (g_relaunch) { /* show the new version: ask the new sniplite to open this page */
@@ -989,7 +1082,7 @@ int settings_main(HINSTANCE inst, const WCHAR *page)
 
 int shortcuts_main(HINSTANCE inst)
 {
-    HWND open = FindWindowW(L"#32770", SHORTCUTS_TITLE);
+    HWND open = ipc_find_dialog(SHORTCUTS_MARK);
     if (open) {
         SetForegroundWindow(open);
         return 0;

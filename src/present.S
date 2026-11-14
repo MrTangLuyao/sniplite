@@ -1,5 +1,5 @@
-/* present.S: the capture overlay's DirectComposition presentation (see present.h),
- * x86-64 assembly. Visual tree under one root, bottom to top: 16 screenshot tiles
+/* present.S: the capture overlay's DirectComposition presentation (see present.h).
+ * Visual tree under one root, bottom to top: 16 screenshot tiles
  * (one surface per monitor, copied GPU to GPU from the duplicated frame or uploaded
  * from mapped pixels), four dim rectangles stretched from one premultiplied black
  * pixel (alpha 112), the UI layer (a virtual surface the size of the virtual
@@ -10,10 +10,9 @@
  * magnifier, tool bar, property bar, tooltip), a surface each.
  *
  * DirectComposition is C++-only in the headers: its methods are called by vtable
- * slot (DC_, TG_, VI_, SU_, VS_ below, measured from the real interfaces by
- * tests/present_slots.cpp). D3D11 slots (V_), constants (K_) and D3D11_BOX
- * offsets (BOX_) are checked by tests/shot_check.c; the calls themselves against
- * the C reference tests/present_ref.c by tests/present_test.c. */
+ * slot (DC_, TG_, VI_, SU_, VS_ below, measured from the real interfaces). The
+ * D3D11 slots (V_), constants (K_) and D3D11_BOX offsets (BOX_) are from the
+ * Windows headers. */
 #include "asm.inc"
 #include "ov_layout.inc"
 
@@ -532,7 +531,7 @@ FUNC pr_begin
         js .Lpb_false
 .Lpb_content:
         mov rcx, qword ptr [rip + g_pr + P_UIV]
-        test rcx, rcx                   /* (present.c would crash here) */
+        test rcx, rcx                   /* no UI layer (setup failed half way) */
         jz 2f
         mov rdx, qword ptr [rip + g_pr + P_UI]
         COM VI_SET_CONTENT

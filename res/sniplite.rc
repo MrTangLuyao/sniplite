@@ -13,11 +13,16 @@
 
 IDI_APP ICON "sniplite.ico"
 
+/* The dialogs give the places and sizes only. Every text is set when a dialog opens,
+ * from src/lang_text.h, and the font named here is replaced by the font of the
+ * language in use (src/lang.c). Controls are wide and tall enough for the longest
+ * language. */
+
 /* Preferences: compact window, tabs on top, one page per area. */
 IDD_SETTINGS DIALOGEX 0, 0, 238, 172
 STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_APPWINDOW
-CAPTION "sniplite 首选项"
+CAPTION "sniplite"
 FONT 9, "Microsoft YaHei UI", 400, 0, 0x86
 BEGIN
     CONTROL         "", IDC_TABS, "SysTabControl32", WS_TABSTOP, 6, 6, 226, 160
@@ -27,57 +32,59 @@ IDD_PAGE_GENERAL DIALOGEX 0, 0, 220, 140
 STYLE DS_SHELLFONT | DS_CONTROL | WS_CHILD
 FONT 9, "Microsoft YaHei UI", 400, 0, 0x86
 BEGIN
-    AUTOCHECKBOX    "开机启动", IDC_AUTOSTART, 8, 8, 200, 12, WS_TABSTOP
-    AUTOCHECKBOX    "显示托盘图标", IDC_TRAY, 8, 24, 200, 12, WS_TABSTOP
-    GROUPBOX        "配置文件存储位置", -1, 8, 46, 204, 58
-    LTEXT           "路径:", -1, 16, 63, 22, 10
-    EDITTEXT        IDC_INI_PATH, 40, 61, 164, 13, ES_AUTOHSCROLL | ES_READONLY
-    PUSHBUTTON      "打开所在文件夹", IDC_OPEN_DIR, 16, 81, 72, 15
-    PUSHBUTTON      "打开", IDC_OPEN_INI, 154, 81, 50, 15
+    AUTOCHECKBOX    "", IDC_AUTOSTART, 8, 8, 204, 12, WS_TABSTOP
+    AUTOCHECKBOX    "", IDC_TRAY, 8, 23, 204, 12, WS_TABSTOP
+    LTEXT           "", IDC_LANG_LABEL, 8, 41, 38, 10
+    COMBOBOX        IDC_LANG, 48, 39, 96, 140, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    GROUPBOX        "", IDC_INI_GROUP, 8, 58, 204, 55
+    LTEXT           "", IDC_PATH_LABEL, 16, 74, 30, 10
+    EDITTEXT        IDC_INI_PATH, 48, 72, 156, 13, ES_AUTOHSCROLL | ES_READONLY
+    PUSHBUTTON      "", IDC_OPEN_DIR, 16, 91, 72, 15
+    PUSHBUTTON      "", IDC_OPEN_INI, 154, 91, 50, 15
     CONTROL         "", IDC_HELPBTN, "Button", BS_OWNERDRAW | WS_TABSTOP, 8, 122, 13, 13
-    PUSHBUTTON      "恢复默认", IDC_DEFAULTS, 152, 121, 60, 15
+    PUSHBUTTON      "", IDC_DEFAULTS, 152, 121, 60, 15
 END
 
 IDD_PAGE_CAPTURE DIALOGEX 0, 0, 220, 140
 STYLE DS_SHELLFONT | DS_CONTROL | WS_CHILD
 FONT 9, "Microsoft YaHei UI", 400, 0, 0x86
 BEGIN
-    LTEXT           "截屏方式:", -1, 8, 10, 40, 10
-    AUTORADIOBUTTON "极速（DXGI）", IDC_DXGI, 50, 9, 74, 12, WS_GROUP | WS_TABSTOP
-    AUTORADIOBUTTON "省内存（GDI）", IDC_GDI, 128, 9, 84, 12
-    LTEXT           "极速：直接读取显卡画面，常驻约 50 MB 驱动内存。\n省内存：不占额外内存，多屏高分辨率时会慢几倍。", IDC_HINT, 8, 28, 204, 22
-    PUSHBUTTON      "恢复默认", IDC_DEFAULTS, 152, 121, 60, 15
+    LTEXT           "", IDC_MODE_LABEL, 8, 10, 40, 10
+    AUTORADIOBUTTON "", IDC_DXGI, 50, 9, 74, 12, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "", IDC_GDI, 128, 9, 84, 12
+    LTEXT           "", IDC_HINT, 8, 28, 204, 44
+    PUSHBUTTON      "", IDC_DEFAULTS, 152, 121, 60, 15
 END
 
 IDD_PAGE_HOTKEYS DIALOGEX 0, 0, 220, 140
 STYLE DS_SHELLFONT | DS_CONTROL | WS_CHILD
 FONT 9, "Microsoft YaHei UI", 400, 0, 0x86
 BEGIN
-    LTEXT           "截屏:", -1, 8, 12, 72, 10
+    LTEXT           "", IDC_HK_LABEL1, 8, 12, 72, 10
     CONTROL         "", IDC_HK_FIELD1, "sniplite.hotkey", WS_TABSTOP, 82, 9, 100, 14
     CONTROL         "", IDC_HK_CLEAR1, "Button", BS_OWNERDRAW | WS_TABSTOP, 186, 10, 12, 12
     CONTROL         "", IDC_HK_STATE1, "Static", SS_OWNERDRAW, 201, 10, 12, 12
-    LTEXT           "贴图:", -1, 8, 32, 72, 10
+    LTEXT           "", IDC_HK_LABEL2, 8, 32, 72, 10
     CONTROL         "", IDC_HK_FIELD2, "sniplite.hotkey", WS_TABSTOP, 82, 29, 100, 14
     CONTROL         "", IDC_HK_CLEAR2, "Button", BS_OWNERDRAW | WS_TABSTOP, 186, 30, 12, 12
     CONTROL         "", IDC_HK_STATE2, "Static", SS_OWNERDRAW, 201, 30, 12, 12
-    LTEXT           "隐藏/显示所有贴图:", -1, 8, 52, 72, 10
+    LTEXT           "", IDC_HK_LABEL3, 8, 52, 72, 10
     CONTROL         "", IDC_HK_FIELD3, "sniplite.hotkey", WS_TABSTOP, 82, 49, 100, 14
     CONTROL         "", IDC_HK_CLEAR3, "Button", BS_OWNERDRAW | WS_TABSTOP, 186, 50, 12, 12
     CONTROL         "", IDC_HK_STATE3, "Static", SS_OWNERDRAW, 201, 50, 12, 12
-    LTEXT           "单击输入框后按下新的快捷键，Backspace 清除。", IDC_HINT, 8, 72, 204, 10
-    PUSHBUTTON      "内置快捷键", IDC_BUILTIN, 8, 121, 60, 15
-    PUSHBUTTON      "恢复默认", IDC_DEFAULTS, 152, 121, 60, 15
+    LTEXT           "", IDC_HINT, 8, 72, 204, 20
+    PUSHBUTTON      "", IDC_BUILTIN, 8, 121, 60, 15
+    PUSHBUTTON      "", IDC_DEFAULTS, 152, 121, 60, 15
 END
 
 IDD_SHORTCUTS DIALOGEX 0, 0, 252, 222
 STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_APPWINDOW
-CAPTION "sniplite 快捷键"
+CAPTION "sniplite"
 FONT 9, "Microsoft YaHei UI", 400, 0, 0x86
 BEGIN
     CONTROL         "", IDC_LIST, "SysListView32", LVS_REPORT | LVS_SINGLESEL | LVS_NOCOLUMNHEADER | WS_BORDER | WS_TABSTOP, 7, 7, 238, 188
-    DEFPUSHBUTTON   "确定", IDOK, 188, 201, 57, 15
+    DEFPUSHBUTTON   "", IDOK, 188, 201, 57, 15
 END
 
 IDD_PAGE_UPDATE DIALOGEX 0, 0, 220, 140
@@ -85,12 +92,12 @@ STYLE DS_SHELLFONT | DS_CONTROL | WS_CHILD
 FONT 9, "Microsoft YaHei UI", 400, 0, 0x86
 BEGIN
     LTEXT           "", IDC_U_VERSION, 8, 10, 204, 10
-    PUSHBUTTON      "检查更新", IDC_U_CHECK, 8, 26, 60, 15
+    PUSHBUTTON      "", IDC_U_CHECK, 8, 26, 60, 15
     LTEXT           "", IDC_U_STATUS, 74, 29, 138, 10
-    PUSHBUTTON      "立即更新", IDC_U_INSTALL, 8, 46, 60, 15
-    AUTOCHECKBOX    "自动检查更新", IDC_U_AUTO, 8, 70, 200, 12, WS_TABSTOP
-    LTEXT           "只向 GitHub 查询最新版本号，不上传任何数据。", IDC_HINT, 8, 86, 204, 10
-    PUSHBUTTON      "恢复默认", IDC_DEFAULTS, 152, 121, 60, 15
+    PUSHBUTTON      "", IDC_U_INSTALL, 8, 46, 60, 15
+    AUTOCHECKBOX    "", IDC_U_AUTO, 8, 70, 204, 12, WS_TABSTOP
+    LTEXT           "", IDC_HINT, 8, 86, 204, 20
+    PUSHBUTTON      "", IDC_DEFAULTS, 152, 121, 60, 15
 END
 
 IDD_PAGE_ABOUT DIALOGEX 0, 0, 220, 140
@@ -98,15 +105,15 @@ STYLE DS_SHELLFONT | DS_CONTROL | WS_CHILD
 FONT 9, "Microsoft YaHei UI", 400, 0, 0x86
 BEGIN
     ICON            IDI_APP, -1, 8, 10, 20, 20
-    LTEXT           "sniplite", IDC_VERSION, 38, 10, 170, 12
-    LTEXT           "轻量、快速的截图与贴图工具", -1, 38, 25, 170, 10
-    LTEXT           "开源许可：MIT License", -1, 38, 39, 170, 10
+    LTEXT           "", IDC_VERSION, 38, 10, 174, 12
+    LTEXT           "", IDC_TAGLINE, 38, 25, 174, 10
+    LTEXT           "", IDC_LICENSE, 38, 39, 174, 10
 END
 #endif
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 1,1,2,0
-PRODUCTVERSION 1,1,2,0
+FILEVERSION 1,2,0,0
+PRODUCTVERSION 1,2,0,0
 FILEOS VOS_NT_WINDOWS32
 FILETYPE VFT_APP
 BEGIN
@@ -115,9 +122,9 @@ BEGIN
     BLOCK "040904B0"
     BEGIN
       VALUE "FileDescription", FILE_DESC
-      VALUE "FileVersion", "1.1.2"
+      VALUE "FileVersion", "1.2.0"
       VALUE "ProductName", "sniplite"
-      VALUE "ProductVersion", "1.1.2"
+      VALUE "ProductVersion", "1.2.0"
       VALUE "OriginalFilename", FILE_NAME
       VALUE "LegalCopyright", "MIT License"
     END

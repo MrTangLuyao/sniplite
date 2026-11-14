@@ -1,26 +1,22 @@
-/* ov_edit.S: the overlay's editing part in x86-64 assembly (replaces ov_edit.c):
- * the annotation list and its undo history, picking, hit testing, the text tool,
- * restyling and nudging. Same symbols, signatures and observable behaviour as the
- * C (src/ov_int.h, group "ov_edit.c"); tests/ov_edit_diff.c compares the two.
+/* ov_edit.S: the overlay's editing part: the annotation list and its undo history,
+ * picking, hit testing, the text tool, restyling and nudging.
  *
- * Faster than the C by construction, not only by instructions:
+ * What makes it fast:
  * - hit testing (every mouse move) inlines S(), rect_corners and rect_inflate,
  *   computes the scaled tolerances once per anno_at instead of per annotation,
- *   and drops anno_bounds where the shape test already implies it (all tools
- *   but the ellipse; for text that saves a whole measuring pass through GDI),
- *   and does not measure a text at all for a point left of or above it.
+ *   drops anno_bounds where the shape test already implies it (all tools but the
+ *   ellipse; for text that saves a whole measuring pass through GDI), and does
+ *   not measure a text at all for a point left of or above it.
  *   Pen strokes skip a segment by four integer compares when its box is farther
  *   than the tolerance (plus a margin far above float rounding), so only the
  *   few nearby segments compute the exact float distance;
- * - the distance itself runs on (x, y) pairs in one register, operation for
- *   operation the C expression, so results are bit-exact;
+ * - the distance itself runs on (x, y) pairs in one register;
  * - starting or re-entering text measures once instead of two or three times.
- * Two internal helpers are global only so tests/ov_edit_unwind.c can trace
- * them: ove_hit, ove_caret_place. */
+ * Two internal helpers are global for tracing: ove_hit, ove_caret_place. */
 #include "asm.inc"
 #include "ov_layout.inc"
 
-/* Windows values used here (checked by tests/ov_edit_layout.c) */
+/* Windows values used here */
 #define W_CFS_POINT 0x0002
 #define W_CFS_CANDIDATEPOS 0x0040
 #define W_CF_UNICODETEXT 13
@@ -159,7 +155,8 @@
 
 /* seg_dist on pairs: xmm0 = P (x, y, 0, 0), xmm2 = a, xmm3 = b (POINTs in the low 8
  * bytes, the rest zero) -> xmm5 = the distance; xmm1-xmm4 clobbered. Lane 0 does the
- * x terms and lane 1 the y terms of the C expressions, summed in the C order. */
+ * x terms and lane 1 the y terms; every sum adds its x term first, one fixed order, so
+ * the distance is the same to the last bit wherever it is computed. */
 .macro SEGD
         psubd xmm3, xmm2
         cvtdq2ps xmm2, xmm2

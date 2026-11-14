@@ -1,7 +1,6 @@
-/* shot.S: whole-desktop capture (see shot.h), x86-64 assembly replacement for
- * shot.c. Same exported functions, same Shot contents and the same sequence of
- * DXGI, D3D11 and window calls (that order is what keeps the capture fast and
- * the overlay out of its own screenshot):
+/* shot.S: whole-desktop capture (see shot.h). The sequence of DXGI, D3D11 and
+ * window calls is what keeps the capture fast and the overlay out of its own
+ * screenshot:
  *
  *   capture:  duplicate every usable output, show the 1x1 pokes and the caller's
  *             window in one DeferWindowPos batch, wait for one fresh frame per
@@ -16,8 +15,8 @@
  * freshly allocated DIBs shot_copy fills), small rows with SSE2.
  *
  * Windows constants (K_), structure offsets (OD_, OD1_, TD_, FI_, MS_, MIX_, WCL_)
- * and vtable slots (V_) are checked against the headers by tests/shot_check.c;
- * Shot/Tile/ShotShow offsets come from ov_layout.inc. */
+ * and vtable slots (V_) are from the Windows headers; Shot/Tile/ShotShow offsets
+ * come from ov_layout.inc. */
 #include "asm.inc"
 #include "ov_layout.inc"
 

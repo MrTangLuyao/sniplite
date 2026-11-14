@@ -9,24 +9,26 @@ IDI_APP ICON "sniplite.ico"
 IDR_APP_EXE RCDATA "sniplite.exe"
 IDR_APP_COM RCDATA "sniplite.com"
 
+/* Places and sizes only: the texts come from src/lang_text.h and the font is replaced
+ * by the one of the language in use (src/lang.c). */
 IDD_SETUP DIALOGEX 0, 0, 236, 112
 STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_APPWINDOW
-CAPTION "安装 sniplite"
+CAPTION "sniplite"
 FONT 9, "Microsoft YaHei UI", 400, 0, 0x86
 BEGIN
     ICON            IDI_APP, -1, 12, 12, 20, 20
     LTEXT           "sniplite", IDC_S_TITLE, 42, 11, 180, 14
-    LTEXT           "极度轻量的快速截图贴图工具", IDC_S_SUB, 42, 27, 180, 10
+    LTEXT           "", IDC_S_SUB, 42, 27, 186, 10
     LTEXT           "", IDC_S_PATH, 12, 50, 214, 20
-    AUTOCHECKBOX    "开机启动", IDC_S_AUTOSTART, 12, 74, 100, 12, WS_TABSTOP
-    DEFPUSHBUTTON   "安装", IDOK, 118, 91, 54, 15
-    PUSHBUTTON      "取消", IDCANCEL, 176, 91, 54, 15
+    AUTOCHECKBOX    "", IDC_S_AUTOSTART, 12, 74, 214, 12, WS_TABSTOP
+    DEFPUSHBUTTON   "", IDOK, 118, 91, 54, 15
+    PUSHBUTTON      "", IDCANCEL, 176, 91, 54, 15
 END
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 1,1,2,0
-PRODUCTVERSION 1,1,2,0
+FILEVERSION 1,2,0,0
+PRODUCTVERSION 1,2,0,0
 FILEOS VOS_NT_WINDOWS32
 FILETYPE VFT_APP
 BEGIN
@@ -35,9 +37,9 @@ BEGIN
     BLOCK "040904B0"
     BEGIN
       VALUE "FileDescription", "sniplite setup"
-      VALUE "FileVersion", "1.1.2"
+      VALUE "FileVersion", "1.2.0"
       VALUE "ProductName", "sniplite"
-      VALUE "ProductVersion", "1.1.2"
+      VALUE "ProductVersion", "1.2.0"
       VALUE "OriginalFilename", "sniplite_win_setup_amd64.exe"
       VALUE "LegalCopyright", "MIT License"
     END

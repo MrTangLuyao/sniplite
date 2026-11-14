@@ -3,8 +3,9 @@
 #pragma once
 #include "common.h"
 
-#define SETTINGS_TITLE L"sniplite 首选项"
-#define SHORTCUTS_TITLE L"sniplite 快捷键"
+/* Window properties that mark the two dialogs for ipc_find_dialog. */
+#define SETTINGS_MARK L"sniplite.settings"
+#define SHORTCUTS_MARK L"sniplite.shortcuts"
 
 int settings_main(HINSTANCE inst, const WCHAR *page); /* `sniplite.exe --settings [update]` */
 int shortcuts_main(HINSTANCE inst); /* `sniplite.exe --shortcuts`: the short shortcut list */

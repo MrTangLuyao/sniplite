@@ -1,18 +1,16 @@
-/* ov_input.S: the capture overlay's input, in x86-64 assembly (replaces ov_input.c):
- * mouse and keyboard handling, the window procedure, and start-up (ov_init).
- * Same exported functions as ov_input.c (the "ov_input.c" group of ov_int.h and
- * ov_init of overlay.h), with the same behaviour for every message and key;
- * tests/ov_input_run.bat drives both with scripted messages and compares.
+/* ov_input.S: the capture overlay's input: mouse and keyboard handling, the window
+ * procedure, and start-up (ov_init).
  *
  * The state O and the constant tables live in ov_base; the other functions called
- * here are the overlay's other parts (ov_int.h) and Windows.
+ * here are the overlay's other parts and Windows.
  *
- * Speed: WM_MOUSEMOVE is tested first in ov_proc, every other message goes through
- * one table lookup; the handlers keep the state in O and tail-call refresh. */
+ * What makes it fast: WM_MOUSEMOVE is tested first in ov_proc, every other message
+ * goes through one table lookup; the handlers keep the state in O and tail-call
+ * refresh. */
 #include "asm.inc"
 #include "ov_layout.inc"
 
-/* ---- Windows values (checked against the headers: tests/ov_input_layout.py) -------- */
+/* ---- Windows values ---------------------------------------------------------------- */
 #define W_WM_PAINT 0x000F
 #define W_WM_CLOSE 0x0010
 #define W_WM_ERASEBKGND 0x0014
@@ -129,7 +127,7 @@ w_ov_nl:        .short 0x000A, 0x0000
         jge \no
 .endm
 
-/* \d = abs(\s) for 32-bit registers (\d != \s), wrapping like the C abs */
+/* \d = abs(\s) for 32-bit registers (\d != \s); INT_MIN stays INT_MIN */
 .macro ABS32 d, s
         mov \d, \s
         neg \d

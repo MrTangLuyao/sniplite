@@ -1,24 +1,22 @@
-/* ov_show.S: the capture overlay's lifetime, in x86-64 assembly (the group
- * "ov_show.c" of ov_int.h and the public ov_* functions of overlay.h that it
- * held): showing the overlay (ov_begin, the hotkey-to-screen path), ending it,
- * the output image and finish (copy, save, pin), state transitions, edge hit
- * testing and cursors, constrained drawing, drawing and annotation drags.
- * Replaces ov_show.c.
+/* ov_show.S: the capture overlay's lifetime: showing the overlay (ov_begin, the
+ * hotkey-to-screen path), ending it, the output image and finish (copy, save,
+ * pin), state transitions, edge hit testing and cursors, constrained drawing,
+ * drawing and annotation drags.
  *
- * What the user sees is the C version's: the window, DWM and composition calls
- * that decide what is on screen come in the same order (with composition the
- * overlay is transparent until the first commit, with GDI it stays cloaked until
- * the first full paint, so it never shows up in its own screenshot and appears
- * in one composition frame), the output images are the same pixels. Inside that:
- * ov_begin reads each virtual-screen metric once; finish hides the overlay
- * before it builds the output, so it goes away sooner; output_image skips the
- * screenshot copy when the canvas covers the whole selection; inv, inv_ring,
- * ring_w, S, client_rect, is_pen and friends are inlined. Checked against the C
- * version by tests/ov_show_run.bat. */
+ * The order of the window, DWM and composition calls decides what is on screen:
+ * with composition the overlay is transparent until the first commit, with GDI it
+ * stays cloaked until the first full paint, so it never shows up in its own
+ * screenshot and appears in one composition frame.
+ *
+ * What makes it fast: ov_begin reads each virtual-screen metric once; finish hides
+ * the overlay before it builds the output, so it goes away sooner; output_image
+ * skips the screenshot copy when the canvas covers the whole selection; inv,
+ * inv_ring, ring_w, S, client_rect, is_pen and friends are inlined. */
 #include "asm.inc"
 #include "ov_layout.inc"
+#include "lang.inc"
 
-/* ---- Windows values (checked by tests/ov_show_check.c) ------------------------------- */
+/* ---- Windows values ------------------------------------------------------------------ */
 #define W_DWMWA_CLOAK 13
 #define W_HWND_TOPMOST -1
 #define W_SWP_SHOW 0x50                 /* SWP_NOACTIVATE | SWP_SHOWWINDOW */
@@ -71,8 +69,6 @@
 .Lw_hex: .short 0x0023, 0x0025, 0x0030, 0x0036, 0x0058, 0
 /* L"%d, %d, %d" */
 .Lw_dec: .short 0x0025, 0x0064, 0x002C, 0x0020, 0x0025, 0x0064, 0x002C, 0x0020, 0x0025, 0x0064, 0
-/* L"保存失败，请检查路径和权限。" */
-.Lw_savefail: .short 0x4FDD, 0x5B58, 0x5931, 0x8D25, 0xFF0C, 0x8BF7, 0x68C0, 0x67E5, 0x8DEF, 0x5F84, 0x548C, 0x6743, 0x9650, 0x3002, 0
 /* L"sniplite" */
 .Lw_title: .short 0x0073, 0x006E, 0x0069, 0x0070, 0x006C, 0x0069, 0x0074, 0x0065, 0
 
@@ -1082,7 +1078,7 @@ FUNC finish
         test al, al
         jnz .Lfi_saved
         xor ecx, ecx
-        lea rdx, [rip + .Lw_savefail]
+        TR rdx, OV_SAVE_FAILED
         lea r8, [rip + .Lw_title]
         mov r9d, W_MB_SAVEFAIL
         API MessageBoxW

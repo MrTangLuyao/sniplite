@@ -5,6 +5,7 @@
  * hidden cmd.exe after this process exits. */
 #include "common.h"
 #include "install.h"
+#include "lang.h"
 #include "settings.h"
 #include <shlobj.h>
 
@@ -33,7 +34,10 @@ static void close_wait(HWND w)
     DWORD pid = 0;
     GetWindowThreadProcessId(w, &pid);
     HANDLE h = pid ? OpenProcess(SYNCHRONIZE, FALSE, pid) : NULL;
-    for (HWND o = w; o; o = GetWindow(o, GW_OWNER)) /* a message box or list first, then its window */
+    HWND front = GetWindow(w, GW_ENABLEDPOPUP); /* a message box in front of it goes first */
+    if (front && front != w)
+        PostMessageW(front, WM_CLOSE, 0, 0);
+    for (HWND o = w; o; o = GetWindow(o, GW_OWNER)) /* the shortcut list, then the window it belongs to */
         PostMessageW(o, WM_CLOSE, 0, 0);
     if (h) {
         WaitForSingleObject(h, 5000);
@@ -52,14 +56,14 @@ int uninstall_main(bool silent)
     if (!sl)
         return EXIT_FAIL;
     *sl = 0;
-    if (!silent && MessageBoxW(NULL, L"要卸载 sniplite 吗？\n程序、设置和快捷方式都会删除。", L"卸载 sniplite",
-                               MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES)
+    if (!silent &&
+        MessageBoxW(NULL, T(UNINST_CONFIRM), T(UNINST_TITLE), MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES)
         return EXIT_FAIL;
 
     /* the helper windows first (they could write the settings file again), then the
      * background process and its pins */
-    close_wait(FindWindowW(L"#32770", SHORTCUTS_TITLE));
-    close_wait(FindWindowW(L"#32770", SETTINGS_TITLE));
+    close_wait(ipc_find_dialog(SHORTCUTS_MARK));
+    close_wait(ipc_find_dialog(SETTINGS_MARK));
     close_wait(FindWindowW(DAEMON_CLASS, NULL));
 
     HMODULE sh = LoadLibraryW(L"shell32.dll");
@@ -67,8 +71,12 @@ int uninstall_main(bool silent)
     if (special(get, CSIDL_PROGRAMS, MENU_FOLDER, p)) {
         if (join(q, p, MENU_APP_LNK))
             DeleteFileW(q);
-        if (join(q, p, MENU_UNINSTALL_LNK))
-            DeleteFileW(q);
+        for (int i = 0; i < LG_COUNT; i++) { /* named in the language it was installed in */
+            WCHAR name[UNINSTALL_LNK_MAX];
+            uninstall_lnk(i, name);
+            if (join(q, p, name))
+                DeleteFileW(q);
+        }
         RemoveDirectoryW(p); /* only succeeds when empty */
     }
     if (special(get, CSIDL_STARTUP, STARTUP_LNK, p))
@@ -89,7 +97,7 @@ int uninstall_main(bool silent)
     }
 
     if (!silent)
-        MessageBoxW(NULL, L"sniplite 已卸载。", L"卸载 sniplite", MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(NULL, T(UNINST_DONE), T(UNINST_TITLE), MB_OK | MB_ICONINFORMATION);
 
     /* This exe is still running: let a hidden cmd.exe delete it (and the then empty
      * folder) once we have exited. rmdir without /s never removes a non-empty folder. */

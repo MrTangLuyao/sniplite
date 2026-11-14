@@ -21,6 +21,16 @@ static LRESULT CALLBACK reply_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
 
 HWND ipc_find(void) { return FindWindowW(DAEMON_CLASS, NULL); }
 
+/* A helper's dialog is told by a window property, not by its title: the title is
+ * in the language the dialog was opened in. */
+HWND ipc_find_dialog(const WCHAR *mark)
+{
+    HWND w = NULL;
+    while ((w = FindWindowExW(NULL, w, L"#32770", NULL)) != NULL && !GetPropW(w, mark)) {
+    }
+    return w;
+}
+
 int ipc_call(HWND daemon, int argc, WCHAR **argv, Str *reply)
 {
     HINSTANCE inst = GetModuleHandleW(NULL);

@@ -1,14 +1,11 @@
-/* ov_paint.S: the capture overlay's picture (toolbar layout and hit testing,
- * visual state and invalidation, painting band by band: the ov_paint.c group of
- * ov_int.h) in x86-64 assembly. Same exported functions and meaning as the C part
- * it replaced; the pixels of every state are identical in both modes (the GDI
- * picture, and the premultiplied UI layer DWM composes). tests/ov_paint_run.bat
- * compares the two (the C is kept as tests/ref/ov_paint.c).
+/* ov_paint.S: the capture overlay's picture: toolbar layout and hit testing, visual
+ * state and invalidation, painting band by band. The pixels of every state are the
+ * same in both modes: the GDI picture, and the premultiplied UI layer DWM composes.
  *
- * Faster than the C by construction, not only by instructions:
+ * What makes it fast:
  *   - the S() values of the current scale are computed once per scale change;
  *   - the size label's and the tooltips' text widths are measured once per text and
- *     font (the C asked GDI on every mouse move);
+ *     font, not on every mouse move;
  *   - refresh invalidates less: the bright area's change is covered by the frame
  *     rings when it lies inside them (no region objects), old and new ring sides
  *     are merged, and a toolbar whose bars stay put repaints only the buttons whose
@@ -22,11 +19,9 @@
  *   - the screenshot, canvas and layer rows are composed with SSE2, or AVX2 when
  *     draw_cpu says so (draw.S's dispatch variable, probed here too if need be).
  *
- * Composition mode is laid out differently from the C (whose one layer held
- * everything, so that dragging the selection repainted and uploaded the frame
- * rings, the label and the bars at every step): present.S stacks parts that move
- * by their offsets alone, and dragging the selection uploads nothing but the size
- * label. Bottom to top, what each part shows is what the C's layer showed there:
+ * In composition mode nothing is repainted or uploaded that only moved: present.S
+ * stacks parts that move by their offsets alone, so dragging the selection uploads
+ * nothing but the size label. Bottom to top:
  *   - the UI layer: the canvas (all of it, the selection clips it) and, inside the
  *     selection, the live annotations, the text being typed and its caret;
  *   - the frame (four rectangles) and the eight handles (one surface);
@@ -36,14 +31,14 @@
  *     the property bar and the tooltip.
  * refresh invalidates only what the layers hold and keeps the parts in step
  * (ovp_sync); on_paint paints the layers, and the panels beneath which something
- * changed. tests/ov_paint_diff.c composes the parts and checks that the screen
- * equals what the C's layer gives (the GDI mode is unchanged). */
+ * changed. */
 #include "asm.inc"
 #include "ov_layout.inc"
+#include "lang.inc"
 
 #define Ov(f) [rip + O + f]
 
-/* Windows values used here (checked by tests/ov_paint_layout.c) */
+/* Windows values used here */
 #define W_SIMPLEREGION 2
 #define W_COMPLEXREGION 3
 #define W_TRANSPARENT 1
@@ -60,7 +55,7 @@
 #define PS_BYTES 72
 #define RGN_NCOUNT 8                    /* RGNDATAHEADER.nCount */
 #define RGN_BUFFER 32                   /* RGNDATA.Buffer */
-#define RGN_MAXRECTS 128                /* more: paint the bounding box (as the C does) */
+#define RGN_MAXRECTS 128                /* more: paint the bounding box */
 #define RGN_BUFBYTES (RGN_BUFFER + RGN_MAXRECTS * 16)
 /* draw.h icons */
 #define DIC_RECT 0
@@ -117,49 +112,7 @@
 .Lf_half:       .long 0x3F000000                /* 0.5f */
 .Lf_1_5:        .long 0x3FC00000                /* 1.5f */
 .Lf_rad:        .long 0x400CCCCD, 0x40666666, 0x40ACCCCD        /* 2.2f, 3.6f, 5.4f */
-        .balign 8
-.Ltip_tab:      .quad .Lw_empty, .Lw_tool1, .Lw_tool2, .Lw_tool3, .Lw_tool4, .Lw_tool5, .Lw_tool6
-                .quad .Lw_tool7, .Lw_tool8, .Lw_tool9
-.Ltip_btn:      .quad .Lw_b_undo, .Lw_b_redo, .Lw_b_pin, .Lw_b_save, .Lw_b_close, .Lw_b_ok
-.Ltip_size:     .quad .Lw_size0, .Lw_size1, .Lw_size2
         .balign 2
-/* generated from src/ov_paint.c (tip_text) */
-/* L"矩形  Ctrl+1" */
-.Lw_tool1: .short 0x77E9, 0x5F62, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0031, 0x0000
-/* L"椭圆  Ctrl+2" */
-.Lw_tool2: .short 0x692D, 0x5706, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0032, 0x0000
-/* L"直线  Ctrl+3" */
-.Lw_tool3: .short 0x76F4, 0x7EBF, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0033, 0x0000
-/* L"箭头  Ctrl+4" */
-.Lw_tool4: .short 0x7BAD, 0x5934, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0034, 0x0000
-/* L"画笔  Ctrl+5" */
-.Lw_tool5: .short 0x753B, 0x7B14, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0035, 0x0000
-/* L"记号笔  Ctrl+6" */
-.Lw_tool6: .short 0x8BB0, 0x53F7, 0x7B14, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0036, 0x0000
-/* L"马赛克  Ctrl+7" */
-.Lw_tool7: .short 0x9A6C, 0x8D5B, 0x514B, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0037, 0x0000
-/* L"文字  Ctrl+8" */
-.Lw_tool8: .short 0x6587, 0x5B57, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0038, 0x0000
-/* L"序号  Ctrl+9" */
-.Lw_tool9: .short 0x5E8F, 0x53F7, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0039, 0x0000
-/* L"撤销  Ctrl+Z" */
-.Lw_b_undo: .short 0x64A4, 0x9500, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x005A, 0x0000
-/* L"重做  Ctrl+Y" */
-.Lw_b_redo: .short 0x91CD, 0x505A, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0059, 0x0000
-/* L"贴到屏幕  Ctrl+T / F3" */
-.Lw_b_pin: .short 0x8D34, 0x5230, 0x5C4F, 0x5E55, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0054, 0x0020, 0x002F, 0x0020, 0x0046, 0x0033, 0x0000
-/* L"保存  Ctrl+S" */
-.Lw_b_save: .short 0x4FDD, 0x5B58, 0x0020, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0053, 0x0000
-/* L"退出  Esc" */
-.Lw_b_close: .short 0x9000, 0x51FA, 0x0020, 0x0020, 0x0045, 0x0073, 0x0063, 0x0000
-/* L"复制  Enter / Ctrl+C" */
-.Lw_b_ok: .short 0x590D, 0x5236, 0x0020, 0x0020, 0x0045, 0x006E, 0x0074, 0x0065, 0x0072, 0x0020, 0x002F, 0x0020, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0043, 0x0000
-/* L"细  (滚轮调节)" */
-.Lw_size0: .short 0x7EC6, 0x0020, 0x0020, 0x0028, 0x6EDA, 0x8F6E, 0x8C03, 0x8282, 0x0029, 0x0000
-/* L"中  (滚轮调节)" */
-.Lw_size1: .short 0x4E2D, 0x0020, 0x0020, 0x0028, 0x6EDA, 0x8F6E, 0x8C03, 0x8282, 0x0029, 0x0000
-/* L"粗  (滚轮调节)" */
-.Lw_size2: .short 0x7C97, 0x0020, 0x0020, 0x0028, 0x6EDA, 0x8F6E, 0x8C03, 0x8282, 0x0029, 0x0000
 /* L"" */
 .Lw_empty: .short 0x0000
 /* by pass: what it draws */
@@ -215,8 +168,9 @@
 .Lpw_mos:       .space 4                /* ... for the mosaic (sizes only) */
 .Lmag_w:        .space 4
 .Lmag_h:        .space 4
-/* measured text widths: valid for one font (handle, scale) and measuring DC */
+/* measured text widths: valid for one font (handle, scale), measuring DC and language */
         .balign 8
+.Ltx_tr:        .space 8                /* g_tr when they were measured */
 .Ltx_font:      .space 8
 .Ltx_mdc:       .space 8
 .Ltx_fs:        .space 4
@@ -919,33 +873,36 @@ SFUNC put_int
 4:      ret
 ENDF
 
-/* ecx = toolbar id -> rax = its tooltip text (tip_text) */
+/* ecx = toolbar id -> rax = its tooltip text in the language in use, "" for an id
+ * without one. The nine tools, the six buttons, the three sizes and the eight colors
+ * are each a run of consecutive ids, and a run of consecutive texts in the same
+ * order (lang_text.h): the text is the run's first one plus the id's place in the
+ * run. Clobbers rcx. */
 SFUNC tip_text
         ENDPROLOG
         lea eax, [rcx - T_RECT]
         cmp eax, T_NUMBER - T_RECT
         ja 1f
-        lea rax, [rip + .Ltip_tab]
-        movsxd rcx, ecx
-        mov rax, qword ptr [rax + rcx*8]
+        mov rcx, qword ptr [rip + g_tr]
+        mov rax, qword ptr [rcx + rax*8 + 8 * S_TIP_TOOL1]
         ret
 1:      lea eax, [rcx - B_UNDO]
         cmp eax, B_OK - B_UNDO
         ja 2f
-        lea rcx, [rip + .Ltip_btn]
-        mov rax, qword ptr [rcx + rax*8]
+        mov rcx, qword ptr [rip + g_tr]
+        mov rax, qword ptr [rcx + rax*8 + 8 * S_TIP_UNDO]
         ret
 2:      lea eax, [rcx - B_SIZE]
         cmp eax, 2
         ja 3f
-        lea rcx, [rip + .Ltip_size]
-        mov rax, qword ptr [rcx + rax*8]
+        mov rcx, qword ptr [rip + g_tr]
+        mov rax, qword ptr [rcx + rax*8 + 8 * S_TIP_SIZE0]
         ret
 3:      lea eax, [rcx - B_COLOR]
         cmp eax, 7
         ja 4f
-        lea rcx, [rip + kColorNames]
-        mov rax, qword ptr [rcx + rax*8]
+        mov rcx, qword ptr [rip + g_tr]
+        mov rax, qword ptr [rcx + rax*8 + 8 * S_COLOR_RED]
         ret
 4:      lea rax, [rip + .Lw_empty]
         ret
@@ -965,10 +922,14 @@ SFUNC prop_tool_
         ret
 ENDF
 
-/* The text width cache belongs to one font: forget it when the font changed.
- * Clobbers rax, rcx, flags. */
+/* The text width cache belongs to one font and one language (a tooltip's text is
+ * another one in another language, and a font handle can come back with the same
+ * value): forget it when either changed. Clobbers rax, rcx, flags. */
 SFUNC tx_check
         ENDPROLOG
+        mov rax, qword ptr [rip + g_tr]
+        cmp rax, qword ptr [rip + .Ltx_tr]
+        jne 1f
         mov rax, qword ptr Ov(OV_FONT_UI)
         cmp rax, qword ptr [rip + .Ltx_font]
         jne 1f
@@ -979,7 +940,9 @@ SFUNC tx_check
         cmp eax, dword ptr [rip + .Ltx_fs]
         jne 1f
         ret
-1:      mov rax, qword ptr Ov(OV_FONT_UI)
+1:      mov rax, qword ptr [rip + g_tr]
+        mov qword ptr [rip + .Ltx_tr], rax
+        mov rax, qword ptr Ov(OV_FONT_UI)
         mov qword ptr [rip + .Ltx_font], rax
         mov rax, qword ptr Ov(OV_MDC)
         mov qword ptr [rip + .Ltx_mdc], rax
@@ -3436,7 +3399,7 @@ FUNC compose_gdi
         mov r8, r12
         mov r9, r13
         mov ecx, r15d
-#if OVP_BREAK == 1 /* tests/ov_paint_run.bat: the last pixel of dimmed rows is left out */
+#if OVP_BREAK == 1 /* a deliberately broken build, for the tests: the last pixel of dimmed rows is left out */
         dec ecx
 #endif
         call px_dim
@@ -5278,7 +5241,7 @@ FUNC on_paint
 ENDF
 
 #ifdef OV_PAINT_TEST
-/* tests/ov_paint_unwind.c traces the file-local functions too */
+/* the file-local functions, for tracing in tests */
         .section .rdata$ov_paint_test,"dr"
         .balign 8
         .globl ovp_locals

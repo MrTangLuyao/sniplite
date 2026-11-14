@@ -1,20 +1,17 @@
-/* ov_base.S: the capture overlay's basics in x86-64 assembly: helpers, window
- * detection, annotations and their rendering, the canvas. Replaces ov_base.c:
- * same exported functions and data (group "ov_base.c" in ov_int.h), same pixels.
+/* ov_base.S: the capture overlay's basics: its state O, helpers, window detection,
+ * annotations and their rendering, the canvas.
  *
- * Differences from the C that are not visible: rect helpers (rect_isect,
- * rect_union, rect_inflate, rect_corners) are inlined; a pen stroke's bounds are
- * a vectorized min/max; text lines are found 8 characters at a time and a text's
- * measurements are memorized per text and size (painting asks for them on every
- * band), so which font sizes O.fonts holds may differ; the float buffer for
- * strokes grows geometrically and is not copied when it grows; the number of a
- * numbered marker is formatted inline (same text as wsprintfW %d).
- * Tested by tests/ov_base_run.bat (differential against ov_base.c, unwind
- * information, registers) and tests/overlay_run.bat. */
+ * What makes it fast: the rect helpers (rect_isect, rect_union, rect_inflate,
+ * rect_corners) are inlined; a pen stroke's bounds are a vectorized min/max; text
+ * lines are found 8 characters at a time, and a text's measurements are memorized
+ * per text and size, because painting asks for them on every band; the float
+ * buffer for strokes grows geometrically and is not copied when it grows; the
+ * number of a numbered marker is formatted inline. */
 #include "asm.inc"
 #include "ov_layout.inc"
+#include "lang.inc"
 
-/* ---- Windows values: checked by tests/ov_base_layout.c ------------------------------ */
+/* ---- Windows values ----------------------------------------------------------------- */
 #define OB_GWL_EXSTYLE (-20)
 #define OB_WS_EX_TRANSPARENT 0x20
 #define OB_WS_EX_LAYERED 0x80000
@@ -58,6 +55,8 @@
         .balign 32
         .globl O
 O:      .space OV_BYTES
+/* the language (g_tr) O.font_ui was made for; 0 before the first one */
+.Lfont_tr:      .space 8
 
 /* text_box's memo: its result is a function of the text, its length and the font
  * size (the position only moves it), but painting asks for it on every band. An
@@ -107,25 +106,6 @@ kFont:          .long 16, 24, 36
 kNumber:        .long 10, 13, 18
 
         .balign 2
-/* L"红色" */
-.Lw_red:        .short 0x7EA2, 0x8272, 0
-/* L"橙色" */
-.Lw_orange:     .short 0x6A59, 0x8272, 0
-/* L"黄色" */
-.Lw_yellow:     .short 0x9EC4, 0x8272, 0
-/* L"绿色" */
-.Lw_green:      .short 0x7EFF, 0x8272, 0
-/* L"蓝色" */
-.Lw_blue:       .short 0x84DD, 0x8272, 0
-/* L"紫色" */
-.Lw_purple:     .short 0x7D2B, 0x8272, 0
-/* L"黑色" */
-.Lw_black:      .short 0x9ED1, 0x8272, 0
-/* L"白色" */
-.Lw_white:      .short 0x767D, 0x8272, 0
-/* L"Microsoft YaHei UI" */
-.Lw_face:       .short 0x004D, 0x0069, 0x0063, 0x0072, 0x006F, 0x0073, 0x006F, 0x0066, 0x0074, 0x0020
-                .short 0x0059, 0x0061, 0x0048, 0x0065, 0x0069, 0x0020, 0x0055, 0x0049, 0
 /* L"Progman" */
 .Lw_progman:    .short 0x0050, 0x0072, 0x006F, 0x0067, 0x006D, 0x0061, 0x006E, 0
 /* L"WorkerW" */
@@ -133,11 +113,6 @@ kNumber:        .long 10, 13, 18
 /* L"sniplite.poke" */
 .Lw_poke:       .short 0x0073, 0x006E, 0x0069, 0x0070, 0x006C, 0x0069, 0x0074, 0x0065, 0x002E, 0x0070
                 .short 0x006F, 0x006B, 0x0065, 0
-
-        .section .data$ov_base,"dw"
-        .balign 8
-        .globl kColorNames
-kColorNames:    .quad .Lw_red, .Lw_orange, .Lw_yellow, .Lw_green, .Lw_blue, .Lw_purple, .Lw_black, .Lw_white
 
 /* ---- macros ------------------------------------------------------------------------------ */
 
@@ -500,9 +475,9 @@ FUNC ring_w
 ENDF
 
 /* rax = CreateFontW(ecx, 0, 0, 0, edx, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
- * CLIP_DEFAULT_PRECIS, r8d, DEFAULT_PITCH, L"Microsoft YaHei UI") */
+ * CLIP_DEFAULT_PRECIS, r8d, DEFAULT_PITCH, the font of the language in use) */
 SFUNC ovb_font
-#ifdef OB_TEST                          /* for tests/ov_base_unwind.c */
+#ifdef OB_TEST                          /* a global name, for tracing in tests */
         .globl ovb_font_t
 ovb_font_t:
 #endif
@@ -518,7 +493,7 @@ ovb_font_t:
         mov dword ptr [rsp + 80], eax   /* CLIP_DEFAULT_PRECIS */
         mov dword ptr [rsp + 88], r8d   /* quality */
         mov dword ptr [rsp + 96], eax   /* DEFAULT_PITCH */
-        lea rax, [rip + .Lw_face]
+        TR rax, FONT
         mov qword ptr [rsp + 104], rax
         xor edx, edx
         xor r8d, r8d
@@ -626,14 +601,24 @@ FUNC free_fonts
         ret
 ENDF
 
-/* void ensure_ui_font(void): O.font_ui at -S(12) px for the current scale */
+/* void ensure_ui_font(void): O.font_ui at -S(12) px for the current scale, in the
+ * font of the language in use. The font is kept from one capture to the next, so
+ * this is also where a change of language is noticed: each language has its own
+ * table, so another g_tr since the font was made means another language. */
 FUNC ensure_ui_font
         ALLOC 40
         ENDPROLOG
+        mov rax, qword ptr [rip + g_tr]
+        mov rdx, qword ptr [rip + .Lfont_tr]
+        mov qword ptr [rip + .Lfont_tr], rax
         mov rcx, qword ptr o(OV_FONT_UI)
         test rcx, rcx
         jz .Leu_create
-        movss xmm0, dword ptr o(OV_FONT_S)
+        test rdx, rdx                   /* no language on record: the font is this one's */
+        jz 1f
+        cmp rdx, rax
+        jne .Leu_delete
+1:      movss xmm0, dword ptr o(OV_FONT_S)
         ucomiss xmm0, dword ptr o(OV_S)
         jp .Leu_delete
         je .Leu_ret
@@ -816,7 +801,7 @@ FUNC enum_cb
         mov r8d, 16
         API GetClassNameW
         test eax, eax                   /* no name: matches none of the classes below */
-        jz .Lec_bounds                  /* (the C compares an unset buffer) */
+        jz .Lec_bounds
         lea rcx, [rsp + 48]
         lea rdx, [rip + .Lw_progman]
         API lstrcmpW
@@ -1106,7 +1091,7 @@ ENDF
 
 /* anno_push when full: double the capacity (16 at first), then append */
 SFUNC ovb_push_grow
-#ifdef OB_TEST                          /* for tests/ov_base_unwind.c */
+#ifdef OB_TEST                          /* a global name, for tracing in tests */
         .globl ovb_push_grow_t
 ovb_push_grow_t:
 #endif
@@ -1455,8 +1440,8 @@ FUNC anno_bounds
         jmp .Lab_inflate
 .Lab_pen:
         /* the union of every point's pixel: min/max over the points, 2 per step.
-         * A point with x or y == INT_MAX has an empty pixel rectangle (the C
-         * rect_union skips it); those strokes take the exact scalar loop. */
+         * A point with x or y == INT_MAX has an empty pixel rectangle, which a
+         * union leaves out; those strokes take the exact scalar loop. */
         movq xmm0, qword ptr [r11]
         punpcklqdq xmm0, xmm0           /* min (x, y, x, y) */
         movdqa xmm1, xmm0               /* max */

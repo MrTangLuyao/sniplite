@@ -5,6 +5,7 @@
 #include "config.h"
 #include "image.h"
 #include "install.h"
+#include "lang.h"
 #include "overlay.h"
 #include "pin.h"
 #include "settings.h"
@@ -100,7 +101,7 @@ static bool args_valid(int argc, WCHAR **argv, const WCHAR *const *flags, const 
         for (int k = 0; opts[k] && !known; k++)
             if (arg_eq(argv[i], opts[k])) {
                 if (i + 1 >= argc) {
-                    str_addf(out, L"%s 后面缺少参数值\n", argv[i]);
+                    str_addf(out, T(ERR_MISSING_VALUE), argv[i]);
                     return false;
                 }
                 i++;
@@ -111,7 +112,7 @@ static bool args_valid(int argc, WCHAR **argv, const WCHAR *const *flags, const 
             known = true;
         }
         if (!known) {
-            str_addf(out, L"不认识的参数：%s（用 sniplite help 查看用法）\n", argv[i]);
+            str_addf(out, T(ERR_UNKNOWN_ARG), argv[i]);
             return false;
         }
     }
@@ -164,7 +165,7 @@ static bool start_opts_parse(int argc, WCHAR **argv, StartOpts *so, Str *err)
             continue;
         if (!hotkey_parse(v, &so->mod[id], &so->vk[id])) {
             if (err)
-                str_addf(err, L"无法识别的热键：%s（例：F1、Ctrl+Alt+A、Shift+F3、none）\n", v);
+                str_addf(err, T(ERR_BAD_HOTKEY), v);
             return false;
         }
         so->set[id] = true;
@@ -172,7 +173,7 @@ static bool start_opts_parse(int argc, WCHAR **argv, StartOpts *so, Str *err)
     bool gdi = opt_has(argc, argv, L"--gdi"), dxgi = opt_has(argc, argv, L"--dxgi");
     if (gdi && dxgi) {
         if (err)
-            str_add(err, L"--gdi 和 --dxgi 只能选一个\n");
+            str_add(err, T(ERR_GDI_DXGI));
         return false;
     }
     so->backend = dxgi ? 1 : gdi ? 2 : 0;
@@ -181,7 +182,8 @@ static bool start_opts_parse(int argc, WCHAR **argv, StartOpts *so, Str *err)
 
 /* ---- commands ---------------------------------------------------------------------- */
 
-/* "  label" padded to a fixed display width (CJK characters take two columns). */
+/* "  label" padded to column 16 (Chinese, Japanese and Korean characters take two
+ * columns), with at least one space after a longer one. */
 static void add_label(Str *out, const WCHAR *label)
 {
     int w = 0;
@@ -189,35 +191,34 @@ static void add_label(Str *out, const WCHAR *label)
         w += *p >= 0x1100 ? 2 : 1;
     str_add(out, L"  ");
     str_add(out, label);
-    for (; w < 16; w++)
+    do
         str_add(out, L" ");
+    while (++w < 16);
 }
 
 static void status_text(Str *out)
 {
-    static const WCHAR *labels[HK_COUNT] = {NULL, L"截图热键", L"贴图热键", L"显示/隐藏贴图"};
-    str_addf(out, L"sniplite %s 正在后台运行（PID %lu）\n", SNIPLITE_VERSION, GetCurrentProcessId());
+    str_addf(out, T(ST_RUNNING), SNIPLITE_VERSION, GetCurrentProcessId());
     for (int id = 1; id < HK_COUNT; id++) {
         const Hotkey *k = &D.hk[id];
-        add_label(out, labels[id]);
-        str_addf(out, L"%s%s\n", k->vk ? k->text : L"未设置", k->ok ? L"" : L"（注册失败：可能已被其他程序占用）");
+        add_label(out, g_tr[S_ST_HK_CAPTURE + id - 1]);
+        str_addf(out, L"%s%s\n", k->vk ? k->text : T(UNSET), k->ok ? L"" : T(ST_HK_FAILED));
     }
     const WCHAR *b = shot_backend();
-    add_label(out, L"截屏方式");
-    str_addf(out, L"%s\n",
-             !lstrcmpW(b, L"dxgi") ? L"DXGI 显卡直读" : !lstrcmpW(b, L"starting") ? L"DXGI 初始化中" : L"GDI");
-    add_label(out, L"贴图数量");
+    add_label(out, T(ST_BACKEND));
+    str_addf(out, L"%s\n", !lstrcmpW(b, L"dxgi") ? T(ST_DXGI) : !lstrcmpW(b, L"starting") ? T(ST_DXGI_STARTING) : L"GDI");
+    add_label(out, T(ST_PINS));
     str_addf(out, L"%d\n", pin_count());
     OvTiming t;
     if (ov_last_timing(&t)) {
-        add_label(out, L"上次截图");
-        str_add(out, L"热键到画面出现 ");
+        add_label(out, T(ST_LAST));
+        str_add(out, T(ST_LAST_1));
         str_add_ms(out, t.total);
-        str_add(out, L" ms（抓屏 ");
+        str_add(out, T(ST_LAST_2));
         str_add_ms(out, t.grab);
-        str_add(out, L"，绘制 ");
+        str_add(out, T(ST_LAST_3));
         str_add_ms(out, t.paint);
-        str_add(out, L"）\n");
+        str_add(out, T(ST_LAST_4));
     }
 }
 
@@ -253,9 +254,9 @@ static void tray_tip(WCHAR *tip, int cap)
     WCHAR t[200];
     lstrcpyW(t, L"sniplite");
     if (D.hk[HK_CAPTURE].vk)
-        wsprintfW(t + lstrlenW(t), L"\n截屏 %s", D.hk[HK_CAPTURE].text);
+        wsprintfW(t + lstrlenW(t), T(TRAY_CAPTURE), D.hk[HK_CAPTURE].text);
     if (D.hk[HK_PIN].vk)
-        wsprintfW(t + lstrlenW(t), L"\n贴图 %s", D.hk[HK_PIN].text);
+        wsprintfW(t + lstrlenW(t), T(TRAY_PIN), D.hk[HK_PIN].text);
     lstrcpynW(tip, t, cap);
 }
 
@@ -345,8 +346,8 @@ static void update_notify(const WCHAR *tag)
     NOTIFYICONDATAW n = D.nid;
     n.uFlags = NIF_INFO | NIF_SHOWTIP; /* without NIF_SHOWTIP the tooltip would go away */
     n.dwInfoFlags = NIIF_INFO;
-    lstrcpyW(n.szInfoTitle, L"sniplite 有新版本");
-    wsprintfW(n.szInfo, L"%s 已发布，点这里更新。", tag);
+    lstrcpynW(n.szInfoTitle, T(UPD_BALLOON_TITLE), COUNTOF(n.szInfoTitle));
+    wsprintfW(n.szInfo, T(UPD_BALLOON_TEXT), tag);
     D.notify(NIM_MODIFY, &n);
 }
 
@@ -396,13 +397,13 @@ static bool run_helper(const WCHAR *args, bool quiet)
     return ok;
 }
 
-/* page: NULL, or "update" to open the window on the 更新 tab (an open window switches) */
+/* page: NULL, or "update" to open the window on the update tab (an open window switches) */
 static bool settings_open(const WCHAR *page)
 {
     if (D.settings) {
         if (page)
             return run_helper(L" --settings update", false); /* finds the open window and tells it */
-        HWND w = FindWindowW(L"#32770", SETTINGS_TITLE);
+        HWND w = ipc_find_dialog(SETTINGS_MARK);
         if (w) {
             ShowWindow(w, SW_RESTORE);
             SetForegroundWindow(w);
@@ -438,15 +439,22 @@ static bool settings_open(const WCHAR *page)
     return true;
 }
 
+/* sniplite.ini again: the preferences window saves every change, the language too. */
+static void reload(void)
+{
+    lang_init(NULL);
+    Config c;
+    config_load(&c);
+    apply_config(&c, true);
+}
+
 static void settings_done(void)
 {
     if (D.settings) {
         CloseHandle(D.settings);
         D.settings = NULL;
     }
-    Config c;
-    config_load(&c); /* the window saves every change; also restores hotkeys if it died while recording */
-    apply_config(&c, true);
+    reload(); /* also restores the hotkeys if the window died while recording one */
 }
 
 static int cmd_start(int argc, WCHAR **argv, bool json, Str *out)
@@ -468,14 +476,14 @@ static int capture_now(RECT sr, const WCHAR *path, bool clip, bool pin, bool jso
 {
     Shot sh;
     if (!shot_take(&sh, NULL, NULL)) {
-        str_add(out, L"截屏失败\n");
+        str_add(out, T(CAP_FAILED));
         return EXIT_FAIL;
     }
     RECT vs = {sh.vx, sh.vy, sh.vx + sh.vw, sh.vy + sh.vh};
     RECT r = rect_isect(sr, vs);
     if (rect_empty(&r)) {
         shot_free(&sh);
-        str_add(out, L"区域不在屏幕范围内\n");
+        str_add(out, T(CAP_OUTSIDE));
         return EXIT_USAGE;
     }
     RECT cr = {r.left - sh.vx, r.top - sh.vy, r.right - sh.vx, r.bottom - sh.vy};
@@ -484,7 +492,7 @@ static int capture_now(RECT sr, const WCHAR *path, bool clip, bool pin, bool jso
     Img im;
     if (!img_create(&im, w, h)) {
         shot_free(&sh);
-        str_add(out, L"内存不足\n");
+        str_add(out, T(NO_MEMORY));
         return EXIT_FAIL;
     }
     shot_copy(&sh, cr, im.px, w);
@@ -511,15 +519,15 @@ static int capture_now(RECT sr, const WCHAR *path, bool clip, bool pin, bool jso
         str_addf(out, L",\"saved\":%s,\"clipboard\":%s,\"pinned\":%s}\n", saved ? L"true" : L"false",
                  copied ? L"true" : L"false", pinned ? L"true" : L"false");
     } else {
-        str_addf(out, L"已截取 %d×%d（抓屏 ", w, h);
+        str_addf(out, T(CAP_DONE_1), w, h);
         str_add_ms(out, grab);
-        str_add(out, L" ms）\n");
+        str_add(out, T(CAP_DONE_2));
         if (path)
-            str_addf(out, saved ? L"已保存：%s\n" : L"保存失败：%s\n", path);
+            str_addf(out, saved ? T(SAVED) : T(SAVE_FAILED), path);
         if (clip)
-            str_add(out, copied ? L"已复制到剪贴板\n" : L"复制到剪贴板失败\n");
+            str_add(out, copied ? T(COPIED) : T(COPY_FAILED));
         if (pin)
-            str_add(out, pinned ? L"已贴到屏幕\n" : L"贴图失败\n");
+            str_add(out, pinned ? T(PINNED) : T(PIN_FAILED));
     }
     return ok ? EXIT_OK : EXIT_FAIL;
 }
@@ -533,16 +541,16 @@ static int cmd_capture(int argc, WCHAR **argv, const WCHAR *cwd, bool json, Str 
     const WCHAR *rect = opt_val(argc, argv, L"--rect"), *file = opt_val(argc, argv, L"--out");
     bool full = opt_has(argc, argv, L"--full"), clip = opt_has(argc, argv, L"--clip"), pin = opt_has(argc, argv, L"--pin");
     if (ov_active()) {
-        str_add(out, L"正在截图中\n");
+        str_add(out, T(CAPTURING));
         return EXIT_FAIL;
     }
     if (!rect && !full) {
         if (file || clip || pin) {
-            str_add(out, L"--out / --clip / --pin 需要和 --rect 或 --full 一起用\n");
+            str_add(out, T(ERR_NEED_RECT));
             return EXIT_USAGE;
         }
         if (!ov_begin()) {
-            str_add(out, L"无法开始截图\n");
+            str_add(out, T(CAP_CANNOT));
             return EXIT_FAIL;
         }
         return EXIT_OK;
@@ -551,7 +559,7 @@ static int cmd_capture(int argc, WCHAR **argv, const WCHAR *cwd, bool json, Str 
     if (rect) {
         int v[4];
         if (full || !parse_ints(rect, v, 4) || v[2] <= 0 || v[3] <= 0) {
-            str_add(out, L"--rect 的格式是 X,Y,宽,高，例如 --rect 0,0,800,600\n");
+            str_add(out, T(ERR_RECT));
             return EXIT_USAGE;
         }
         SetRect(&sr, v[0], v[1], v[0] + v[2], v[1] + v[3]);
@@ -584,25 +592,25 @@ static int cmd_pin(int argc, WCHAR **argv, const WCHAR *cwd, bool json, Str *out
         resolve_path(cwd, file, path, COUNTOF(path));
         rc = image_load(path, &im) ? EXIT_OK : EXIT_FAIL;
         if (rc)
-            str_addf(out, L"无法读取图片：%s\n", path);
+            str_addf(out, T(ERR_READ_IMAGE), path);
     } else {
         rc = clip_get_image(D.hwnd, &im);
         if (rc == EXIT_NOTHING)
-            str_add(out, L"剪贴板里没有图片或文字\n");
+            str_add(out, T(CLIP_EMPTY));
         else if (rc)
-            str_add(out, L"读取剪贴板失败\n");
+            str_add(out, T(CLIP_FAILED));
     }
     if (rc)
         return rc;
     int w = im.w, h = im.h;
     if (!pin_add(&im, 0, 0, true)) {
-        str_add(out, L"贴图失败\n");
+        str_add(out, T(PIN_FAILED));
         return EXIT_FAIL;
     }
     if (json)
         str_addf(out, L"{\"ok\":true,\"width\":%d,\"height\":%d}\n", w, h);
     else
-        str_addf(out, L"已贴图 %d×%d\n", w, h);
+        str_addf(out, T(PIN_DONE), w, h);
     return EXIT_OK;
 }
 
@@ -631,7 +639,7 @@ static int cmd_run(int argc, WCHAR **argv, const WCHAR *cwd, Str *out)
     }
     if (arg_eq(c, L"quit") || arg_eq(c, L"exit")) {
         PostMessageW(D.hwnd, WM_CLOSE, 0, 0);
-        str_add(out, json ? L"{\"ok\":true}\n" : L"sniplite 已退出\n");
+        str_add(out, json ? L"{\"ok\":true}\n" : T(QUIT_DONE));
         return EXIT_OK;
     }
     if (arg_eq(c, L"_hotkeys")) { /* a hotkey field is recording: let the keys through */
@@ -640,11 +648,8 @@ static int cmd_run(int argc, WCHAR **argv, const WCHAR *cwd, Str *out)
         return EXIT_OK;
     }
     if (arg_eq(c, L"_reload") || arg_eq(c, L"_hkstate")) {
-        if (arg_eq(c, L"_reload")) {
-            Config cfg;
-            config_load(&cfg);
-            apply_config(&cfg, true);
-        }
+        if (arg_eq(c, L"_reload"))
+            reload();
         for (int id = 1; id < HK_COUNT; id++) /* 1 registered, 0 failed, 2 none */
             str_addf(out, L"%d ", !D.hk[id].vk ? 2 : D.hk[id].ok ? 1 : 0);
         return EXIT_OK;
@@ -654,9 +659,9 @@ static int cmd_run(int argc, WCHAR **argv, const WCHAR *cwd, Str *out)
             update_notify(argv[1]);
         return EXIT_OK;
     }
-    if (arg_eq(c, L"settings")) { /* `settings update` opens the 更新 tab */
+    if (arg_eq(c, L"settings")) { /* `settings update` opens the update tab */
         if (!settings_open(argc > 1 && arg_eq(argv[1], L"update") ? L"update" : NULL)) {
-            str_add(out, L"无法打开首选项\n");
+            str_add(out, T(ERR_SETTINGS));
             return EXIT_FAIL;
         }
         return EXIT_OK;
@@ -665,7 +670,7 @@ static int cmd_run(int argc, WCHAR **argv, const WCHAR *cwd, Str *out)
         str_addf(out, L"sniplite %s\n", SNIPLITE_VERSION);
         return EXIT_OK;
     }
-    str_addf(out, L"不认识的命令：%s（用 sniplite help 查看用法）\n", c);
+    str_addf(out, T(ERR_UNKNOWN_CMD), c);
     return EXIT_USAGE;
 }
 
@@ -726,18 +731,18 @@ static void tray_menu(POINT at)
 {
     HMENU m = CreatePopupMenu();
     bool pins = pin_count() > 0;
-    menu_item(m, TM_CAPTURE, L"截屏", HK_CAPTURE, true);
-    menu_item(m, TM_PIN, L"贴图", HK_PIN, true);
+    menu_item(m, TM_CAPTURE, T(M_CAPTURE), HK_CAPTURE, true);
+    menu_item(m, TM_PIN, T(M_PIN), HK_PIN, true);
     AppendMenuW(m, MF_SEPARATOR, 0, NULL);
-    menu_item(m, TM_TOGGLE, pins && !pin_any_visible() ? L"显示所有贴图" : L"隐藏所有贴图", HK_TOGGLE, pins);
-    menu_item(m, TM_CLOSE_PINS, L"关闭所有贴图", 0, pins);
+    menu_item(m, TM_TOGGLE, pins && !pin_any_visible() ? T(M_SHOW_PINS) : T(M_HIDE_PINS), HK_TOGGLE, pins);
+    menu_item(m, TM_CLOSE_PINS, T(M_CLOSE_PINS), 0, pins);
     AppendMenuW(m, MF_SEPARATOR, 0, NULL);
-    menu_item(m, TM_SETTINGS, L"首选项...", 0, true);
-    menu_item(m, TM_HELP, L"帮助", 0, true);
-    menu_item(m, TM_UPDATE, L"检查更新", 0, true);
-    menu_item(m, TM_ABOUT, L"关于 sniplite", 0, true);
+    menu_item(m, TM_SETTINGS, T(M_SETTINGS), 0, true);
+    menu_item(m, TM_HELP, T(M_HELP), 0, true);
+    menu_item(m, TM_UPDATE, T(M_UPDATE), 0, true);
+    menu_item(m, TM_ABOUT, T(M_ABOUT), 0, true);
     AppendMenuW(m, MF_SEPARATOR, 0, NULL);
-    menu_item(m, TM_EXIT, L"退出", 0, true);
+    menu_item(m, TM_EXIT, T(M_EXIT), 0, true);
     SetMenuDefaultItem(m, TM_CAPTURE, FALSE); /* bold: what a left click does */
     SetForegroundWindow(D.hwnd);              /* so the menu closes when clicking elsewhere */
     UINT align = GetSystemMetrics(SM_MENUDROPALIGNMENT) ? TPM_RIGHTALIGN : TPM_LEFTALIGN;
@@ -767,10 +772,12 @@ static void tray_menu(POINT at)
     case TM_HELP:
         run_helper(L" --shortcuts", false);
         break;
-    case TM_ABOUT:
-        MessageBoxW(NULL, L"sniplite " SNIPLITE_VERSION L"\n轻量、快速的截图与贴图工具\n\nMIT License", L"关于 sniplite",
-                    MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
+    case TM_ABOUT: {
+        WCHAR t[200];
+        wsprintfW(t, L"sniplite " SNIPLITE_VERSION L"\n%s\n\nMIT License", T(TAGLINE));
+        MessageBoxW(NULL, t, T(M_ABOUT), MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
         break;
+    }
     case TM_EXIT:
         PostMessageW(D.hwnd, WM_CLOSE, 0, 0);
         break;
@@ -798,7 +805,7 @@ static LRESULT CALLBACK daemon_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
             tray_menu(at);
             break;
         }
-        case NIN_BALLOONUSERCLICK: /* "有新版本" was clicked */
+        case NIN_BALLOONUSERCLICK: /* the "new version" balloon was clicked */
             settings_open(L"update");
             break;
         }
@@ -930,9 +937,9 @@ static int daemon_main(HINSTANCE inst, int argc, WCHAR **argv, bool from_cli)
 
     if (!from_cli && !hotkeys_ok()) {
         Str msg = {0};
-        str_add(&msg, L"有热键注册失败，可能已被其他程序（比如 Snipaste）占用：\n\n");
+        str_add(&msg, T(HK_WARN_1));
         status_text(&msg);
-        str_add(&msg, L"\n可以在托盘图标的首选项里换一个。");
+        str_add(&msg, T(HK_WARN_2));
         MessageBoxW(NULL, msg.p, L"sniplite", MB_OK | MB_ICONWARNING);
         str_free(&msg);
     }
@@ -961,6 +968,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
     WCHAR **argv = cmdline_split(GetCommandLineW(), &argc);
     if (!argv)
         return EXIT_FAIL;
+    lang_init(NULL); /* every mode below talks to the user */
     if (argc > 1 && arg_eq(argv[1], L"--save-dialog"))
         return save_dialog_helper(argc, argv);
     if (argc > 1 && arg_eq(argv[1], L"--settings"))

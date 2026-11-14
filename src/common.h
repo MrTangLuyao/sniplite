@@ -21,7 +21,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define SNIPLITE_VERSION L"1.1.2"
+#define SNIPLITE_VERSION L"1.2.0"
 
 #define DAEMON_CLASS L"sniplite.daemon"
 #define DAEMON_MUTEX L"Local\\sniplite.daemon"
@@ -83,6 +83,7 @@ void str_free(Str *s);
 
 /* ---- ipc.c (client side, shared by sniplite.exe and sniplite.com) --------------- */
 HWND ipc_find(void);
+HWND ipc_find_dialog(const WCHAR *mark); /* the open dialog carrying that mark (settings.h), or NULL */
 /* Run a command in the daemon. Returns its exit code, or -1 if it could not be reached. */
 int ipc_call(HWND daemon, int argc, WCHAR **argv, Str *reply);
 

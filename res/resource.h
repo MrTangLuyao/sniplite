@@ -16,7 +16,7 @@
 #define IDC_INI_PATH 122
 #define IDC_OPEN_DIR 123
 #define IDC_OPEN_INI 124
-#define IDC_DEFAULTS 125 /* every page has its own "恢复默认" with this id */
+#define IDC_DEFAULTS 125 /* every page has its own reset button with this id */
 #define IDC_DXGI 126
 #define IDC_GDI 127
 #define IDC_BUILTIN 128
@@ -27,6 +27,16 @@
 #define IDC_HK_CLEAR 150 /* + HK_* - 1 */
 #define IDC_HK_STATE 160 /* + HK_* - 1 */
 #define IDC_HELPBTN 131
+#define IDC_LANG 132 /* the language list, and the labels that get their text from lang_text.h */
+#define IDC_LANG_LABEL 133
+#define IDC_INI_GROUP 134
+#define IDC_PATH_LABEL 135
+#define IDC_MODE_LABEL 136
+#define IDC_HK_LABEL1 137
+#define IDC_HK_LABEL2 138
+#define IDC_HK_LABEL3 139
+#define IDC_TAGLINE 143
+#define IDC_LICENSE 144
 
 /* explicit per-row ids (resource scripts cannot do arithmetic reliably) */
 #define IDC_HK_FIELD1 140
@@ -42,7 +52,7 @@
 #define IDD_SHORTCUTS 170
 #define IDC_LIST 171
 
-/* preferences: 更新 page */
+/* preferences: the update page */
 #define IDD_PAGE_UPDATE 180
 #define IDC_U_VERSION 181
 #define IDC_U_CHECK 182

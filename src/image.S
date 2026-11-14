@@ -1,13 +1,13 @@
 /* image.S: clipboard I/O, WIC encode/decode, text-to-image and the out-of-process
- * save dialog (see image.h), replacing image.c. ole32/WIC and comdlg32 are loaded
- * on first use only, never at startup.
+ * save dialog (see image.h). ole32/WIC and comdlg32 are loaded on first use only,
+ * never at startup.
  *
  * The pixel loops (24bpp rows for PNG/JPEG/BMP and CF_DIB, the clipboard's 32bpp
  * alpha handling, the white matte after decoding) use SSE2 or 64-bit integer
- * code and give exactly the bytes of the C version; tests/image_test.c compares
- * the two. Windows structure offsets, constants and COM vtable slots used below
- * are the #define lines of this file, checked by tests/image_check.c. */
+ * code. The Windows structure offsets, constants and COM vtable slots used below
+ * are the #define lines of this file. */
 #include "asm.inc"
+#include "lang.inc"
 
 /* ---- Windows constants --------------------------------------------------------- */
 #define K_E_FAIL 0x80004005
@@ -155,10 +155,6 @@ w_jpeg:
         /* L".bmp" */
 w_bmp:
         .short 0x002E, 0x0062, 0x006D, 0x0070, 0x0000
-        /* L"Microsoft YaHei UI" */
-w_yahei:
-        .short 0x004D, 0x0069, 0x0063, 0x0072, 0x006F, 0x0073, 0x006F, 0x0066, 0x0074, 0x0020, 0x0059, 0x0061
-        .short 0x0048, 0x0065, 0x0069, 0x0020, 0x0055, 0x0049, 0x0000
         /* L"sniplite_%04d-%02d-%02d_%02d-%02d-%02d.png" */
 w_namefmt:
         .short 0x0073, 0x006E, 0x0069, 0x0070, 0x006C, 0x0069, 0x0074, 0x0065, 0x005F, 0x0025, 0x0030, 0x0034
@@ -186,17 +182,6 @@ w_comdlg32:
         /* L"shell32.dll" */
 w_shell32:
         .short 0x0073, 0x0068, 0x0065, 0x006C, 0x006C, 0x0033, 0x0032, 0x002E, 0x0064, 0x006C, 0x006C, 0x0000
-        /* L"PNG 图片 (*.png)\0*.png\0JPEG 图片 (*.jpg)\0*.jpg;*.jpeg\0BMP 图片 (*.bmp)\0*.bmp\0" */
-w_filter:
-        .short 0x0050, 0x004E, 0x0047, 0x0020, 0x56FE, 0x7247, 0x0020, 0x0028, 0x002A, 0x002E, 0x0070, 0x006E
-        .short 0x0067, 0x0029, 0x0000, 0x002A, 0x002E, 0x0070, 0x006E, 0x0067, 0x0000, 0x004A, 0x0050, 0x0045
-        .short 0x0047, 0x0020, 0x56FE, 0x7247, 0x0020, 0x0028, 0x002A, 0x002E, 0x006A, 0x0070, 0x0067, 0x0029
-        .short 0x0000, 0x002A, 0x002E, 0x006A, 0x0070, 0x0067, 0x003B, 0x002A, 0x002E, 0x006A, 0x0070, 0x0065
-        .short 0x0067, 0x0000, 0x0042, 0x004D, 0x0050, 0x0020, 0x56FE, 0x7247, 0x0020, 0x0028, 0x002A, 0x002E
-        .short 0x0062, 0x006D, 0x0070, 0x0029, 0x0000, 0x002A, 0x002E, 0x0062, 0x006D, 0x0070, 0x0000, 0x0000
-        /* L"保存截图" */
-w_title:
-        .short 0x4FDD, 0x5B58, 0x622A, 0x56FE, 0x0000
         /* L"png" */
 w_png:
         .short 0x0070, 0x006E, 0x0067, 0x0000
@@ -445,7 +430,7 @@ SFUNC opaque_row
         ENDF
 
 /* Straight alpha over white: each channel c becomes c * a / 255 + (255 - a), alpha 255.
- * (a = 255 leaves the pixel as it is, like the C, which skips it.) x / 255 for
+ * (a = 255 leaves the pixel as it is.) x / 255 for
  * x <= 65535 is (x * 0x8081) >> 23, done as pmulhuw then >> 7. */
 .macro BLEND4 src                       /* xmm0 = 4 blended pixels of \src; xmm1-xmm4 clobbered */
         movdqu xmm0, xmmword ptr \src
@@ -511,7 +496,7 @@ SFUNC blend_row
         ENDF
 
 /* Premultiplied pixels over white, in place: k = 255 - a; if k, the pixel becomes
- * (r + k) << 16 | (g + k) << 8 | (b + k), alpha byte 0, sums ORed like the C.
+ * (r + k) << 16 | (g + k) << 8 | (b + k), alpha byte 0, the sums ORed.
  * rcx = pixels, rdx = count (64-bit). */
 SFUNC white_matte
         ENDPROLOG
@@ -1662,7 +1647,7 @@ FUNC text_image_at
         mov qword ptr [rsp + 80], 0     /* CLIP_DEFAULT_PRECIS */
         mov qword ptr [rsp + 88], K_CLEARTYPE_QUALITY
         mov qword ptr [rsp + 96], 0     /* DEFAULT_PITCH */
-        lea rax, [rip + w_yahei]
+        TR rax, FONT
         mov qword ptr [rsp + 104], rax
         API CreateFontW
         mov rdi, rax                    /* font */
@@ -2050,7 +2035,7 @@ FUNC save_dialog_helper
         mov ecx, OFN_BYTES / 8
         rep stosq
         mov dword ptr [rsp + SH_OFN + OFN_STRUCTSIZE], OFN_BYTES
-        lea rax, [rip + w_filter]
+        call lang_save_filter           /* the file types, named in the language in use */
         mov qword ptr [rsp + SH_OFN + OFN_FILTER], rax
         mov dword ptr [rsp + SH_OFN + OFN_FILTERINDEX], 1
         lea rax, [rsp + SH_FILE]
@@ -2061,7 +2046,7 @@ FUNC save_dialog_helper
         cmp word ptr [rdx], 0
         cmovne rax, rdx
         mov qword ptr [rsp + SH_OFN + OFN_INITIALDIR], rax
-        lea rax, [rip + w_title]
+        TR rax, SAVE_TITLE
         mov qword ptr [rsp + SH_OFN + OFN_TITLE], rax
         mov dword ptr [rsp + SH_OFN + OFN_FLAGS], K_OFN_FLAGS
         lea rax, [rip + w_png]

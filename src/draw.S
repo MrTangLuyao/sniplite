@@ -1,17 +1,13 @@
-/* draw.S: the software rasterizer (see draw.h) in x86-64 assembly.
- *
- * Every function produces exactly the pixels of the C code it replaced
- * (tests/ref/draw.c); tests/draw_test.c compares the two bit for bit on random
- * input, on every CPU path. Floating point follows the C evaluation order
- * operation by operation, so results match to the last bit.
+/* draw.S: the software rasterizer (see draw.h).
  *
  * The baseline is SSE2, which every x86-64 CPU has. Where it pays, an AVX2 path
- * is chosen at run time: draw_cpu is 0 = not probed yet, 1 = SSE2, 2 = AVX2.
+ * is chosen at run time: draw_cpu is 0 = not probed yet, 1 = SSE2, 2 = AVX2. Both
+ * paths give the same pixels to the last bit: floating point is evaluated in one
+ * fixed order, operation by operation.
  *
- * Faster than the C original by construction, not only by instructions: rows of
- * an arrow or polygon only visit the span its edges allow (the C walked the whole
- * bounding box), a stroke's mask skips empty runs eight bytes at a time, and the
- * hot loops run eight pixels per step with AVX2. */
+ * What makes it fast: the rows of an arrow or polygon visit only the span its
+ * edges allow, not the whole bounding box; a stroke's mask skips empty runs eight
+ * bytes at a time; the hot loops run eight pixels per step with AVX2. */
 #include "asm.inc"
 
         .section .rdata,"dr"
@@ -2443,7 +2439,7 @@ SFUNC poly_box
 ENDF
 
 /* out = max over the cnt edges of nx * px + ny * py - k (cnt must hold the edge
- * count, clobbered), rowc = the row's ny * py values. Starts from -1e30 like the C. */
+ * count, clobbered), rowc = the row's ny * py values. Starts from -1e30. */
 .macro POLY_DIST edges, rowc, px, out, tmp, cnt, ptr, rc
         movss \out, dword ptr [rip + .Lf_m1e30]
         mov \ptr, \edges

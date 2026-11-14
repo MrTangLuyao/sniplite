@@ -1,28 +1,8 @@
 /* sniplite.com: console front end. Starts the background process when needed,
  * forwards the command, prints the reply and returns its exit code. */
 #include "common.h"
+#include "lang.h"
 #include "update.h"
-
-static const WCHAR kHelp[] =
-    L"sniplite " SNIPLITE_VERSION L"：又快又轻的截图工具\n"
-    L"\n"
-    L"  sniplite                     启动（已启动就看状态）\n"
-    L"  sniplite capture             开始截图，和按 F1 一样\n"
-    L"  sniplite capture --full --out a.png        整个屏幕存成文件\n"
-    L"  sniplite capture --rect 0,0,800,600        截这块区域到剪贴板\n"
-    L"  sniplite pin [图片]          贴到屏幕，不给图片就贴剪贴板\n"
-    L"  sniplite settings            打开首选项\n"
-    L"  sniplite update              检查更新，加 --install 直接装上新版本\n"
-    L"  sniplite status              看状态\n"
-    L"  sniplite quit                退出\n"
-    L"\n"
-    L"小提示：\n"
-    L"  capture 还能加 --clip（复制）、--pin（贴图），可以一起用\n"
-    L"  start 可以临时换热键：--hotkey Ctrl+Alt+A（另有 --pin-hotkey、--toggle-hotkey）\n"
-    L"  start --gdi 用省内存的截屏方式，--dxgi 换回最快的\n"
-    L"  任何命令加 --json，输出给程序读\n"
-    L"\n"
-    L"退出码：0 成功，1 失败，2 参数不对，3 没在运行，4 没东西可贴，5 热键被占用\n";
 
 static void print(const WCHAR *s, bool err)
 {
@@ -61,7 +41,7 @@ static HWND spawn_daemon(int argc, WCHAR **argv, bool is_start)
         return NULL;
     lstrcpyW(dot, L".exe");
     if (GetFileAttributesW(exe) == INVALID_FILE_ATTRIBUTES) {
-        print(L"找不到 sniplite.exe，它必须和 sniplite.com 放在同一个文件夹里\n", true);
+        print(T(NO_EXE), true);
         return NULL;
     }
     Str cmd = {0};
@@ -80,7 +60,7 @@ static HWND spawn_daemon(int argc, WCHAR **argv, bool is_start)
         ok = CreateProcessW(exe, cmd.p, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
     str_free(&cmd);
     if (!ok) {
-        print(L"无法启动 sniplite.exe\n", true);
+        print(T(CANNOT_START), true);
         return NULL;
     }
     HWND d = NULL;
@@ -92,7 +72,7 @@ static HWND spawn_daemon(int argc, WCHAR **argv, bool is_start)
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
     if (!d)
-        print(L"sniplite.exe 没有正常启动\n", true);
+        print(T(START_FAILED), true);
     return d;
 }
 
@@ -104,7 +84,7 @@ static int cmd_update(int ac, WCHAR **av, bool json)
         if (arg_eq(av[i], L"--install")) {
             install = true;
         } else if (!arg_eq(av[i], L"--json")) {
-            print(L"用法：sniplite update [--install] [--json]\n", true);
+            print(T(UPD_USAGE), true);
             return EXIT_USAGE;
         }
     }
@@ -119,7 +99,7 @@ static int cmd_update(int ac, WCHAR **av, bool json)
     } else if (install && r.state == UPD_NEWER) {
         WCHAR setup[MAX_PATH];
         if (!json)
-            print(L"正在下载新版本...\n", false);
+            print(T(DOWNLOADING), false);
         code = EXIT_FAIL;
         if (update_download(r.tag, setup, MAX_PATH, NULL, NULL)) {
             Str cmd = {0};
@@ -151,15 +131,17 @@ static int cmd_update(int ac, WCHAR **av, bool json)
             str_addf(&out, L",\"installed\":%s", installed ? L"true" : L"false");
         str_add(&out, L"}\n");
     } else if (installed) {
-        str_addf(&out, L"已更新到 %s\n", r.tag);
+        str_addf(&out, T(UPDATED), r.tag);
     } else if (portable) {
-        str_addf(&out, L"有新版本 %s。这份 sniplite 不是用安装包装的，请到 GitHub 下载\n", r.tag);
+        str_addf(&out, T(PORTABLE), r.tag);
     } else if (code != EXIT_OK) {
-        str_add(&out, r.state == UPD_ERROR ? L"检查失败，请检查网络\n" : L"更新失败，请稍后再试\n");
+        str_add(&out, r.state == UPD_ERROR ? T(NET_FAILED) : T(UPD_FAILED));
     } else if (r.state == UPD_NEWER) {
-        str_addf(&out, L"有新版本 %s（现在是 %s），运行 sniplite update --install 安装\n", r.tag, SNIPLITE_VERSION);
+        str_addf(&out, T(NEWER), r.tag, SNIPLITE_VERSION);
+    } else if (r.state == UPD_NONE) {
+        str_add(&out, T(NO_RELEASE));
     } else {
-        str_add(&out, r.state == UPD_NONE ? L"还没有发布的版本\n" : L"已是最新版本 " SNIPLITE_VERSION L"\n");
+        str_addf(&out, T(LATEST), SNIPLITE_VERSION);
     }
     if (out.p)
         print(out.p, code != EXIT_OK && !json);
@@ -169,6 +151,7 @@ static int cmd_update(int ac, WCHAR **av, bool json)
 
 int wmain(int argc, WCHAR **argv)
 {
+    lang_init(NULL);
     /* argv[0] is the program; the command starts at argv[1] */
     WCHAR *def[] = {L"start"};
     int ac = argc - 1;
@@ -179,7 +162,8 @@ int wmain(int argc, WCHAR **argv)
     }
     const WCHAR *c = av[0];
     if (arg_eq(c, L"help") || arg_eq(c, L"-h") || arg_eq(c, L"--help") || arg_eq(c, L"/?")) {
-        print(kHelp, false);
+        print(L"sniplite " SNIPLITE_VERSION, false);
+        print(T(HELP), false);
         return EXIT_OK;
     }
     if (arg_eq(c, L"version") || arg_eq(c, L"--version")) {
@@ -193,7 +177,7 @@ int wmain(int argc, WCHAR **argv)
     HWND d = ipc_find();
     if (!d) {
         if (arg_eq(c, L"status") || arg_eq(c, L"quit") || arg_eq(c, L"exit")) {
-            print(json ? L"{\"running\":false}\n" : L"sniplite 没有在运行\n", false);
+            print(json ? L"{\"running\":false}\n" : T(NOT_RUNNING), false);
             return EXIT_NOT_RUNNING;
         }
         d = spawn_daemon(ac, av, is_start);
@@ -203,7 +187,7 @@ int wmain(int argc, WCHAR **argv)
     Str reply = {0};
     int code = ipc_call(d, ac, av, &reply);
     if (code < 0) {
-        print(L"无法连接 sniplite 后台进程\n", true);
+        print(T(NO_CONNECT), true);
         str_free(&reply);
         return EXIT_FAIL;
     }

@@ -1,9 +1,8 @@
-/* pin.S: pinned image windows (see pin.h), replacing pin.c. Drag to move, wheel
- * to zoom, Ctrl+wheel for opacity, double-click or Esc to close, right-click for
- * a menu. Windows constants and structure offsets are the #define lines of this
- * file, checked by tests/pin_check.c; tests/pin_test.c drives the C and the
- * assembly windows with the same messages and compares them. */
+/* pin.S: pinned image windows (see pin.h). Drag to move, wheel to zoom, Ctrl+wheel
+ * for opacity, double-click or Esc to close, right-click for a menu. The Windows
+ * constants and structure offsets are the #define lines of this file. */
 #include "asm.inc"
+#include "lang.inc"
 
 /* ---- Windows constants --------------------------------------------------------- */
 #define K_GWLP_USERDATA -21
@@ -132,38 +131,6 @@ w_name:
         /* L"%d%%" */
 w_pctfmt:
         .short 0x0025, 0x0064, 0x0025, 0x0025, 0x0000
-        /* L"不透明度 %d%%" */
-w_alphafmt:
-        .short 0x4E0D, 0x900F, 0x660E, 0x5EA6, 0x0020, 0x0025, 0x0064, 0x0025, 0x0025, 0x0000
-        /* L"已复制" */
-w_copied:
-        .short 0x5DF2, 0x590D, 0x5236, 0x0000
-        /* L"已保存" */
-w_saved:
-        .short 0x5DF2, 0x4FDD, 0x5B58, 0x0000
-        /* L"保存失败" */
-w_savefail:
-        .short 0x4FDD, 0x5B58, 0x5931, 0x8D25, 0x0000
-        /* L"复制\tCtrl+C" */
-w_m_copy:
-        .short 0x590D, 0x5236, 0x0009, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B, 0x0043, 0x0000
-        /* L"另存为...\tCtrl+S" */
-w_m_save:
-        .short 0x53E6, 0x5B58, 0x4E3A, 0x002E, 0x002E, 0x002E, 0x0009, 0x0043, 0x0074, 0x0072, 0x006C, 0x002B
-        .short 0x0053, 0x0000
-        /* L"恢复原始大小" */
-w_m_reset:
-        .short 0x6062, 0x590D, 0x539F, 0x59CB, 0x5927, 0x5C0F, 0x0000
-        /* L"关闭\tEsc" */
-w_m_close:
-        .short 0x5173, 0x95ED, 0x0009, 0x0045, 0x0073, 0x0063, 0x0000
-        /* L"关闭所有贴图" */
-w_m_closeall:
-        .short 0x5173, 0x95ED, 0x6240, 0x6709, 0x8D34, 0x56FE, 0x0000
-        /* L"Microsoft YaHei UI" */
-w_yahei:
-        .short 0x004D, 0x0069, 0x0063, 0x0072, 0x006F, 0x0073, 0x006F, 0x0066, 0x0074, 0x0020, 0x0059, 0x0061
-        .short 0x0048, 0x0065, 0x0069, 0x0020, 0x0055, 0x0049, 0x0000
 
         .bss
         .balign 8
@@ -356,7 +323,7 @@ SFUNC set_alpha
         API RedrawWindow
 .Lsa_label:
         lea rcx, [rsp + SA_T]
-        lea rdx, [rip + w_alphafmt]
+        TR rdx, PIN_OPACITY
         mov r8d, dword ptr [rbx + PIN_ALPHA]
         API wsprintfW
         mov rcx, rbx
@@ -382,7 +349,7 @@ SFUNC pin_copy
         mov dword ptr [rsp + 32], eax
         call clip_put_image
         mov rcx, rbx
-        lea rdx, [rip + w_copied]
+        TR rdx, PIN_COPIED
         call flash_label
         add rsp, 48
         pop rbx
@@ -436,8 +403,8 @@ SFUNC pin_save
         API GetWindowLongPtrW
         cmp rax, rbx
         jne .Lps_destroy
-        lea rdx, [rip + w_saved]
-        lea rax, [rip + w_savefail]
+        TR rdx, PIN_SAVED
+        TR rax, PIN_SAVE_FAILED
         test edi, edi
         cmovz rdx, rax
         mov rcx, rbx
@@ -469,12 +436,12 @@ SFUNC pin_menu
         mov rcx, rsi
         mov edx, K_MF_STRING
         mov r8d, CM_COPY
-        lea r9, [rip + w_m_copy]
+        TR r9, PM_COPY
         API AppendMenuW
         mov rcx, rsi
         mov edx, K_MF_STRING
         mov r8d, CM_SAVE
-        lea r9, [rip + w_m_save]
+        TR r9, PM_SAVE
         API AppendMenuW
         mov edx, K_MF_STRING            /* grayed at 100% and fully opaque */
         movss xmm0, dword ptr [rbx + PIN_ZOOM]
@@ -486,7 +453,7 @@ SFUNC pin_menu
         mov edx, K_MF_STRING | K_MF_GRAYED
 1:      mov rcx, rsi
         mov r8d, CM_RESET
-        lea r9, [rip + w_m_reset]
+        TR r9, PM_RESET
         API AppendMenuW
         mov rcx, rsi
         mov edx, K_MF_SEPARATOR
@@ -496,12 +463,12 @@ SFUNC pin_menu
         mov rcx, rsi
         mov edx, K_MF_STRING
         mov r8d, CM_CLOSE
-        lea r9, [rip + w_m_close]
+        TR r9, PM_CLOSE
         API AppendMenuW
         mov rcx, rsi
         mov edx, K_MF_STRING
         mov r8d, CM_CLOSE_ALL
-        lea r9, [rip + w_m_closeall]
+        TR r9, M_CLOSE_PINS
         API AppendMenuW
         mov rdi, qword ptr [rbx + PIN_HWND]
         mov rcx, rdi
@@ -692,7 +659,7 @@ SFUNC paint
         mov qword ptr [rsp + 80], 0
         mov qword ptr [rsp + 88], K_CLEARTYPE_QUALITY
         mov qword ptr [rsp + 96], 0
-        lea rax, [rip + w_yahei]
+        TR rax, FONT
         mov qword ptr [rsp + 104], rax
         API CreateFontW
         mov qword ptr [rsp + PA_FONT], rax
