@@ -12,6 +12,25 @@ final class ToolButton: NSView {
     /// regular: an 18 x 17 canvas, 1.25 pt lines): a rounded square holding a checkerboard.
     static let mosaicIconName = "sniplite.mosaic"
 
+    /// The pin, tilted 45° (head up right, point down left): upright it stood taller than the
+    /// other icons.
+    static let tiltedPin: NSImage? = {
+        guard let pin = NSImage(systemSymbolName: "pin", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 15, weight: .regular)) else { return nil }
+        let w = pin.size.width, h = pin.size.height
+        let side = ceil((w + h) / sqrt(2))
+        let img = NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
+            let t = NSAffineTransform()
+            t.translateX(by: side / 2, yBy: side / 2)
+            t.rotate(byDegrees: -45)
+            t.concat()
+            pin.draw(in: NSRect(x: -w / 2, y: -h / 2, width: w, height: h))
+            return true
+        }
+        img.isTemplate = true
+        return img
+    }()
+
     /// SF Symbols at one point size differ in how big they look (a wide rectangle, a small "A",
     /// a full circle). Each gets the point size that makes its drawn part about as big as the
     /// others' (the square root of its area near 15.5 pt), kept within 13-17 pt so the line
@@ -74,6 +93,7 @@ final class ToolButton: NSView {
     private lazy var image: NSImage? = {
         guard case .symbol(let name) = look else { return nil }
         if name == ToolButton.mosaicIconName { return ToolButton.mosaicIcon }
+        if name == "pin" { return ToolButton.tiltedPin }
         let cfg = NSImage.SymbolConfiguration(pointSize: ToolButton.pointSize(for: name), weight: .regular)
         return NSImage(systemSymbolName: name, accessibilityDescription: toolTip)?.withSymbolConfiguration(cfg)
     }()
