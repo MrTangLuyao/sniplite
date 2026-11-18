@@ -172,6 +172,13 @@ final class OverlayView: NSView, NSTextViewDelegate {
         if let i = selected, i < annotations.count { return annotations[i].tool }
         return tool ?? .rect
     }
+    /// That tool's own opacity, and the color drawn with: the chosen color at that opacity.
+    private var opacity: CGFloat {
+        get { Prefs.shared.opacity(for: widthTool) }
+        set { Prefs.shared.setOpacity(newValue, for: widthTool) }
+    }
+    private var drawColor: NSColor { Palette.colors[colorIndex].withAlphaComponent(opacity) }
+
     /// That tool's own size (each tool keeps its own).
     private var width: CGFloat {
         get { Prefs.shared.width(for: widthTool) }
@@ -209,6 +216,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         toolbar.onTool = { [weak self] t in self?.setTool(t) }
         toolbar.onColor = { [weak self] i in self?.pickColor(i) }
         toolbar.onWidth = { [weak self] w in self?.pickSize(w) }
+        toolbar.onOpacity = { [weak self] o in self?.pickOpacity(o) }
         toolbar.onMosaicMode = { [weak self] m in self?.pickMosaicMode(m) }
         toolbar.onMosaicSolid = { [weak self] on in self?.pickMosaicSolid(on) }
         toolbar.onResize = { [weak self] in self?.placeToolbar() }
@@ -429,10 +437,10 @@ final class OverlayView: NSView, NSTextViewDelegate {
                     drag = .none
                 case .number:
                     let n = (annotations.filter { $0.tool == .number }.map(\.number).max() ?? 0) + 1
-                    push(Annotation(tool: .number, color: Palette.colors[colorIndex], width: width, points: [p], number: n))
+                    push(Annotation(tool: .number, color: drawColor, width: width, points: [p], number: n))
                     drag = .none
                 default:
-                    current = Annotation(tool: t, color: Palette.colors[colorIndex], width: width,
+                    current = Annotation(tool: t, color: drawColor, width: width,
                                          mosaicMode: mosaicMode, solid: mosaicSolid, points: [p, p])
                     if current?.isStrokeLike == true { current?.points = [p] }
                     drag = .draw
@@ -570,7 +578,11 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        if phase == .edit, selected != nil || tool != nil { scrollWidth(event); return }
+        if phase == .edit, selected != nil || tool != nil {
+            // ⌥ + wheel: the opacity (as on pins); the wheel: the size
+            if event.modifierFlags.contains(.option) { scrollOpacity(event) } else { scrollWidth(event) }
+            return
+        }
         guard phase == .select, !chain.isEmpty else { return }
         // a wheel notch is one step; on a trackpad a step takes a deliberate swipe
         let steps = scrollSteps(event, trackpadDistance: 30)
@@ -622,7 +634,26 @@ final class OverlayView: NSView, NSTextViewDelegate {
         setWidth(w, preview: true)
     }
 
+    private func scrollOpacity(_ e: NSEvent) {
+        let steps = scrollSteps(e, trackpadDistance: 8)
+        guard steps != 0 else { return }
+        if let k = selected, !annotations[k].hasColor { return }
+        if selected == nil, tool == .mosaic, !mosaicSolid { return }
+        let base = selected.map { annotations[$0].color.alphaComponent } ?? opacity
+        let o = min(1, max(0.1, ((base + CGFloat(steps) * 0.05) * 20).rounded() / 20))
+        pickOpacity(o)
+        toolbar.setOpacity(o)
+        hudOpacity = true
+        sizeHUDUntil = Date().addingTimeInterval(0.9)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.95) { [weak self] in self?.needsDisplay = true }
+        needsDisplay = true
+    }
+
+    /// The preview shows the opacity (⌥ + wheel) rather than the size.
+    private var hudOpacity = false
+
     private func setWidth(_ w: CGFloat, preview: Bool) {
+        hudOpacity = false
         width = w
         toolbar.setWidth(w)
         restyleText()
@@ -637,7 +668,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private func drawSizeHUD(_ ctx: CGContext) {
         guard phase == .edit, Date() < sizeHUDUntil,
               let t = selected.map({ annotations[$0].tool }) ?? tool else { return }
-        let c = selected.map { annotations[$0].color } ?? Palette.colors[colorIndex]
+        let c = selected.map { annotations[$0].color } ?? drawColor
         let d: CGFloat
         switch t {
         case .text: d = Annotation.fontSize(for: width)
@@ -645,6 +676,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
         case .marker: d = width * 4
         case .mosaic: d = Annotation.brushWidth(width)
         default: d = width
+        }
+        if hudOpacity {
+            let label = "\(Int(((selected.map { annotations[$0].color.alphaComponent } ?? opacity) * 100).rounded()))%"
+            if let anchor = drawingBeingSized() { drawHUDLabel(label, below: anchor, centerX: anchor.midX) }
+            else { drawHUDLabel(label, below: CGRect(x: mouse.x, y: mouse.y, width: 0, height: 0)) }
+            return
         }
         // an existing drawing shows its new size itself: only the number, under it
         if let anchor = drawingBeingSized() {
@@ -799,6 +836,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         if let i = selected, annotations[i].tool != t { selected = nil }
         tool = t
         toolbar.setWidth(width)                       // this tool's own size
+        toolbar.setOpacity(opacity)                   // and opacity
         placeToolbar()
         updateCursor(mouse)
     }
@@ -870,9 +908,13 @@ final class OverlayView: NSView, NSTextViewDelegate {
             toolbar.setMosaicMode(a.mosaicMode, notify: false)
             toolbar.setMosaicSolid(a.solid, notify: false)
         }
-        if a.hasColor, let c = Palette.colors.firstIndex(of: a.color) {
+        if a.hasColor, let c = Palette.index(of: a.color) {
             colorIndex = c
             toolbar.setColor(c)
+        }
+        if a.hasColor {
+            opacity = a.color.alphaComponent
+            toolbar.setOpacity(a.color.alphaComponent)
         }
     }
 
@@ -885,12 +927,26 @@ final class OverlayView: NSView, NSTextViewDelegate {
         var a = annotations[k]
         if a.tool == .mosaic { a.solid = true }              // a hide box or stroke: now in this color
         saveUndo()
-        a.color = Palette.colors[i]
+        a.color = Palette.colors[i].withAlphaComponent(a.color.alphaComponent)
         a.colorRuns = []                                     // a selected text: all of it
         annotations[k] = a
     }
 
     /// Box or brush, for the next hide (a drawn box cannot become a stroke): lets go of a selected one.
+    /// The opacity slider: for the next drawing, the selected one (one drag, one undo step), or
+    /// the selected characters / next text while typing.
+    private func pickOpacity(_ o: CGFloat) {
+        opacity = o
+        if textView != nil { restyleText(realpha: true); return }
+        guard let k = selected, annotations[k].hasColor else { return }
+        if Date().timeIntervalSince(lastScrollEdit) > 0.5 { saveUndo() }
+        lastScrollEdit = Date()
+        annotations[k].color = annotations[k].color.withAlphaComponent(o)
+        annotations[k].colorRuns = annotations[k].colorRuns.map {
+            Annotation.ColorRun(location: $0.location, length: $0.length, color: $0.color.withAlphaComponent(o))
+        }
+    }
+
     /// The size slider: like the wheel, for the selected drawing too; one drag is one undo step.
     private func pickSize(_ w: CGFloat) {
         if let k = selected, annotations[k].hasWidth {
@@ -915,7 +971,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         guard let k = selected, annotations[k].tool == .mosaic, annotations[k].solid != on else { return }
         saveUndo()
         annotations[k].solid = on
-        if on { annotations[k].color = Palette.colors[colorIndex] }
+        if on { annotations[k].color = drawColor }
     }
 
     /// Double-click on a text: edit it again, where it is, with its color and size.
@@ -924,7 +980,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
         saveUndo()
         annotations.remove(at: i)
         selected = nil
-        if let c = Palette.colors.firstIndex(of: a.color) { colorIndex = c; toolbar.setColor(c) }
+        if let c = Palette.index(of: a.color) { colorIndex = c; toolbar.setColor(c) }
+        Prefs.shared.setOpacity(a.color.alphaComponent, for: .text)
+        toolbar.setOpacity(a.color.alphaComponent)
         Prefs.shared.setWidth(a.width, for: .text)
         toolbar.setWidth(a.width)
         beginText(at: a.points[0], origin: a.points[0], text: a.text)
@@ -1050,15 +1108,22 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     /// The size applies to the whole text; a color only to the selected characters (`recolor`)
     /// and to what is typed next, never to what is there already.
-    private func restyleText(recolor: Bool = false) {
+    private func restyleText(recolor: Bool = false, realpha: Bool = false) {
         guard let tv = textView else { return }
-        let color = Palette.colors[colorIndex]
+        let color = drawColor
         let attrs = Annotation.textAttributes(color: color, size: Annotation.fontSize(for: width))
         if let storage = tv.textStorage, let font = attrs[.font] {
             storage.addAttribute(.font, value: font, range: NSRange(location: 0, length: storage.length))
             let sel = tv.selectedRange()
             if recolor, sel.length > 0, sel.location + sel.length <= storage.length {
                 storage.addAttribute(.foregroundColor, value: color, range: sel)
+            }
+            // an opacity: only for the selected characters, keeping each one's color
+            if realpha, sel.length > 0, sel.location + sel.length <= storage.length {
+                storage.enumerateAttribute(.foregroundColor, in: sel) { v, r, _ in
+                    let c = (v as? NSColor) ?? color
+                    storage.addAttribute(.foregroundColor, value: c.withAlphaComponent(opacity), range: r)
+                }
             }
         }
         tv.typingAttributes = attrs
@@ -1080,10 +1145,10 @@ final class OverlayView: NSView, NSTextViewDelegate {
         let s = tv.string
         if !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let o = tv.textContainerOrigin
-            var a = Annotation(tool: .text, color: Palette.colors[colorIndex], width: width,
+            var a = Annotation(tool: .text, color: drawColor, width: width,
                                points: [CGPoint(x: tv.frame.minX + o.x, y: tv.frame.minY + o.y)], text: s)
             if let storage = tv.textStorage {
-                (a.color, a.colorRuns) = Annotation.colors(of: storage, default: Palette.colors[colorIndex])
+                (a.color, a.colorRuns) = Annotation.colors(of: storage, default: drawColor)
             }
             push(a)
         }

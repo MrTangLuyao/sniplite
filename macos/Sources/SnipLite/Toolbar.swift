@@ -135,19 +135,21 @@ final class ToolButton: NSView {
             let s = img.size
             tinted.draw(in: NSRect(x: bounds.midX - s.width / 2, y: bounds.midY - s.height / 2, width: s.width, height: s.height))
         case .color(let c):
-            let d = r.insetBy(dx: 6, dy: 6)
+            let side = min(r.width, r.height) - 8          // square, whatever the button's width
+            let d = NSRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side)
             c.setFill()
             let p = NSBezierPath(roundedRect: d, xRadius: 3, yRadius: 3)
             p.fill()
             NSColor.black.withAlphaComponent(0.25).setStroke(); p.lineWidth = 1; p.stroke()
             if selected {
                 Palette.accent.setStroke()
-                let o = NSBezierPath(roundedRect: r.insetBy(dx: 2, dy: 2), xRadius: 5, yRadius: 5)
+                let o = NSBezierPath(roundedRect: d.insetBy(dx: -3, dy: -3), xRadius: 5, yRadius: 5)
                 o.lineWidth = 2; o.stroke()
             }
         case .mosaicSwatch:
             // like a color swatch, filled with mosaic squares
-            let d = r.insetBy(dx: 6, dy: 6)
+            let side = min(r.width, r.height) - 8
+            let d = NSRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side)
             let clip = NSBezierPath(roundedRect: d, xRadius: 3, yRadius: 3)
             NSGraphicsContext.saveGraphicsState()
             clip.addClip()
@@ -161,7 +163,7 @@ final class ToolButton: NSView {
             NSColor.black.withAlphaComponent(0.25).setStroke(); clip.lineWidth = 1; clip.stroke()
             if selected {
                 Palette.accent.setStroke()
-                let o = NSBezierPath(roundedRect: r.insetBy(dx: 2, dy: 2), xRadius: 5, yRadius: 5)
+                let o = NSBezierPath(roundedRect: d.insetBy(dx: -3, dy: -3), xRadius: 5, yRadius: 5)
                 o.lineWidth = 2; o.stroke()
             }
         case .glyph(let g, let size):
@@ -193,6 +195,9 @@ final class Toolbar: NSView {
     var onCommand: ((Command) -> Void)?
     var onColor: ((Int) -> Void)?
     var onWidth: ((CGFloat) -> Void)?
+    var onOpacity: ((CGFloat) -> Void)?
+    private let opacitySlider = OpacitySlider(frame: NSRect(x: 0, y: 0, width: 96, height: 28))
+    private let opacityValue = NSTextField(labelWithString: "100%")
     var onMosaicMode: ((MosaicMode) -> Void)?
     var onMosaicSolid: ((Bool) -> Void)?
     /// The toolbar changed size (the second row's buttons depend on the tool and mosaic mode).
@@ -201,7 +206,7 @@ final class Toolbar: NSView {
     private var toolButtons: [Tool: ToolButton] = [:]
     private var commandButtons: [Command: ToolButton] = [:]
     private var colorButtons: [ToolButton] = []
-    private let sizeSlider = SizeSlider(frame: NSRect(x: 0, y: 0, width: 112, height: 28))
+    private let sizeSlider = SizeSlider(frame: NSRect(x: 0, y: 0, width: 96, height: 28))
     private let sizeValue = NSTextField(labelWithString: "")
     private var modeButtons: [MosaicMode: ToolButton] = [:]
     private var paletteSeps: [NSView] = []
@@ -231,6 +236,7 @@ final class Toolbar: NSView {
     private let paletteRow = NSView()
     private(set) var tool: Tool?
     private let unit: CGFloat = 32
+    static let swatchWidth: CGFloat = 28
 
     override var isFlipped: Bool { true }
 
@@ -298,13 +304,14 @@ final class Toolbar: NSView {
             b.onClick = { [weak self] in self?.setMosaicMode(m) }
             modeButtons[m] = b; paletteRow.addSubview(b)
         }
-        for _ in 0..<2 {
+        for _ in 0..<3 {
             let sep = NSView(frame: NSRect(x: 0, y: 9, width: 1, height: unit - 14))
             sep.wantsLayer = true; seps.append(sep)
             paletteSeps.append(sep); paletteRow.addSubview(sep)
         }
         for (i, c) in Palette.colors.enumerated() {
             let b = ToolButton(.color(c), tip: nil, size: unit)
+            b.frame.size.width = Toolbar.swatchWidth                   // a little narrower: two rows of one width
             b.onClick = { [weak self] in
                 guard let self else { return }
                 self.colorIndex = i
@@ -315,8 +322,20 @@ final class Toolbar: NSView {
             }
             colorButtons.append(b); paletteRow.addSubview(b)
         }
+        mosaicSwatch.frame.size.width = Toolbar.swatchWidth
         mosaicSwatch.onClick = { [weak self] in self?.setMosaicSolid(false) }
         paletteRow.addSubview(mosaicSwatch)
+        opacitySlider.toolTip = L.t("opacityTip")
+        opacitySlider.onChange = { [weak self] in
+            guard let self else { return }
+            self.showOpacity(self.opacitySlider.value)
+            self.onOpacity?(self.opacitySlider.value)
+        }
+        opacityValue.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        opacityValue.textColor = .secondaryLabelColor
+        opacityValue.frame = NSRect(x: 0, y: 0, width: 36, height: 16)
+        paletteRow.addSubview(opacitySlider)
+        paletteRow.addSubview(opacityValue)
         paletteRow.frame.origin = CGPoint(x: 0, y: unit + 10)
         paletteRow.isHidden = true
         layoutPalette()
@@ -360,6 +379,21 @@ final class Toolbar: NSView {
             paletteSeps[1].isHidden = true
         }
         colorButtons.forEach(put)
+        // the opacity of the color, where a color applies
+        if tool != .mosaic || mosaicSolid {
+            sep(2)
+            opacitySlider.frame.origin = CGPoint(x: x, y: (unit + 4 - opacitySlider.frame.height) / 2)
+            opacitySlider.isHidden = false
+            x += opacitySlider.frame.width + 4
+            let w = ceil(NSAttributedString(string: "100%", attributes: [.font: opacityValue.font as Any]).size().width) + 2
+            opacityValue.frame = NSRect(x: x, y: (unit + 4 - opacityValue.frame.height) / 2, width: w, height: opacityValue.frame.height)
+            opacityValue.isHidden = false
+            x += w + 4
+        } else {
+            opacitySlider.isHidden = true
+            opacityValue.isHidden = true
+            paletteSeps[2].isHidden = true
+        }
         paletteRow.frame.size = NSSize(width: x + 4, height: unit + 4)
         refreshPalette()
     }
@@ -369,6 +403,7 @@ final class Toolbar: NSView {
         for (m, b) in modeButtons { b.selected = m == mosaicMode }
         let colorUsed = tool != .mosaic || mosaicSolid
         for (k, b) in colorButtons.enumerated() { b.selected = colorUsed && k == colorIndex }
+        opacitySlider.color = Palette.colors[colorIndex]
         mosaicSwatch.selected = !colorUsed
     }
 
@@ -384,9 +419,18 @@ final class Toolbar: NSView {
     func setMosaicSolid(_ on: Bool, notify: Bool = true) {
         mosaicSolid = on
         Prefs.shared.mosaicSolid = on
-        refreshPalette()
+        layoutPalette()                      // the opacity slider comes and goes with the color
+        fitSize()
         if notify { onMosaicSolid?(on) }
+        onResize?()
     }
+
+    func setOpacity(_ o: CGFloat) {
+        opacitySlider.value = o
+        showOpacity(o)
+    }
+
+    private func showOpacity(_ o: CGFloat) { opacityValue.stringValue = "\(Int((o * 100).rounded()))%" }
 
     private func fitSize() {
         setFrameSize(NSSize(width: max(mainRow.frame.width, paletteRow.frame.width),
@@ -508,6 +552,76 @@ final class SizeSlider: NSView {
     private func set(fromX x: CGFloat) {
         let f = min(max((x - inset) / max(1, bounds.width - inset * 2), 0), 1)
         let v = (minValue + (maxValue - minValue) * f).rounded()
+        guard v != value else { return }
+        value = v
+        onChange?()
+    }
+
+    override func mouseDown(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x) }
+    override func mouseDragged(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x) }
+}
+
+/// The opacity slider: a checkerboard track with the color fading in from transparent, and a knob
+/// showing the color at the chosen opacity. 10-100 %, in steps of 5.
+final class OpacitySlider: NSView {
+    var value: CGFloat = 1 { didSet { needsDisplay = true } }
+    var color: NSColor = .black { didSet { needsDisplay = true } }
+    var onChange: (() -> Void)?
+    private let minValue: CGFloat = 0.1
+    private let knob: CGFloat = 16
+    private var inset: CGFloat { 11 }                 // as the size slider: the tracks line up
+    private var knobX: CGFloat { inset + (bounds.width - inset * 2) * (value - minValue) / (1 - minValue) }
+
+    override var isFlipped: Bool { true }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .arrow) }
+
+    private func checker(_ r: NSRect, cell: CGFloat) {
+        NSColor.white.setFill(); r.fill()
+        NSColor(white: 0.82, alpha: 1).setFill()
+        var y = r.minY, row = 0
+        while y < r.maxY {
+            var x = r.minX + (row % 2 == 0 ? 0 : cell)
+            while x < r.maxX { NSRect(x: x, y: y, width: cell, height: cell).intersection(r).fill(); x += cell * 2 }
+            y += cell; row += 1
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let track = NSRect(x: inset, y: bounds.midY - 4, width: bounds.width - inset * 2, height: 8)
+        let shape = NSBezierPath(roundedRect: track, xRadius: 4, yRadius: 4)
+        NSGraphicsContext.saveGraphicsState()
+        shape.addClip()
+        checker(track, cell: 4)
+        NSGradient(starting: color.withAlphaComponent(0), ending: color.withAlphaComponent(1))?.draw(in: track, angle: 0)
+        NSGraphicsContext.restoreGraphicsState()
+        NSColor.black.withAlphaComponent(0.12).setStroke()
+        shape.lineWidth = 1
+        shape.stroke()
+
+        let k = NSRect(x: knobX - knob / 2, y: bounds.midY - knob / 2, width: knob, height: knob)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.3)
+        shadow.shadowBlurRadius = 2
+        shadow.shadowOffset = NSSize(width: 0, height: -0.5)
+        shadow.set()
+        NSColor.white.setFill()
+        NSBezierPath(ovalIn: k).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        // inside the knob: the color at this opacity, over the checkerboard
+        let inner = k.insetBy(dx: 3, dy: 3)
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(ovalIn: inner).addClip()
+        checker(inner, cell: 2.5)
+        color.withAlphaComponent(value).setFill()
+        inner.fill()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    private func set(fromX x: CGFloat) {
+        let f = min(max((x - inset) / max(1, bounds.width - inset * 2), 0), 1)
+        let v = ((minValue + (1 - minValue) * f) * 20).rounded() / 20
         guard v != value else { return }
         value = v
         onChange?()

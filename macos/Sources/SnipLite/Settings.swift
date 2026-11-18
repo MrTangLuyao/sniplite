@@ -40,6 +40,19 @@ final class Prefs {
         return w
     }
 
+    /// Each tool's opacity too (1 = opaque), remembered between captures.
+    private var opacities: [Tool: CGFloat] = [:]
+    func opacity(for t: Tool) -> CGFloat {
+        if let o = opacities[t] { return o }
+        let o = (d.object(forKey: "opacity.\(t)") as? Double).map { CGFloat($0) } ?? 1
+        opacities[t] = o
+        return o
+    }
+    func setOpacity(_ o: CGFloat, for t: Tool) {
+        opacities[t] = o
+        d.set(Double(o), forKey: "opacity.\(t)")
+    }
+
     func setWidth(_ w: CGFloat, for t: Tool) {
         widths[t] = w
         d.set(Double(w), forKey: "width.\(t)")

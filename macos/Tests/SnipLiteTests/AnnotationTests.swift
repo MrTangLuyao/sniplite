@@ -119,3 +119,13 @@ struct TextColorTests {
         #expect((t.attribute(.foregroundColor, at: 8, effectiveRange: nil) as? NSColor) == blue)
     }
 }
+
+/// Colors with an opacity are still the palette's colors.
+struct OpacityTests {
+    @Test func paletteIndexIgnoresOpacity() {
+        for (i, c) in Palette.colors.enumerated() {
+            #expect(Palette.index(of: c.withAlphaComponent(0.4)) == i)
+        }
+        #expect(Palette.index(of: NSColor(srgbRed: 0.5, green: 0.5, blue: 0.5, alpha: 1)) == nil)
+    }
+}

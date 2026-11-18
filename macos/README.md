@@ -17,7 +17,7 @@ The Windows version (`../src`) is unchanged; this folder is a separate program.
 ## Features
 
 - **Capture**: press F1; the window or the part of a window under the mouse (a button, a field, a list, a pane) is found for you, and the wheel steps out to bigger parts, the window and the screen. Drag to select any area; a magnifier shows the pixels and their color.
-- **Draw**: rectangle, ellipse, line, arrow, pen, marker, text and numbers, in eight colors; a size slider, or the wheel (two fingers up / down on a trackpad). Each tool keeps its own size. Undo and redo.
+- **Draw**: rectangle, ellipse, line, arrow, pen, marker, text and numbers, in eight colors with an opacity slider (or ⌥ + wheel); a size slider, or the wheel (two fingers up / down on a trackpad). Each tool keeps its own size and opacity. Undo and redo.
 - **Hide**: a dragged box (the default) or a brush, covered with mosaic or with a solid color (the mosaic swatch, or any color); mosaic squares are sized so text under them cannot be read.
 - **Edit afterwards**: click anything drawn to select it (with a tool, drawings of that tool; others are drawn over): drag it to move it, drag the ends of a line or arrow and the corners of a box (the corners of a text scale it), the arrow keys nudge it, scroll to change its width or size, click a color to recolor it, Delete removes it, double-click a text to edit it. While typing, drag the box's edge to move it and its corners to scale it. With the mouse away, their marks fade; they stay selected, so the toolbar, Delete and the arrow keys still act on them. All of it undoes with ⌘Z.
 - **Smooth**: the highlight glides from one window or element to the next.
@@ -68,7 +68,8 @@ The same as on Windows, with ⌘ in place of Ctrl. They can be changed in Settin
 | **Right click** | The same steps back as Esc; then back to choosing an area; once more to cancel |
 | **Arrow keys**, **W A S D** | Move the cursor, the selected drawing or the capture area by one pixel; with Shift, by ten |
 | **C** (while choosing) | Copy the color under the cursor |
-| **Wheel** / two fingers | Choosing: a bigger or smaller part; with a tool: its width (and mosaic size); on a pin: zoom; ⌥ + wheel: pin opacity |
+| **Wheel** / two fingers | Choosing: a bigger or smaller part; with a tool: its size; on a pin: zoom |
+| **⌥ + wheel** | With a tool: its opacity; on a pin: the pin's opacity |
 | **Double-click** / **Esc** | Close a pin |
 | **⌘E** (on a pin) | Edit the pin with the capture tools |
 

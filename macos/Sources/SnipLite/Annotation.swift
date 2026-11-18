@@ -45,6 +45,16 @@ enum Palette {
     static let widths: [CGFloat] = [2, 4, 8]
     static let widthRange: ClosedRange<CGFloat> = 1...40
     static let accent = NSColor(srgbRed: 0x1A / 255, green: 0x8C / 255, blue: 1, alpha: 1)
+
+    /// Which of the eight colors this is, whatever its opacity.
+    static func index(of c: NSColor) -> Int? {
+        guard let s = c.usingColorSpace(.sRGB) else { return nil }
+        return colors.firstIndex { p in
+            guard let q = p.usingColorSpace(.sRGB) else { return false }
+            return abs(q.redComponent - s.redComponent) < 0.01 && abs(q.greenComponent - s.greenComponent) < 0.01
+                && abs(q.blueComponent - s.blueComponent) < 0.01
+        }
+    }
 }
 
 /// The shape of what the hide tool covers: a dragged box (the default) or a brush stroke.
@@ -139,7 +149,7 @@ struct Annotation {
             drawArrow(ctx, p0, p1)
         case .pen, .marker:
             if tool == .marker {
-                ctx.setStrokeColor(color.withAlphaComponent(0.4).cgColor)
+                ctx.setStrokeColor(color.withAlphaComponent(color.alphaComponent * 0.4).cgColor)
                 ctx.setLineWidth(width * 4)
                 ctx.setLineCap(.square)
             }
@@ -176,8 +186,8 @@ struct Annotation {
         case .number:
             let r = Annotation.numberRadius(width)
             ctx.fillEllipse(in: CGRect(x: p0.x - r, y: p0.y - r, width: r * 2, height: r * 2))
-            let light = Palette.hex[Palette.colors.firstIndex(of: color) ?? 0] == 0xFFFFFF
-                || Palette.hex[Palette.colors.firstIndex(of: color) ?? 0] == 0xFDD835
+            let hex = Palette.hex[Palette.index(of: color) ?? 0]
+            let light = hex == 0xFFFFFF || hex == 0xFDD835
             let s = NSAttributedString(string: "\(number)", attributes: [
                 .font: NSFont.systemFont(ofSize: r * 1.1, weight: .bold),
                 .foregroundColor: light ? NSColor.black : NSColor.white])
