@@ -117,7 +117,7 @@ final class Toolbar: NSView {
     private var toolButtons: [Tool: ToolButton] = [:]
     private var commandButtons: [Command: ToolButton] = [:]
     private var colorButtons: [ToolButton] = []
-    private let sizeSlider = NSSlider(value: 3, minValue: 1, maxValue: 40, target: nil, action: nil)
+    private let sizeSlider = SizeSlider(frame: NSRect(x: 0, y: 0, width: 112, height: 28))
     private let sizeValue = NSTextField(labelWithString: "")
     private var modeButtons: [MosaicMode: ToolButton] = [:]
     private var paletteSeps: [NSView] = []
@@ -196,11 +196,7 @@ final class Toolbar: NSView {
         mainRow.frame = NSRect(x: 0, y: 0, width: x + 4, height: unit + 4)
 
         // second row: sizes | mosaic modes (mosaic tool only) | colors; laid out by layoutPalette()
-        sizeSlider.controlSize = .small
-        sizeSlider.isContinuous = true
-        sizeSlider.target = self
-        sizeSlider.action = #selector(slid)
-        sizeSlider.frame = NSRect(x: 0, y: 0, width: 104, height: 20)
+        sizeSlider.onChange = { [weak self] in self?.slid() }
         sizeSlider.toolTip = L.t("sizeTip")
         sizeValue.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         sizeValue.textColor = .secondaryLabelColor
@@ -253,7 +249,7 @@ final class Toolbar: NSView {
         let sizesApply = tool != .mosaic || mosaicMode == .brush
         if sizesApply {
             // the size: a slider up to this tool's limit, and its value
-            sizeSlider.maxValue = Double(Annotation.maxWidth(tool ?? .rect))
+            sizeSlider.maxValue = Annotation.maxWidth(tool ?? .rect)
             x += 6
             sizeSlider.frame.origin = CGPoint(x: x, y: (unit + 4 - sizeSlider.frame.height) / 2)
             sizeSlider.isHidden = false
@@ -339,7 +335,7 @@ final class Toolbar: NSView {
     func setColor(_ i: Int) { colorIndex = i; refreshPalette() }
     /// Marks the size button matching the width, if one does (the wheel sets widths in between).
     func setWidth(_ w: CGFloat) {
-        sizeSlider.doubleValue = Double(w)
+        sizeSlider.value = w
         showValue(w)
     }
 
@@ -355,10 +351,77 @@ final class Toolbar: NSView {
         }
     }
 
-    @objc private func slid() {
-        let w = CGFloat(sizeSlider.doubleValue.rounded())
+    private func slid() {
+        let w = sizeSlider.value.rounded()
         showValue(w)
         onWidth?(w)
     }
     func setEnabled(_ c: Command, _ on: Bool) { commandButtons[c]?.enabled = on }
+}
+
+/// The size slider: a wedge track, thin on the left and thick on the right (small to big), and a
+/// knob that grows with the value, so the slider itself shows the size being set.
+final class SizeSlider: NSView {
+    var minValue: CGFloat = 1
+    var maxValue: CGFloat = 40 { didSet { needsDisplay = true } }
+    var value: CGFloat = 3 { didSet { needsDisplay = true } }
+    var onChange: (() -> Void)?
+
+    private let knobMin: CGFloat = 8, knobMax: CGFloat = 20
+    private var inset: CGFloat { knobMax / 2 + 1 }
+    private var fraction: CGFloat { maxValue > minValue ? (min(max(value, minValue), maxValue) - minValue) / (maxValue - minValue) : 0 }
+    private var knobX: CGFloat { inset + (bounds.width - inset * 2) * fraction }
+
+    override var isFlipped: Bool { true }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .arrow) }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let midY = bounds.midY, x0 = inset, x1 = bounds.width - inset
+        let thin: CGFloat = 1, thick: CGFloat = 5
+        // the wedge: half height grows from `thin` to `thick` from left to right
+        func wedge(to x: CGFloat) -> NSBezierPath {
+            let t = (x - x0) / max(1, x1 - x0)
+            let h = thin + (thick - thin) * t
+            let p = NSBezierPath()
+            p.move(to: NSPoint(x: x0, y: midY - thin))
+            p.line(to: NSPoint(x: x, y: midY - h))
+            p.line(to: NSPoint(x: x, y: midY + h))
+            p.line(to: NSPoint(x: x0, y: midY + thin))
+            p.close()
+            return p
+        }
+        NSColor.labelColor.withAlphaComponent(0.14).setFill()
+        wedge(to: x1).fill()
+        Palette.accent.setFill()
+        wedge(to: knobX).fill()
+
+        // the knob: as big as the value is
+        let d = knobMin + (knobMax - knobMin) * fraction
+        let knob = NSRect(x: knobX - d / 2, y: midY - d / 2, width: d, height: d)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.3)
+        shadow.shadowBlurRadius = 2
+        shadow.shadowOffset = NSSize(width: 0, height: -0.5)
+        shadow.set()
+        NSColor.white.setFill()
+        NSBezierPath(ovalIn: knob).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        NSColor.black.withAlphaComponent(0.12).setStroke()
+        let ring = NSBezierPath(ovalIn: knob.insetBy(dx: 0.5, dy: 0.5))
+        ring.lineWidth = 1
+        ring.stroke()
+    }
+
+    private func set(fromX x: CGFloat) {
+        let f = min(max((x - inset) / max(1, bounds.width - inset * 2), 0), 1)
+        let v = (minValue + (maxValue - minValue) * f).rounded()
+        guard v != value else { return }
+        value = v
+        onChange?()
+    }
+
+    override func mouseDown(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x) }
+    override func mouseDragged(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x) }
 }
