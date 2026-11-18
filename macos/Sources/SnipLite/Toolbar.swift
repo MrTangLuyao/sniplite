@@ -6,6 +6,9 @@ final class ToolButton: NSView {
     var look: Look { didSet { needsDisplay = true } }
     /// Shown faded: it still works, but does not apply as things are (colors for a mosaic).
     var dimmed = false { didSet { needsDisplay = true } }
+    /// The main action (✓): drawn in the accent color.
+    var prominent = false { didSet { needsDisplay = true } }
+    static let iconBox: CGFloat = 18
     var selected = false { didSet { needsDisplay = true } }
     var enabled = true { didSet { needsDisplay = true } }
     var onClick: (() -> Void)?
@@ -44,11 +47,14 @@ final class ToolButton: NSView {
         switch look {
         case .symbol:
             guard let img = image else { return }
-            let tint: NSColor = !enabled ? .tertiaryLabelColor : (selected ? Palette.accent : NSColor.labelColor)
+            let tint: NSColor = !enabled ? .tertiaryLabelColor : (selected || prominent ? Palette.accent : NSColor.labelColor)
             let tinted = NSImage(size: img.size, flipped: false) { rect in
                 img.draw(in: rect); tint.set(); rect.fill(using: .sourceAtop); return true
             }
-            let s = img.size
+            // every icon in the same box: wide ones are scaled down, so none looks bigger than the rest
+            let box = ToolButton.iconBox
+            let k = min(1, box / max(img.size.width, img.size.height))
+            let s = NSSize(width: img.size.width * k, height: img.size.height * k)
             tinted.draw(in: NSRect(x: bounds.midX - s.width / 2, y: bounds.midY - s.height / 2, width: s.width, height: s.height))
         case .color(let c):
             let d = r.insetBy(dx: 6, dy: 6)
@@ -190,6 +196,7 @@ final class Toolbar: NSView {
             for (c, sym, tip) in group {
                 let b = ToolButton(.symbol(sym), tip: tip, size: unit)
                 b.onClick = { [weak self] in self?.onCommand?(c) }
+                b.prominent = c == .ok
                 commandButtons[c] = b; place(b, in: mainRow)
             }
         }
@@ -205,8 +212,8 @@ final class Toolbar: NSView {
         paletteRow.addSubview(sizeSlider)
         paletteRow.addSubview(sizeValue)
         let modes: [(MosaicMode, String, String)] = [
-            (.rect, "checkerboard.rectangle", L.t("mosaicRect")),
-            (.brush, "scribble.variable", L.t("mosaicBrush")),
+            (.rect, "square.dashed", L.t("mosaicRect")),
+            (.brush, "paintbrush", L.t("mosaicBrush")),
         ]
         for (m, sym, tip) in modes {
             let b = ToolButton(.symbol(sym), tip: tip, size: unit)

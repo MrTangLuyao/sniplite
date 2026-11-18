@@ -9,10 +9,10 @@ enum Tool: Int, CaseIterable {
         case .ellipse: return "circle"
         case .line: return "line.diagonal"
         case .arrow: return "arrow.up.right"
-        case .pen: return "pencil.tip"
+        case .pen: return "scribble"
         case .marker: return "highlighter"
-        case .mosaic: return "checkerboard.rectangle"
-        case .text: return "textformat"
+        case .mosaic: return "square.grid.3x3.square"
+        case .text: return "character"
         case .number: return "1.circle"
         }
     }
