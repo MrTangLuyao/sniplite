@@ -24,16 +24,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         TopRowKeys.shared.update(prompt: false)
 
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
-                                               object: nil, queue: .main) { _ in Capture.invalidate() }
+                                               object: nil, queue: .main) { _ in Capture.invalidate(); Capture.prewarm() }
+        Capture.prewarm()
 
         if CommandLine.arguments.contains("--capture") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { CaptureSession.start() }
-        } else if CommandLine.arguments.contains("--guide") {   // for previewing the drag panel
-            PermissionGuide.start(.accessibility) {}
-        } else if CommandLine.arguments.contains("--settings") {   // for previewing
-            SettingsWindow.show()
-        } else if CommandLine.arguments.contains("--permissions") {
-            PermissionsWindow.show()
         } else {
             PermissionsWindow.showIfNeeded()
         }

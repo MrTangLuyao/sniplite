@@ -38,13 +38,13 @@ final class ToolButton: NSView {
         if dimmed { NSGraphicsContext.current?.cgContext.setAlpha(0.35) }
         let r = bounds.insetBy(dx: 2, dy: 2)
         if selected || (hover && enabled) {
-            (selected ? Palette.accent.withAlphaComponent(0.18) : NSColor.black.withAlphaComponent(0.07)).setFill()
+            (selected ? Palette.accent.withAlphaComponent(0.18) : NSColor.labelColor.withAlphaComponent(0.08)).setFill()
             NSBezierPath(roundedRect: r, xRadius: 6, yRadius: 6).fill()
         }
         switch look {
         case .symbol:
             guard let img = image else { return }
-            let tint: NSColor = !enabled ? .tertiaryLabelColor : (selected ? Palette.accent : NSColor(white: 0.15, alpha: 1))
+            let tint: NSColor = !enabled ? .tertiaryLabelColor : (selected ? Palette.accent : NSColor.labelColor)
             let tinted = NSImage(size: img.size, flipped: false) { rect in
                 img.draw(in: rect); tint.set(); rect.fill(using: .sourceAtop); return true
             }
@@ -83,11 +83,11 @@ final class ToolButton: NSView {
         case .glyph(let g, let size):
             let str = NSAttributedString(string: g, attributes: [
                 .font: NSFont.systemFont(ofSize: size, weight: .semibold),
-                .foregroundColor: selected ? Palette.accent : NSColor(white: 0.3, alpha: 1)])
+                .foregroundColor: selected ? Palette.accent : NSColor.secondaryLabelColor])
             let sz = str.size()
             str.draw(at: NSPoint(x: bounds.midX - sz.width / 2, y: bounds.midY - sz.height / 2))
         case .number(let d):
-            (selected ? Palette.accent : NSColor(white: 0.3, alpha: 1)).setFill()
+            (selected ? Palette.accent : NSColor.secondaryLabelColor).setFill()
             NSBezierPath(ovalIn: NSRect(x: bounds.midX - d / 2, y: bounds.midY - d / 2, width: d, height: d)).fill()
             let str = NSAttributedString(string: "1", attributes: [
                 .font: NSFont.systemFont(ofSize: d * 0.62, weight: .bold), .foregroundColor: NSColor.white])
@@ -95,7 +95,7 @@ final class ToolButton: NSView {
             str.draw(at: NSPoint(x: bounds.midX - sz.width / 2, y: bounds.midY - sz.height / 2))
         case .size(let w):
             let d = min(w * 2 + 2, r.width - 6)
-            (selected ? Palette.accent : NSColor(white: 0.3, alpha: 1)).setFill()
+            (selected ? Palette.accent : NSColor.secondaryLabelColor).setFill()
             NSBezierPath(ovalIn: NSRect(x: bounds.midX - d / 2, y: bounds.midY - d / 2, width: d, height: d)).fill()
         }
     }
@@ -125,6 +125,24 @@ final class Toolbar: NSView {
     private(set) var mosaicSolid = Prefs.shared.mosaicSolid
     private let mosaicSwatch = ToolButton(.mosaicSwatch, tip: L.t("mosaicSwatch"), size: 32)
     private let mainRow = NSView()
+    private var rows: [NSView] = []
+    private var seps: [NSView] = []
+
+    /// Light or dark like the system: layer colors do not follow it by themselves.
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyAppearance()
+    }
+
+    private func applyAppearance() {
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        for r in rows {
+            r.layer?.backgroundColor = (dark ? NSColor(white: 0.16, alpha: 0.97) : NSColor(white: 0.98, alpha: 0.98)).cgColor
+            r.layer?.borderColor = (dark ? NSColor.white.withAlphaComponent(0.14) : NSColor.black.withAlphaComponent(0.12)).cgColor
+        }
+        for v in seps { v.layer?.backgroundColor = (dark ? NSColor.white : NSColor.black).withAlphaComponent(0.16).cgColor }
+        for v in rows { v.subviews.forEach { $0.needsDisplay = true } }
+    }
     private let paletteRow = NSView()
     private(set) var tool: Tool?
     private let unit: CGFloat = 32
@@ -136,9 +154,8 @@ final class Toolbar: NSView {
         wantsLayer = true
         for row in [mainRow, paletteRow] {
             row.wantsLayer = true
-            row.layer?.backgroundColor = NSColor(white: 0.98, alpha: 0.98).cgColor
+            rows.append(row)
             row.layer?.cornerRadius = 8
-            row.layer?.borderColor = NSColor.black.withAlphaComponent(0.12).cgColor
             row.layer?.borderWidth = 0.5
             row.shadow = NSShadow()
             row.layer?.shadowOpacity = 0.25; row.layer?.shadowRadius = 6; row.layer?.shadowOffset = CGSize(width: 0, height: -2)
@@ -148,7 +165,7 @@ final class Toolbar: NSView {
         func place(_ b: ToolButton, in row: NSView) { b.frame.origin = CGPoint(x: x, y: 2); row.addSubview(b); x += b.frame.width }
         func gap() {
             let s = NSView(frame: NSRect(x: x + 4, y: 9, width: 1, height: unit - 14))
-            s.wantsLayer = true; s.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.15).cgColor
+            s.wantsLayer = true; seps.append(s)
             mainRow.addSubview(s); x += 9
         }
         for t in Tool.allCases {
@@ -194,7 +211,7 @@ final class Toolbar: NSView {
         }
         for _ in 0..<2 {
             let sep = NSView(frame: NSRect(x: 0, y: 9, width: 1, height: unit - 14))
-            sep.wantsLayer = true; sep.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.15).cgColor
+            sep.wantsLayer = true; seps.append(sep)
             paletteSeps.append(sep); paletteRow.addSubview(sep)
         }
         for (i, c) in Palette.colors.enumerated() {
@@ -216,6 +233,7 @@ final class Toolbar: NSView {
         layoutPalette()
         setFrameSize(NSSize(width: mainRow.frame.width, height: mainRow.frame.height))
         setWidth(Prefs.shared.strokeWidth)
+        applyAppearance()
     }
 
     /// Places the second row's buttons for the current tool.

@@ -29,6 +29,22 @@ enum Capture {
 
     static func invalidate() { cachedDisplays = nil }
 
+    /// At start-up (and when displays change): fetch the display list and take one 16 x 16
+    /// screenshot that is thrown away, so ScreenCaptureKit is warm: the first capture then takes
+    /// about 120 ms like the others, instead of about 225.
+    static func prewarm() {
+        guard hasPermission else { return }
+        Task {
+            guard let d = try? await displays().first else { return }
+            do {
+                let cfg = SCStreamConfiguration()
+                cfg.width = 16; cfg.height = 16; cfg.showsCursor = false
+                cfg.sourceRect = CGRect(x: 0, y: 0, width: 16, height: 16)
+                _ = try? await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(display: d, excludingWindows: []), configuration: cfg)
+            }
+        }
+    }
+
     static var hasPermission: Bool { CGPreflightScreenCaptureAccess() }
 
     private static func displays() async throws -> [SCDisplay] {

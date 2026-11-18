@@ -143,6 +143,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private var redoStack: [[Annotation]] = []
     private var pendingUndo: [Annotation]?        // taken on mouse down, kept only if something changes
     private var lastScrollEdit = Date.distantPast
+    private var lastNudge = Date.distantPast
     /// The annotation being edited (drawn last, or clicked): it shows handles, the wheel sizes it,
     /// a color recolors it, Delete removes it.
     private var selected: Int? { didSet { if selected != oldValue { needsDisplay = true } } }
@@ -429,7 +430,11 @@ final class OverlayView: NSView, NSTextViewDelegate {
             var a = orig
             let q = clamp(p, to: selection)
             let others = orig.handlePoints
-            if shift, others.count == 2 { a.moveHandle(h, to: constrain(others[1 - h], q, a.tool)) }
+            if orig.tool == .text {
+                a.scaleText(corner: h, to: q, from: orig)   // a corner of a text scales it
+                width = a.width
+                toolbar.setWidth(a.width)
+            } else if shift, others.count == 2 { a.moveHandle(h, to: constrain(others[1 - h], q, a.tool)) }
             else { a.moveHandle(h, to: q) }
             annotations[i] = a
         case .none: break
@@ -559,8 +564,13 @@ final class OverlayView: NSView, NSTextViewDelegate {
         default: d = width
         }
         let r = CGRect(x: mouse.x - d / 2, y: mouse.y - d / 2, width: d, height: d)
+        if t == .text, let anchor = textBeingSized() {
+            // resizing a text: the text shows its size itself; just the number, under it
+            drawHUDLabel("\(Int(d.rounded())) pt", below: anchor, centerX: anchor.midX)
+            return
+        }
         if t == .text {
-            // text: a sample at its size and color
+            // the text tool before typing: a sample at its size and color
             let sample = NSAttributedString(string: "Aa", attributes: Annotation.textAttributes(color: c, size: d))
             let sz = sample.size()
             let box = CGRect(x: mouse.x - sz.width / 2 - 6, y: mouse.y - sz.height / 2 - 2, width: sz.width + 12, height: sz.height + 4)
@@ -584,11 +594,21 @@ final class OverlayView: NSView, NSTextViewDelegate {
         drawHUDLabel("\(Int(width)) px", below: r)
     }
 
-    private func drawHUDLabel(_ label: String, below r: CGRect) {
+    /// The text whose size is changing: the selected text, or the one being typed.
+    private func textBeingSized() -> CGRect? {
+        if let tv = textView { return tv.frame }
+        if let i = selected, i < annotations.count, annotations[i].tool == .text {
+            return annotations[i].bounds.insetBy(dx: -Annotation.textPad, dy: -Annotation.textPad)
+        }
+        return nil
+    }
+
+    private func drawHUDLabel(_ label: String, below r: CGRect, centerX: CGFloat? = nil) {
         let str = NSAttributedString(string: label, attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold), .foregroundColor: NSColor.white])
         let sz = str.size()
-        let box = CGRect(x: mouse.x - sz.width / 2 - 6, y: r.maxY + 6, width: sz.width + 12, height: sz.height + 4)
+        let cx = centerX ?? mouse.x
+        let box = CGRect(x: cx - sz.width / 2 - 6, y: r.maxY + 6, width: sz.width + 12, height: sz.height + 4)
         NSColor.black.withAlphaComponent(0.72).setFill()
         NSBezierPath(roundedRect: box, xRadius: 5, yRadius: 5).fill()
         str.draw(at: CGPoint(x: box.minX + 6, y: box.minY + 2))
@@ -650,7 +670,8 @@ final class OverlayView: NSView, NSTextViewDelegate {
         return super.performKeyEquivalent(with: event)
     }
 
-    /// Arrow keys and W A S D: the cursor while choosing, the selection while editing.
+    /// Arrow keys and W A S D: the cursor while choosing; while editing, the selected drawing,
+    /// or else the capture area. Shift: ten pixels.
     private func nudge(_ dx: CGFloat, _ dy: CGFloat, _ ten: Bool) {
         let k: CGFloat = (ten ? 10 : 1) / shot.scale
         if phase == .select {
@@ -659,6 +680,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
             let primaryH = NSScreen.screens.first?.frame.height ?? f.height
             CGWarpMouseCursorPosition(CGPoint(x: f.minX + p.x, y: primaryH - f.maxY + p.y))
             mouseAt(p)
+        } else if phase == .edit, let i = selected, i < annotations.count {
+            // the selected drawing moves; a burst of presses is one undo step
+            if Date().timeIntervalSince(lastNudge) > 0.6 { saveUndo() }
+            lastNudge = Date()
+            annotations[i].offset(dx * k, dy * k)
+            needsDisplay = true
         } else if phase == .edit {
             var r = selection.offsetBy(dx: dx * k, dy: dy * k)
             r.origin.x = min(max(0, r.minX), bounds.width - r.width)
@@ -730,9 +757,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
     /// An end or a corner of the selected annotation under `p`.
     private func annotationHandle(at p: CGPoint) -> (Int, Int)? {
         guard phase == .edit, let i = selected, i < annotations.count else { return nil }
-        guard let h = annotations[i].handlePoints.firstIndex(where: { hypot($0.x - p.x, $0.y - p.y) <= 7 }) else { return nil }
+        guard let h = grabPoints(annotations[i]).firstIndex(where: { hypot($0.x - p.x, $0.y - p.y) <= 7 }) else { return nil }
         return (i, h)
     }
+
+    /// What can be dragged on a selected annotation: the ends or corners of a shape, the corners of a text.
+    private func grabPoints(_ a: Annotation) -> [CGPoint] { a.tool == .text ? a.textHandles : a.handlePoints }
 
     /// Selects annotation `i` and shows its settings: its tool, color, size and mosaic mode.
     private func select(_ i: Int) {
@@ -796,13 +826,13 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private func drawSelectionMarks(_ ctx: CGContext) {
         guard let i = selected, i < annotations.count, current == nil else { return }
         let a = annotations[i]
-        let hs = a.handlePoints
+        let hs = grabPoints(a)
         ctx.saveGState()
-        if hs.isEmpty || a.tool == .rect || a.tool == .ellipse {
+        if hs.isEmpty || a.tool == .rect || a.tool == .ellipse || a.tool == .text {
             ctx.setStrokeColor(Palette.accent.withAlphaComponent(0.9).cgColor)
             ctx.setLineWidth(1)
             ctx.setLineDash(phase: 0, lengths: [4, 3])
-            let pad: CGFloat = a.tool == .rect || a.tool == .ellipse ? a.width / 2 + 3 : 4
+            let pad: CGFloat = a.tool == .rect || a.tool == .ellipse ? a.width / 2 + 3 : Annotation.textPad
             ctx.stroke(a.bounds.insetBy(dx: -pad, dy: -pad))
             ctx.setLineDash(phase: 0, lengths: [])
         }
@@ -878,22 +908,20 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     private func beginText(at p: CGPoint, origin: CGPoint? = nil, text: String = "") {
         let o = origin ?? CGPoint(x: p.x, y: p.y - Annotation.fontSize(for: width) * 0.6)
-        let tv = NSTextView(frame: NSRect(x: o.x, y: o.y, width: 20, height: 20))
+        let inset = TextBox.inset
+        let tv = TextBox(frame: NSRect(x: o.x - inset.width, y: o.y - inset.height, width: 20, height: 20))
         tv.string = text
         tv.drawsBackground = false
         tv.isRichText = false
         TextInput.quiet(tv)
-        tv.textContainerInset = .zero
+        tv.textContainerInset = inset
         tv.textContainer?.lineFragmentPadding = 0
         tv.isHorizontallyResizable = true
         tv.isVerticallyResizable = true
         tv.textContainer?.widthTracksTextView = false
         tv.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        tv.minSize = NSSize(width: 20, height: 20)
         tv.wantsLayer = true
-        tv.layer?.borderColor = Palette.accent.withAlphaComponent(0.8).cgColor
-        tv.layer?.borderWidth = 1
         tv.delegate = self
         addSubview(tv)
         textView = tv
@@ -908,6 +936,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
         tv.typingAttributes = attrs
         tv.textStorage?.setAttributes(attrs, range: NSRange(location: 0, length: tv.string.utf16.count))
         tv.insertionPointColor = Palette.colors[colorIndex]
+        // room for a few characters and a line, whatever the size
+        let fs = Annotation.fontSize(for: width)
+        tv.minSize = NSSize(width: fs * 3 + TextBox.inset.width * 2, height: ceil(fs * 1.25) + TextBox.inset.height * 2)
         tv.sizeToFit()
     }
 
@@ -921,8 +952,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
         textView = nil
         let s = tv.string
         if !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let o = tv.textContainerOrigin
             push(Annotation(tool: .text, color: Palette.colors[colorIndex], width: width,
-                            points: [tv.frame.origin], text: s))
+                            points: [CGPoint(x: tv.frame.minX + o.x, y: tv.frame.minY + o.y)], text: s))
         }
         tv.removeFromSuperview()
         window?.makeFirstResponder(self)
@@ -1015,7 +1047,8 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private let shapes = ShapesView()
     private lazy var canvas = DrawView { [unowned self] ctx in self.drawCanvas(ctx) }
     private lazy var sizeLabel = DrawView { [unowned self] _ in self.drawSizeLabel() }
-    private lazy var magnifier = DrawView { [unowned self] ctx in self.drawMagnifier(ctx) }
+    private let magnifier = MagnifierView(cols: OverlayView.magCols, rows: OverlayView.magRows,
+                                          cell: OverlayView.magCell, info: OverlayView.magInfo)
     private lazy var hud = DrawView { [unowned self] ctx in self.drawSizeHUD(ctx) }
 
     private func installLayers() {
@@ -1064,9 +1097,20 @@ final class OverlayView: NSView, NSTextViewDelegate {
         show(sizeLabel, hole.map { sizeLabelBox($0).insetBy(dx: -1, dy: -1) }, repaint: areaChanged)
         var showMag = phase == .select
         if case .resize = drag { showMag = true }
-        show(magnifier, showMag ? magnifierFrame() : nil)
-        show(hud, phase == .edit && Date() < sizeHUDUntil
-             ? CGRect(x: mouse.x - 110, y: mouse.y - 110, width: 220, height: 240) : nil)
+        if showMag {
+            let f = magnifierFrame()
+            let cx = Int(mouse.x * shot.scale), cy = Int(mouse.y * shot.scale)
+            magnifier.update(frame: f, image: shot.image, centerPixel: (cx, cy), color: pixelColor(at: mouse))
+        } else {
+            magnifier.isHidden = true
+        }
+        let hudFrame: CGRect? = {
+            guard phase == .edit, Date() < sizeHUDUntil else { return nil }
+            let isText = (selected.map { annotations[$0].tool } ?? tool) == .text
+            if isText, let r = textBeingSized() { return CGRect(x: r.midX - 60, y: r.maxY, width: 120, height: 34) }
+            return CGRect(x: mouse.x - 110, y: mouse.y - 110, width: 220, height: 240)
+        }()
+        show(hud, hudFrame)
     }
 
     /// The annotations, clipped to the capture area, and the marks of the selected one.
@@ -1122,56 +1166,6 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     private func pixelColor(at p: CGPoint) -> NSColor? {
         shot.image.color(atPixel: Int(p.x * shot.scale), Int(p.y * shot.scale))
-    }
-
-    private func drawMagnifier(_ ctx: CGContext) {
-        let cols = Self.magCols, rows = Self.magRows, cell = Self.magCell, info = Self.magInfo
-        let box = magnifierBox()
-        let mw = box.width
-
-        let cx = Int(mouse.x * shot.scale), cy = Int(mouse.y * shot.scale)
-        let src = CGRect(x: cx - cols / 2, y: cy - rows / 2, width: cols, height: rows)
-        let imgRect = CGRect(x: 0, y: 0, width: shot.image.width, height: shot.image.height)
-        let clipped = src.intersection(imgRect)
-        ctx.saveGState()
-        ctx.setFillColor(NSColor.black.cgColor)
-        ctx.fill(box)
-        if !clipped.isNull, let part = shot.image.cropping(to: clipped) {
-            let dst = CGRect(x: box.minX + (clipped.minX - src.minX) * cell, y: box.minY + (clipped.minY - src.minY) * cell,
-                             width: clipped.width * cell, height: clipped.height * cell)
-            ctx.interpolationQuality = .none
-            ctx.drawFlipped(part, in: dst)
-        }
-        // the pixel under the cursor
-        ctx.setStrokeColor(Palette.accent.withAlphaComponent(0.7).cgColor)
-        ctx.setLineWidth(cell)
-        let mx = box.minX + CGFloat(cols / 2) * cell + cell / 2, my = box.minY + CGFloat(rows / 2) * cell + cell / 2
-        ctx.strokeLineSegments(between: [CGPoint(x: box.minX, y: my), CGPoint(x: mx - cell / 2, y: my),
-                                         CGPoint(x: mx + cell / 2, y: my), CGPoint(x: box.maxX, y: my),
-                                         CGPoint(x: mx, y: box.minY), CGPoint(x: mx, y: my - cell / 2),
-                                         CGPoint(x: mx, y: my + cell / 2), CGPoint(x: mx, y: box.maxY)])
-        ctx.setStrokeColor(NSColor.white.cgColor); ctx.setLineWidth(1)
-        ctx.stroke(CGRect(x: mx - cell / 2, y: my - cell / 2, width: cell, height: cell))
-        ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.9).cgColor)
-        ctx.stroke(box)
-        ctx.restoreGState()
-
-        let ib = CGRect(x: box.minX, y: box.maxY, width: mw, height: info)
-        NSColor.black.withAlphaComponent(0.8).setFill()
-        NSBezierPath(rect: ib).fill()
-        let col = pixelColor(at: mouse)
-        let lines = ["\(cx), \(cy)", col?.hexString ?? "", L.t("copyColor")]
-        let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedSystemFont(ofSize: 10.5, weight: .regular),
-                                                    .foregroundColor: NSColor.white]
-        for (i, l) in lines.enumerated() {
-            NSAttributedString(string: l, attributes: attrs).draw(at: CGPoint(x: ib.minX + (i == 1 ? 20 : 6), y: ib.minY + 3 + CGFloat(i) * 15))
-        }
-        if let col {
-            col.setFill()
-            let sw = NSRect(x: ib.minX + 6, y: ib.minY + 19, width: 10, height: 10)
-            sw.fill()
-            NSColor.white.setStroke(); NSBezierPath(rect: sw).stroke()
-        }
     }
 }
 
@@ -1327,6 +1321,130 @@ final class ShapesView: NSView {
         }
         rings.path = r
         dots.path = w
+        CATransaction.commit()
+    }
+}
+
+/// The text being typed: room around the text and a dashed outline that follows its size.
+final class TextBox: NSTextView {
+    static let inset = NSSize(width: 6, height: 4)
+    private let dash = CAShapeLayer()
+
+    override init(frame: NSRect, textContainer: NSTextContainer?) {
+        super.init(frame: frame, textContainer: textContainer)
+        setUp()
+    }
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        setUp()
+    }
+
+    private func setUp() {
+        wantsLayer = true
+        dash.fillColor = nil
+        dash.strokeColor = Palette.accent.cgColor
+        dash.lineWidth = 1
+        dash.lineDashPattern = [4, 3]
+        layer?.addSublayer(dash)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        dash.frame = bounds
+        dash.path = CGPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), cornerWidth: 3, cornerHeight: 3, transform: nil)
+        dash.contentsScale = window?.backingScaleFactor ?? 2
+        CATransaction.commit()
+    }
+}
+
+/// The magnifier, from layers only: the pixels around the mouse go into an image layer that
+/// the GPU enlarges without smoothing; the crosshair, frame and texts are layers too. Moving the
+/// mouse swaps one small image and two strings; nothing is painted on the CPU.
+final class MagnifierView: NSView {
+    private let cols: Int, rows: Int, cell: CGFloat, info: CGFloat
+    private let pixels = CALayer(), cross = CAShapeLayer(), center = CAShapeLayer(), frameLine = CAShapeLayer()
+    private let infoBack = CALayer(), swatch = CALayer()
+    private let coords = CATextLayer(), hex = CATextLayer(), hint = CATextLayer()
+
+    init(cols: Int, rows: Int, cell: CGFloat, info: CGFloat) {
+        self.cols = cols; self.rows = rows; self.cell = cell; self.info = info
+        super.init(frame: .zero)
+        wantsLayer = true
+        isHidden = true
+        guard let root = layer else { return }
+        root.isGeometryFlipped = true
+        let mw = CGFloat(cols) * cell, mh = CGFloat(rows) * cell
+        let box = CGRect(x: 2, y: 2, width: mw, height: mh)
+        let back = CALayer()
+        back.backgroundColor = NSColor.black.cgColor
+        back.frame = box
+        pixels.magnificationFilter = .nearest
+        pixels.contentsGravity = .resize
+        // the pixel under the mouse: an accent cross with a white square in it
+        let mx = box.minX + CGFloat(cols / 2) * cell + cell / 2, my = box.minY + CGFloat(rows / 2) * cell + cell / 2
+        let c = CGMutablePath()
+        c.addLines(between: [CGPoint(x: box.minX, y: my), CGPoint(x: mx - cell / 2, y: my)])
+        c.addLines(between: [CGPoint(x: mx + cell / 2, y: my), CGPoint(x: box.maxX, y: my)])
+        c.addLines(between: [CGPoint(x: mx, y: box.minY), CGPoint(x: mx, y: my - cell / 2)])
+        c.addLines(between: [CGPoint(x: mx, y: my + cell / 2), CGPoint(x: mx, y: box.maxY)])
+        cross.path = c
+        cross.strokeColor = Palette.accent.withAlphaComponent(0.7).cgColor
+        cross.lineWidth = cell
+        center.path = CGPath(rect: CGRect(x: mx - cell / 2, y: my - cell / 2, width: cell, height: cell), transform: nil)
+        center.strokeColor = NSColor.white.cgColor
+        center.fillColor = nil
+        center.lineWidth = 1
+        frameLine.path = CGPath(rect: box, transform: nil)
+        frameLine.strokeColor = NSColor.white.withAlphaComponent(0.9).cgColor
+        frameLine.fillColor = nil
+        frameLine.lineWidth = 1
+        infoBack.backgroundColor = NSColor.black.withAlphaComponent(0.8).cgColor
+        infoBack.frame = CGRect(x: box.minX, y: box.maxY, width: mw, height: info)
+        swatch.frame = CGRect(x: box.minX + 6, y: box.maxY + 19, width: 10, height: 10)
+        swatch.borderColor = NSColor.white.cgColor
+        swatch.borderWidth = 1
+        let font = NSFont.monospacedSystemFont(ofSize: 10.5, weight: .regular)
+        for (i, t) in [coords, hex, hint].enumerated() {
+            t.font = font
+            t.fontSize = 10.5
+            t.foregroundColor = NSColor.white.cgColor
+            t.frame = CGRect(x: box.minX + (i == 1 ? 20 : 6), y: box.maxY + 3 + CGFloat(i) * 15, width: mw - 26, height: 15)
+        }
+        hint.string = L.t("copyColor")
+        for l in [back, pixels, cross, center, frameLine, infoBack, swatch, coords, hex, hint] as [CALayer] {
+            for s in [cross, center, frameLine] where s === l { s.frame = CGRect(x: 0, y: 0, width: mw + 4, height: mh + 4) }
+            root.addSublayer(l)
+        }
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    func update(frame f: CGRect, image: CGImage, centerPixel: (Int, Int), color: NSColor?) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        isHidden = false
+        if frame != f { frame = f }
+        let scale = window?.backingScaleFactor ?? 2
+        for t in [coords, hex, hint] { t.contentsScale = scale }
+        for s in [cross, center, frameLine] { s.contentsScale = scale }
+        let (cx, cy) = centerPixel
+        let src = CGRect(x: cx - cols / 2, y: cy - rows / 2, width: cols, height: rows)
+        let clipped = src.intersection(CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        if !clipped.isNull, let part = image.cropping(to: clipped) {
+            pixels.isHidden = false
+            pixels.contents = part
+            pixels.frame = CGRect(x: 2 + (clipped.minX - src.minX) * cell, y: 2 + (clipped.minY - src.minY) * cell,
+                                  width: clipped.width * cell, height: clipped.height * cell)
+        } else {
+            pixels.isHidden = true
+        }
+        coords.string = "\(cx), \(cy)"
+        hex.string = color?.hexString ?? ""
+        swatch.backgroundColor = color?.cgColor
+        swatch.isHidden = color == nil
         CATransaction.commit()
     }
 }

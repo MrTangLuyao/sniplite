@@ -196,6 +196,8 @@ final class PermissionsWindow: NSWindowController, NSWindowDelegate {
     private let doneButton = NSButton(title: "", target: nil, action: nil)
     private let screenAtStart = Permission.screenRecording.granted
     private var finishing = false
+    private var countdown = 6                  // seconds until the page closes by itself, once all is allowed
+    private var countdownTimer: Timer?
 
     static func show() {
         if shared == nil { shared = PermissionsWindow() }
@@ -351,7 +353,7 @@ final class PermissionsWindow: NSWindowController, NSWindowDelegate {
         }
         // the page stays until everything needed is allowed: no close button, no "later"
         let done = Permission.allRequiredGranted
-        doneButton.title = L.t("done")
+        doneButton.title = finishing ? String(format: L.t("doneIn"), countdown) : L.t("done")
         doneButton.keyEquivalent = done ? "\r" : ""
         doneButton.bezelColor = .controlAccentColor
         doneButton.isHidden = !done
@@ -361,9 +363,16 @@ final class PermissionsWindow: NSWindowController, NSWindowDelegate {
             footerIcon.contentTintColor = .systemGreen
             footer.stringValue = screenAtStart ? L.t("permDone") : L.t("permRestart")
             if !finishing {
+                // the button counts down ("Done 6s"), then the page closes; a click closes it now
                 finishing = true
                 timer?.invalidate(); timer = nil
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.finish() }
+                doneButton.title = String(format: L.t("doneIn"), countdown)
+                countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] t in
+                    guard let self else { t.invalidate(); return }
+                    self.countdown -= 1
+                    if self.countdown <= 0 { t.invalidate(); self.finish(); return }
+                    self.doneButton.title = String(format: L.t("doneIn"), self.countdown)
+                }
             }
         } else {
             footerIcon.image = NSImage(systemSymbolName: "hand.draw", accessibilityDescription: nil)
@@ -384,6 +393,7 @@ final class PermissionsWindow: NSWindowController, NSWindowDelegate {
 
     /// Done (restarting when Screen Recording is new, which ScreenCaptureKit needs) or later.
     @objc private func finish() {
+        countdownTimer?.invalidate(); countdownTimer = nil
         if Permission.allRequiredGranted && !screenAtStart && Permission.screenRecording.granted {
             AppDelegate.relaunch()
         } else {
@@ -400,6 +410,7 @@ final class PermissionsWindow: NSWindowController, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         timer?.invalidate(); timer = nil
+        countdownTimer?.invalidate(); countdownTimer = nil
         PermissionGuide.stop(closeSettings: false)
         PermissionsWindow.shared = nil
     }

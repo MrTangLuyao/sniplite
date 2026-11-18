@@ -218,12 +218,36 @@ extension Annotation {
     var handlePoints: [CGPoint] {
         guard points.count >= 2 else { return [] }
         if tool == .line || tool == .arrow { return [points[0], points[1]] }
-        if isBox {
-            let r = CGRect(points[0], points[1])
-            return [CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.maxX, y: r.minY),
-                    CGPoint(x: r.maxX, y: r.maxY), CGPoint(x: r.minX, y: r.maxY)]
-        }
+        if isBox { return Self.corners(CGRect(points[0], points[1])) }
         return []
+    }
+
+    /// Text: corners just outside its box; dragging one scales the text.
+    var textHandles: [CGPoint] { tool == .text ? Self.corners(bounds.insetBy(dx: -Self.textPad, dy: -Self.textPad)) : [] }
+    static let textPad: CGFloat = 4
+
+    static func corners(_ r: CGRect) -> [CGPoint] {
+        [CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.maxX, y: r.minY),
+         CGPoint(x: r.maxX, y: r.maxY), CGPoint(x: r.minX, y: r.maxY)]
+    }
+
+    /// Scales a text by dragging corner `i` to `p`; the opposite corner stays where it is.
+    mutating func scaleText(corner i: Int, to p: CGPoint, from orig: Annotation) {
+        let hs = orig.textHandles
+        guard hs.count == 4 else { return }
+        let fixed = hs[(i + 2) % 4]
+        let oldH = orig.bounds.height
+        guard oldH > 0 else { return }
+        let newH = max(8, abs(p.y - fixed.y) - Self.textPad * 2)
+        let font = orig.fontSize * newH / oldH
+        width = min(max((font - 9) / 2.6, Palette.widthRange.lowerBound), Self.maxWidth(.text))
+        // put the text so the fixed corner stays
+        let b = bounds
+        let left = i == 1 || i == 2           // dragging a right corner keeps the left side
+        let top = i == 2 || i == 3            // dragging a bottom corner keeps the top
+        let x = left ? fixed.x + Self.textPad : fixed.x - Self.textPad - b.width
+        let y = top ? fixed.y + Self.textPad : fixed.y - Self.textPad - b.height
+        points = [CGPoint(x: x, y: y)]
     }
 
     /// Moves handle `i` to `p`: an end, or a corner (the opposite corner stays).

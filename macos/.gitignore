@@ -1,2 +1,4 @@
 .build/
 build/
+# the unit tests (the root .gitignore drops "tests/" for local tests of the Windows version)
+!Tests/

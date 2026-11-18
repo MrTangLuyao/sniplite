@@ -18,7 +18,13 @@ let package = Package(
                 .linkedFramework("Vision"),
                 .linkedFramework("ServiceManagement"),
             ]
-        )
+        ),
+        // logic that needs no screen: hit testing, handles, sizes, OCR layout (swift test)
+        .testTarget(
+            name: "SnipLiteTests",
+            dependencies: ["SnipLite"],
+            path: "Tests/SnipLiteTests"
+        ),
     ],
     swiftLanguageVersions: [.v5]
 )

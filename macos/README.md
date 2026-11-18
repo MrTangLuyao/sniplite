@@ -19,7 +19,7 @@ The Windows version (`../src`) is unchanged; this folder is a separate program.
 - **Capture**: press F1; the window or the part of a window under the mouse (a button, a field, a list, a pane) is found for you, and the wheel steps out to bigger parts, the window and the screen. Drag to select any area; a magnifier shows the pixels and their color.
 - **Draw**: rectangle, ellipse, line, arrow, pen, marker, text and numbers, in eight colors; three preset sizes, and the wheel (two fingers up / down on a trackpad) sets any width. Undo and redo.
 - **Hide**: a dragged box (the default) or a brush, covered with mosaic or with a solid color (the mosaic swatch, or any color); mosaic squares are sized so text under them cannot be read.
-- **Edit afterwards**: click anything drawn to select it: drag it to move it, drag the ends of a line or arrow and the corners of a box, scroll to change its width or size, click a color to recolor it, Delete removes it, double-click a text to edit it. All of it undoes with ⌘Z.
+- **Edit afterwards**: click anything drawn to select it: drag it to move it, drag the ends of a line or arrow and the corners of a box (the corners of a text scale it), the arrow keys nudge it, scroll to change its width or size, click a color to recolor it, Delete removes it, double-click a text to edit it. All of it undoes with ⌘Z.
 - **Smooth**: the highlight glides from one window or element to the next.
 - **Copy, save, pin**: Enter copies, ⌘S saves (PNG or JPEG), ⌘T pins the capture above other windows. Pins move, zoom with the wheel, change opacity with ⌥ + wheel, copy, save and read their text.
 - **Text recognition** (optional, off by default): read the text of a capture; tables keep their columns (tab-separated, or Markdown). It runs on this Mac with Apple's Vision, in a short-lived helper process, so its models do not stay in memory.
@@ -66,7 +66,7 @@ The same as on Windows, with ⌘ in place of Ctrl. They can be changed in Settin
 | **Esc** | Let go of the selected drawing; again: cancel the capture |
 | **Delete** | Remove the selected drawing |
 | **Right click** | Back to choosing an area; once more to cancel |
-| **Arrow keys**, **W A S D** | Move the cursor or the selection by one pixel; with Shift, by ten |
+| **Arrow keys**, **W A S D** | Move the cursor, the selected drawing or the capture area by one pixel; with Shift, by ten |
 | **C** (while choosing) | Copy the color under the cursor |
 | **Wheel** / two fingers | Choosing: a bigger or smaller part; with a tool: its width (and mosaic size); on a pin: zoom; ⌥ + wheel: pin opacity |
 | **Double-click** / **Esc** | Close a pin |
@@ -81,6 +81,7 @@ Needs only the Xcode Command Line Tools (`xcode-select --install`); Xcode itself
 cd macos
 ./build.sh          # -> build/sniplite.app (Apple Silicon + Intel)
 ./build.sh --zip    # also build/sniplite_<version>_macos.zip
+./test.sh           # unit tests (Swift Testing)
 ```
 
 **Signing.** By default the app is signed ad hoc. macOS then sees every build as a new app: its permissions must be granted again after each rebuild (sniplite removes the stale entries itself, so the list never shows one that no longer applies). To keep them across rebuilds, sign with a fixed identity:
