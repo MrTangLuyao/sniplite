@@ -477,28 +477,35 @@ final class OverlayView: NSView, NSTextViewDelegate {
     override func scrollWheel(with event: NSEvent) {
         if phase == .edit, selected != nil || tool != nil { scrollWidth(event); return }
         guard phase == .select, !chain.isEmpty else { return }
-        let dy = event.scrollingDeltaY
-        guard abs(dy) > 0.5 else { return }
-        if dy > 0 { chainIndex = min(chainIndex + 1, chain.count - 1) } else { chainIndex = max(chainIndex - 1, 0) }
+        // a wheel notch is one step; on a trackpad a step takes a deliberate swipe
+        let steps = scrollSteps(event, trackpadDistance: 30)
+        guard steps != 0 else { return }
+        chainIndex = min(max(chainIndex + steps, 0), chain.count - 1)
         animateHole(to: hover)
         needsDisplay = true
+    }
+
+    /// Whole steps from a scroll: one per wheel notch; on a trackpad one per `trackpadDistance`
+    /// points of swipe. Up is positive whatever the system's scroll direction; the coasting after
+    /// the fingers lift is ignored, so nothing keeps changing once you stop.
+    private func scrollSteps(_ e: NSEvent, trackpadDistance: CGFloat) -> Int {
+        guard e.momentumPhase.isEmpty else { return 0 }
+        var dy = e.scrollingDeltaY
+        if e.isDirectionInvertedFromDevice { dy = -dy }
+        if !e.hasPreciseScrollingDeltas { return abs(dy) > 0.1 ? (dy > 0 ? 1 : -1) : 0 }
+        if e.phase == .began || e.phase == .mayBegin { scrollSum = 0 }
+        scrollSum += dy
+        var steps = 0
+        while scrollSum >= trackpadDistance { steps += 1; scrollSum -= trackpadDistance }
+        while scrollSum <= -trackpadDistance { steps -= 1; scrollSum += trackpadDistance }
+        return steps
     }
 
     /// With a tool, the wheel (or two fingers up / down on a trackpad) sets its width: border,
     /// line, arrow, text and number size, mosaic squares. Up makes it bigger, whichever way the
     /// system's scrolling direction is set.
     private func scrollWidth(_ e: NSEvent) {
-        var dy = e.scrollingDeltaY
-        if e.isDirectionInvertedFromDevice { dy = -dy }
-        var steps = 0
-        if e.hasPreciseScrollingDeltas {
-            if e.phase == .began { scrollSum = 0 }
-            scrollSum += dy
-            while scrollSum >= 6 { steps += 1; scrollSum -= 6 }
-            while scrollSum <= -6 { steps -= 1; scrollSum += 6 }
-        } else if abs(dy) > 0.1 {
-            steps = dy > 0 ? 1 : -1
-        }
+        let steps = scrollSteps(e, trackpadDistance: 8)
         guard steps != 0 else { return }
         // the selected annotation, else the tool's next drawing
         let target: Annotation? = selected.map { annotations[$0] }
