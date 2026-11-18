@@ -198,6 +198,7 @@ final class PermissionsWindow: NSWindowController, NSWindowDelegate {
     private var finishing = false
     private var countdown = 6                  // seconds until the page closes by itself, once all is allowed
     private var countdownTimer: Timer?
+    private let countdownLabel = NSTextField(labelWithString: "")   // "closes in 6s", quiet, beside Done
 
     static func show() {
         if shared == nil { shared = PermissionsWindow() }
@@ -317,7 +318,11 @@ final class PermissionsWindow: NSWindowController, NSWindowDelegate {
         doneButton.controlSize = .large
         let fspacer = NSView()
         fspacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let foot = NSStackView(views: [footerIcon, footer, fspacer, doneButton])
+        countdownLabel.font = .systemFont(ofSize: 11)
+        countdownLabel.textColor = .tertiaryLabelColor
+        countdownLabel.isHidden = true
+        let foot = NSStackView(views: [footerIcon, footer, fspacer, countdownLabel, doneButton])
+        foot.setCustomSpacing(10, after: countdownLabel)
         foot.spacing = 8
         foot.alignment = .centerY
 
@@ -353,7 +358,7 @@ final class PermissionsWindow: NSWindowController, NSWindowDelegate {
         }
         // the page stays until everything needed is allowed: no close button, no "later"
         let done = Permission.allRequiredGranted
-        doneButton.title = finishing ? String(format: L.t("doneIn"), countdown) : L.t("done")
+        doneButton.title = L.t("done")
         doneButton.keyEquivalent = done ? "\r" : ""
         doneButton.bezelColor = .controlAccentColor
         doneButton.isHidden = !done
@@ -366,12 +371,13 @@ final class PermissionsWindow: NSWindowController, NSWindowDelegate {
                 // the button counts down ("Done 6s"), then the page closes; a click closes it now
                 finishing = true
                 timer?.invalidate(); timer = nil
-                doneButton.title = String(format: L.t("doneIn"), countdown)
+                countdownLabel.stringValue = String(format: L.t("autoCloseIn"), countdown)
+                countdownLabel.isHidden = false
                 countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] t in
                     guard let self else { t.invalidate(); return }
                     self.countdown -= 1
                     if self.countdown <= 0 { t.invalidate(); self.finish(); return }
-                    self.doneButton.title = String(format: L.t("doneIn"), self.countdown)
+                    self.countdownLabel.stringValue = String(format: L.t("autoCloseIn"), self.countdown)
                 }
             }
         } else {
@@ -379,6 +385,22 @@ final class PermissionsWindow: NSWindowController, NSWindowDelegate {
             footerIcon.contentTintColor = .secondaryLabelColor
             footer.stringValue = L.t("permDrag")
         }
+        fitToContent()
+    }
+
+    /// The window as tall as what it shows (the footer is two lines before, one after), its top
+    /// edge staying where it is.
+    private func fitToContent() {
+        guard let w = window, let cv = w.contentView else { return }
+        cv.layoutSubtreeIfNeeded()
+        let height = ceil(cv.fittingSize.height)
+        let current = w.contentRect(forFrameRect: w.frame).height
+        guard height > 0, abs(height - current) >= 1 else { return }
+        var f = w.frame
+        let target = w.frameRect(forContentRect: NSRect(x: 0, y: 0, width: w.contentRect(forFrameRect: f).width, height: height))
+        f.origin.y += f.height - target.height
+        f.size.height = target.height
+        w.setFrame(f, display: true, animate: w.isVisible)
     }
 
     @objc private func open(_ b: NSButton) {
