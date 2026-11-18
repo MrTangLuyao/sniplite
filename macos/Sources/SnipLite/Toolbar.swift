@@ -354,15 +354,15 @@ final class Toolbar: NSView {
         if sizesApply {
             // the size: a slider up to this tool's limit, and its value
             sizeSlider.maxValue = Annotation.maxWidth(tool ?? .rect)
-            sizeSlider.frame.origin = CGPoint(x: x, y: (unit + 4 - sizeSlider.frame.height) / 2)
+            sizeSlider.frame.origin = CGPoint(x: x - 3, y: (unit + 4 - sizeSlider.frame.height) / 2)
             sizeSlider.isHidden = false
-            x += sizeSlider.frame.width + 4          // a little room after the knob at its largest
+            x += sizeSlider.frame.width - 3          // the value just past the largest knob
             // as wide as the widest value this tool shows: no blank after it, no jumping while dragging
             let widest = valueText(Annotation.maxWidth(tool ?? .rect))
             let w = ceil(NSAttributedString(string: widest, attributes: [.font: sizeValue.font as Any]).size().width) + 2
             sizeValue.frame = NSRect(x: x, y: (unit + 4 - sizeValue.frame.height) / 2, width: w, height: sizeValue.frame.height)
             sizeValue.isHidden = false
-            x += w + 4
+            x += w
             sep(0)
         } else {
             sizeSlider.isHidden = true
@@ -382,13 +382,13 @@ final class Toolbar: NSView {
         // the opacity of the color, where a color applies
         if tool != .mosaic || mosaicSolid {
             sep(2)
-            opacitySlider.frame.origin = CGPoint(x: x, y: (unit + 4 - opacitySlider.frame.height) / 2)
+            opacitySlider.frame.origin = CGPoint(x: x - 6, y: (unit + 4 - opacitySlider.frame.height) / 2)
             opacitySlider.isHidden = false
-            x += opacitySlider.frame.width + 4
+            x += opacitySlider.frame.width - 6 - 2   // its knob is smaller: the value closer
             let w = ceil(NSAttributedString(string: "100%", attributes: [.font: opacityValue.font as Any]).size().width) + 2
             opacityValue.frame = NSRect(x: x, y: (unit + 4 - opacityValue.frame.height) / 2, width: w, height: opacityValue.frame.height)
             opacityValue.isHidden = false
-            x += w + 4
+            x += w
         } else {
             opacitySlider.isHidden = true
             opacityValue.isHidden = true
