@@ -882,6 +882,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
     /// picked (to adjust them); others are drawn over, so an arrow can start on a box.
     private func annotationIndex(at p: CGPoint) -> Int? {
         guard phase == .edit, drag.isIdle else { return nil }
+        // with no tool in hand, a selected freehand stroke moves from anywhere in its box (its
+        // line alone is hard to catch); with the pen in hand the next stroke may start there
+        if tool == nil, let i = selected, i < annotations.count, annotations[i].isStrokeLike,
+           annotations[i].bounds.insetBy(dx: -Annotation.textPad, dy: -Annotation.textPad).contains(p) {
+            return i
+        }
         return annotations.indices.reversed().first { (tool == nil || annotations[$0].tool == tool) && annotations[$0].hit(p) }
     }
 

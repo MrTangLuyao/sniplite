@@ -345,7 +345,7 @@ extension Annotation {
             return CGRect(p0, p1).insetBy(dx: -4, dy: -4).contains(p)
         default:   // pen, marker, mosaic brush
             let w = tool == .marker ? width * 4 : (tool == .mosaic ? Self.brushWidth(width) : width)
-            let t = max(6, w / 2 + 3)
+            let t = max(8, w / 2 + 4)             // a thin stroke is hard to hit: a little more room
             if points.count == 1 { return hypot(p.x - p0.x, p.y - p0.y) <= t }
             for i in 1..<points.count where Self.distance(p, points[i - 1], points[i]) <= t { return true }
             return false
