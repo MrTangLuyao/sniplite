@@ -197,9 +197,8 @@ final class PinView: NSView {
             let i = ClosureMenuItem(title: t, key: key, action: f)
             m.addItem(i)
         }
-        add(L.t("editPin"), "e") { [weak self] in self?.pin?.edit() }
-        m.addItem(.separator())
         add(L.t("copy"), "c") { [weak self] in self?.pin?.copyImage() }
+        add(L.t("editPin"), "e") { [weak self] in self?.pin?.edit() }
         add(L.t("save").replacingOccurrences(of: " (⌘S)", with: ""), "s") { [weak self] in self?.pin?.saveImage() }
         if Prefs.shared.ocrEnabled { add(L.t("readText"), "o") { [weak self] in self?.pin?.readText() } }
         m.addItem(.separator())

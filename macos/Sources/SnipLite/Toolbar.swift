@@ -273,7 +273,7 @@ final class Toolbar: NSView {
         ]
         let cmds3: [(Command, String, String)] = [
             (.pin, "pin", L.t("pin")), (.save, "square.and.arrow.down", L.t("save")),
-            (.close, "xmark", L.t("close")), (.ok, "checkmark", L.t("ok")),
+            (.close, "xmark", L.t("close")), (.ok, "square.on.square", L.t("ok")),   // copy: the main action
         ]
         for (i, group) in (Prefs.shared.ocrEnabled ? [cmds, cmds2, cmds3] : [cmds, cmds3]).enumerated() {
             if i > 0 { gap() }
