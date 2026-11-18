@@ -1150,7 +1150,7 @@ enum Cursors {
     static let resizeNWSE = make { doubleArrow(angle: -.pi / 4) }   // ↖↘ (y grows downward when drawn)
     static let resizeNESW = make { doubleArrow(angle: .pi / 4) }    // ↗↙
 
-    private static let side: CGFloat = 26      // points; the hot spot is the middle
+    private static let side: CGFloat = 22      // points; the hot spot is the middle
 
     /// One closed outline through the given points, turned by `angle` about the middle. A single
     /// outline has no inner seams, so the white edge runs only around the outside.
@@ -1167,7 +1167,7 @@ enum Cursors {
 
     /// Four arrows from the middle: thin shafts, solid heads, as one outline.
     private static func moveArrows() -> NSBezierPath {
-        let w: CGFloat = 1.25, reach: CGFloat = 11, hl: CGFloat = 4, hw: CGFloat = 3.2
+        let w: CGFloat = 1, reach: CGFloat = 8, hl: CGFloat = 3.2, hw: CGFloat = 2.6
         var pts: [CGPoint] = []
         for k in 0..<4 {
             let arm = [CGPoint(x: w, y: -w), CGPoint(x: reach - hl, y: -w), CGPoint(x: reach - hl, y: -hw),
@@ -1180,7 +1180,7 @@ enum Cursors {
 
     /// A double-headed arrow through the middle, turned by `angle`, as one outline.
     private static func doubleArrow(angle: CGFloat) -> NSBezierPath {
-        let w: CGFloat = 1.25, reach: CGFloat = 10.5, hl: CGFloat = 5, hw: CGFloat = 4.2
+        let w: CGFloat = 1.1, reach: CGFloat = 9, hl: CGFloat = 4.2, hw: CGFloat = 3.5
         return outline([CGPoint(x: -reach, y: 0), CGPoint(x: -reach + hl, y: hw), CGPoint(x: -reach + hl, y: w),
                         CGPoint(x: reach - hl, y: w), CGPoint(x: reach - hl, y: hw), CGPoint(x: reach, y: 0),
                         CGPoint(x: reach - hl, y: -hw), CGPoint(x: reach - hl, y: -w),
@@ -1205,7 +1205,7 @@ enum Cursors {
             shadow.shadowOffset = NSSize(width: 0, height: -0.5)
             shadow.set()
             NSColor.white.setStroke()
-            path.lineWidth = 2.4
+            path.lineWidth = 2.2
             path.lineJoinStyle = .round
             path.stroke()
             NSShadow().set()
