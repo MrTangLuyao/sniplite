@@ -108,7 +108,7 @@ final class ToolButton: NSView {
             guard let img = image else { return }
             let tint: NSColor = !enabled ? .tertiaryLabelColor : (selected || prominent ? Palette.accent : NSColor.labelColor)
             let tinted = NSImage(size: img.size, flipped: false) { rect in
-                img.draw(in: rect); tint.set(); rect.fill(using: .sourceAtop); return true
+                img.draw(in: rect); tint.set(); rect.fill(using: .sourceIn); return true
             }
             // drawn at their own size: SF Symbols of one size and weight are balanced already, and
             // scaling one would thin its lines

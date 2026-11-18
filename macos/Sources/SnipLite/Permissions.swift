@@ -814,7 +814,7 @@ final class AppDragRow: NSView, NSDraggingSource {
         if let grip = NSImage(systemSymbolName: "line.3.horizontal", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 12, weight: .medium)) {
             let tinted = NSImage(size: grip.size, flipped: false) { rect in
-                grip.draw(in: rect); NSColor.tertiaryLabelColor.set(); rect.fill(using: .sourceAtop); return true
+                grip.draw(in: rect); NSColor.tertiaryLabelColor.set(); rect.fill(using: .sourceIn); return true
             }
             tinted.draw(in: NSRect(x: bounds.width - grip.size.width - 12, y: (bounds.height - grip.size.height) / 2,
                                    width: grip.size.width, height: grip.size.height))

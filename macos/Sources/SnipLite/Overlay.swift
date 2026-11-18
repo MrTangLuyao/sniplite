@@ -2,7 +2,8 @@ import AppKit
 
 /// One capture: an overlay window on every screen, from the hotkey until copy / save / pin / cancel.
 final class CaptureSession {
-    enum Mode { case normal, ocr, ocrCopy }
+    /// `editPin`: the capture screen opens on a pin, to draw on it; ✓ puts the result back in it.
+    enum Mode: Equatable { case normal, ocr, ocrCopy, editPin(PinWindow) }
     static var current: CaptureSession?
 
     let mode: Mode
@@ -45,6 +46,17 @@ final class CaptureSession {
             w.orderFrontRegardless()
         }
         NSApp.activate(ignoringOtherApps: true)
+        if case .editPin(let pin) = mode {
+            // the screen with the pin: its area is selected, with the toolbar under it
+            let c = CGPoint(x: pin.frame.midX, y: pin.frame.midY)
+            if let w = windows.first(where: { NSMouseInRect(c, $0.frame, false) }) ?? windows.first {
+                w.makeKeyAndOrderFront(nil)
+                let f = w.frame
+                w.overlay.editArea(CGRect(x: pin.frame.minX - f.minX, y: f.maxY - pin.frame.maxY,
+                                          width: pin.frame.width, height: pin.frame.height))
+            }
+            return
+        }
         let key = windows.first { NSMouseInRect(mouse, $0.frame, false) } ?? windows.first
         key?.makeKeyAndOrderFront(nil)
         key?.overlay.mouseAt(key?.overlay.localMouse() ?? .zero)
@@ -819,6 +831,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
         toolbar.setEnabled(.redo, !redoStack.isEmpty)
     }
 
+    /// Opens straight on an area (a pin being edited): selected, with the toolbar.
+    func editArea(_ r: CGRect) {
+        selection = snap(r)
+        enterEdit(after: false)
+    }
+
     // MARK: editing annotations
 
     /// The topmost annotation under `p`.
@@ -1093,7 +1111,13 @@ final class OverlayView: NSView, NSTextViewDelegate {
             guard phase == .edit, let img = render() else { return }
             let rect = globalSelection()
             let size = selection.size
+            let mode = session?.mode
             session?.finish()
+            // editing a pin: ✓ (or pin) puts the result back in it
+            if case .editPin(let pin) = mode, c == .ok || c == .pin {
+                pin.replaceImage(img, size: size)
+                return
+            }
             switch c {
             case .ok: Clipboard.copy(img, size: size); Toast.show(L.t("copied"))
             case .save: Saver.save(img, size: size)

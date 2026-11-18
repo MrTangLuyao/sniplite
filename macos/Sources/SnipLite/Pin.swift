@@ -6,8 +6,8 @@ final class PinWindow: NSPanel {
     private static var all: [PinWindow] = []
     private static var hidden = false
 
-    let image: CGImage
-    let baseSize: CGSize
+    private(set) var image: CGImage
+    private(set) var baseSize: CGSize
     private var zoom: CGFloat = 1
 
     static func show(_ img: CGImage, frame: CGRect) {
@@ -113,6 +113,24 @@ final class PinWindow: NSPanel {
     }
 
     func copyImage() { Clipboard.copy(image, size: baseSize); Toast.show(L.t("copied")) }
+
+    /// Draws on the pin with the capture tools; ✓ puts the result back here.
+    func edit() {
+        if Prefs.shared.pinOnTop == false { orderFront(nil) }
+        CaptureSession.start(.editPin(self))
+    }
+
+    /// The edited picture, at the size it was shown (its zoom starts over).
+    func replaceImage(_ img: CGImage, size: CGSize) {
+        image = img
+        baseSize = size
+        zoom = 1
+        let f = frame
+        setFrame(CGRect(x: f.minX, y: f.maxY - size.height, width: size.width, height: size.height), display: true)
+        contentView?.needsDisplay = true
+        NSApp.activate(ignoringOtherApps: true)
+        makeKeyAndOrderFront(nil)
+    }
     func saveImage() { Saver.save(image, size: baseSize) }
     func readText() { let f = frame; OCR.recognize(image) { OCRPanel.show($0, near: f) } }
     @objc func toggleTop() { Prefs.shared.pinOnTop.toggle(); PinWindow.applyLevelToAll() }
@@ -165,6 +183,7 @@ final class PinView: NSView {
         switch (e.keyCode, e.charactersIgnoringModifiers?.lowercased() ?? "") {
         case (0x35, _): pin?.close()
         case (_, "c") where cmd: pin?.copyImage()
+        case (_, "e") where cmd: pin?.edit()
         case (_, "s") where cmd: pin?.saveImage()
         case (_, "w") where cmd: pin?.close()
         case (_, "o") where cmd && Prefs.shared.ocrEnabled: pin?.readText()
@@ -178,6 +197,8 @@ final class PinView: NSView {
             let i = ClosureMenuItem(title: t, key: key, action: f)
             m.addItem(i)
         }
+        add(L.t("editPin"), "e") { [weak self] in self?.pin?.edit() }
+        m.addItem(.separator())
         add(L.t("copy"), "c") { [weak self] in self?.pin?.copyImage() }
         add(L.t("save").replacingOccurrences(of: " (⌘S)", with: ""), "s") { [weak self] in self?.pin?.saveImage() }
         if Prefs.shared.ocrEnabled { add(L.t("readText"), "o") { [weak self] in self?.pin?.readText() } }
