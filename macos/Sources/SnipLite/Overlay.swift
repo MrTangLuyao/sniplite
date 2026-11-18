@@ -121,6 +121,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         case moveAnnotation(Int, CGPoint, Annotation)     // index, where the drag began, as it was
         case dragHandle(Int, Int, Annotation)             // index, handle, as it was
         case scaleTextBox(Int, CGPoint, CGFloat, CGFloat) // corner, the fixed corner, start height, start width
+        case moveTextBox(CGPoint, CGPoint)                // where the drag began, the box's origin then
     }
 
     static let edgeL = 1, edgeT = 2, edgeR = 4, edgeB = 8
@@ -304,8 +305,27 @@ final class OverlayView: NSView, NSTextViewDelegate {
         if window?.isKeyWindow == false, case .none = drag { window?.makeKey(); window?.makeFirstResponder(self) }
     }
 
+    /// Focus follows the mouse: moving well away from the text being typed ends it (an empty
+    /// box stays, to be typed in), and from the selected drawing lets go of it.
+    private func releaseFocus(awayFrom p: CGPoint) {
+        guard phase == .edit, drag.isIdle else { return }
+        func distance(_ r: CGRect) -> CGFloat {
+            hypot(max(r.minX - p.x, 0, p.x - r.maxX), max(r.minY - p.y, 0, p.y - r.maxY))
+        }
+        let away: CGFloat = 24
+        if let tv = textView {
+            if distance(tv.frame) > away, !tv.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                commitText()
+                selected = nil
+            }
+        } else if let i = selected, i < annotations.count, distance(annotations[i].bounds) > away {
+            selected = nil
+        }
+    }
+
     override func mouseMoved(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
+        releaseFocus(awayFrom: p)
         if window?.isKeyWindow == false && phase != .idle { window?.makeKey() }
         mouseAt(p)
         updateCursor(p)
@@ -321,6 +341,8 @@ final class OverlayView: NSView, NSTextViewDelegate {
             let e = handle == nil ? edges(at: p) : 0
             if let tv = textView as? TextBox, let c = tv.corner(near: p) {
                 (c % 2 == 0 ? Cursors.resizeNWSE : Cursors.resizeNESW).set()
+            } else if let tv = textView as? TextBox, tv.onEdge(p) {
+                Cursors.move.set()
             } else if let (i, h) = handle {
                 // the ends of a line move freely; a box corner resizes along its diagonal
                 let a = annotations[i]
@@ -354,6 +376,10 @@ final class OverlayView: NSView, NSTextViewDelegate {
             if let tv = textView as? TextBox, let c = tv.corner(near: p) {
                 let corners = TextBox.corners(tv.frame)
                 drag = .scaleTextBox(c, corners[(c + 2) % 4], tv.frame.height, width)
+                return
+            }
+            if let tv = textView as? TextBox, tv.onEdge(p) {
+                drag = .moveTextBox(p, tv.frame.origin)
                 return
             }
             if textView != nil { commitText(); if tool == .text { drag = .none; return } }
@@ -426,6 +452,8 @@ final class OverlayView: NSView, NSTextViewDelegate {
                 a.points[1] = shift ? constrain(a.points[0], q, a.tool) : q
             }
             current = a
+        case .moveTextBox(let start, let origin):
+            textView?.setFrameOrigin(CGPoint(x: snap(origin.x + p.x - start.x), y: snap(origin.y + p.y - start.y)))
         case .scaleTextBox(let c, let fixed, let h0, let w0):
             guard let tv = textView else { break }
             let inset = TextBox.inset.height * 2
@@ -479,7 +507,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
                 if ok { push(a) }
             }
             current = nil
-        case .scaleTextBox:
+        case .scaleTextBox, .moveTextBox:
             window?.makeFirstResponder(textView)                // back to typing
         case .moveAnnotation, .dragHandle, .none: break
         }
@@ -1412,13 +1440,27 @@ final class TextBox: NSTextView {
         Self.corners(frame).firstIndex { hypot($0.x - p.x, $0.y - p.y) <= 7 }
     }
 
-    /// Clicks on a corner go to the capture view, which scales the box; the rest is for typing.
+    /// On the box's edge (its padding and a little outside), away from the corners: dragging
+    /// there moves the box.
+    func onEdge(_ p: CGPoint) -> Bool {
+        let outer = frame.insetBy(dx: -4, dy: -4)
+        let text = frame.insetBy(dx: Self.inset.width, dy: Self.inset.height)
+        return outer.contains(p) && !text.contains(p) && corner(near: p) == nil
+    }
+
+    /// Clicks on a corner or the edge go to the capture view (scale, move); the rest is for typing.
     override func hitTest(_ point: NSPoint) -> NSView? {
-        corner(near: point) != nil ? nil : super.hitTest(point)
+        corner(near: point) != nil || onEdge(point) ? nil : super.hitTest(point)
     }
 
     override func resetCursorRects() {
         super.resetCursorRects()
+        // the padding inside the dashed line: move
+        let b = bounds, ix = Self.inset.width, iy = Self.inset.height
+        for r in [CGRect(x: 0, y: 0, width: b.width, height: iy), CGRect(x: 0, y: b.height - iy, width: b.width, height: iy),
+                  CGRect(x: 0, y: 0, width: ix, height: b.height), CGRect(x: b.width - ix, y: 0, width: ix, height: b.height)] {
+            addCursorRect(r, cursor: Cursors.move)
+        }
         for (i, c) in Self.corners(bounds).enumerated() {
             addCursorRect(CGRect(x: c.x - 7, y: c.y - 7, width: 14, height: 14).intersection(bounds),
                           cursor: i % 2 == 0 ? Cursors.resizeNWSE : Cursors.resizeNESW)
