@@ -32,8 +32,13 @@ final class Prefs {
         set { d.set(Double(newValue), forKey: "strokeWidth") }
     }
     var mosaicMode: MosaicMode {
-        get { MosaicMode(rawValue: d.string(forKey: "mosaicMode") ?? "") ?? .rect }
+        get { MosaicMode(rawValue: d.string(forKey: "mosaicMode") ?? "") ?? .rect }   // "fill" from before: a box
         set { d.set(newValue.rawValue, forKey: "mosaicMode") }
+    }
+    /// The hide tool covers with the color instead of mosaic.
+    var mosaicSolid: Bool {
+        get { d.bool(forKey: "mosaicSolid") }
+        set { d.set(newValue, forKey: "mosaicSolid") }
     }
 
     /// nil: no shortcut for that action.

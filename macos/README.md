@@ -18,7 +18,7 @@ The Windows version (`../src`) is unchanged; this folder is a separate program.
 
 - **Capture**: press F1; the window or the part of a window under the mouse (a button, a field, a list, a pane) is found for you, and the wheel steps out to bigger parts, the window and the screen. Drag to select any area; a magnifier shows the pixels and their color.
 - **Draw**: rectangle, ellipse, line, arrow, pen, marker, text and numbers, in eight colors; three preset sizes, and the wheel (two fingers up / down on a trackpad) sets any width. Undo and redo.
-- **Hide**: mosaic over a dragged box (the default), a mosaic brush, or a box of solid color (pick a color); the mosaic squares are sized so text under them cannot be read.
+- **Hide**: a dragged box (the default) or a brush, covered with mosaic or with a solid color (the mosaic swatch, or any color); mosaic squares are sized so text under them cannot be read.
 - **Edit afterwards**: click anything drawn to select it: drag it to move it, drag the ends of a line or arrow and the corners of a box, scroll to change its width or size, click a color to recolor it, Delete removes it, double-click a text to edit it. All of it undoes with ⌘Z.
 - **Smooth**: the highlight glides from one window or element to the next.
 - **Copy, save, pin**: Enter copies, ⌘S saves (PNG or JPEG), ⌘T pins the capture above other windows. Pins move, zoom with the wheel, change opacity with ⌥ + wheel, copy, save and read their text.

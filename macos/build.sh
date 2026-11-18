@@ -48,6 +48,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleVersion</key><string>$VERSION</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
+  <!-- malloc returns the screen images of a capture to the system at once instead of caching
+       them: about 15 MB between captures instead of 70, and a lower peak while capturing -->
+  <key>LSEnvironment</key><dict><key>MallocLargeCache</key><string>0</string></dict>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSHumanReadableCopyright</key><string>MIT License</string>
   <key>CFBundleDevelopmentRegion</key><string>en</string>

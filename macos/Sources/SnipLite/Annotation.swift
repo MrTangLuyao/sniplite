@@ -47,15 +47,16 @@ enum Palette {
     static let accent = NSColor(srgbRed: 0x1A / 255, green: 0x8C / 255, blue: 1, alpha: 1)
 }
 
-/// How the mosaic tool hides things: pixelating a dragged rectangle (the default), pixelating
-/// along a brush stroke, or covering a rectangle with the chosen color.
-enum MosaicMode: String { case rect, brush, fill }
+/// The shape of what the hide tool covers: a dragged box (the default) or a brush stroke.
+/// What it covers it with is separate: mosaic, or a solid color (`Annotation.solid`).
+enum MosaicMode: String { case rect, brush }
 
 struct Annotation {
     var tool: Tool
     var color: NSColor
     var width: CGFloat
     var mosaicMode: MosaicMode = .rect
+    var solid = false                 // hide with the color instead of mosaic
     var points: [CGPoint]          // shapes: [start, end]; strokes: the path; text / number: [origin]
     var text: String = ""
     var number: Int = 0
@@ -72,10 +73,10 @@ struct Annotation {
     /// The largest width per tool: lines up to 40, text up to about 72 pt, numbers up to a 40 pt radius.
     static func maxWidth(_ t: Tool) -> CGFloat { t == .text ? 24 : (t == .number ? 20 : 40) }
 
-    /// Whether the wheel and the size buttons change it: not a mosaic box or a color box.
+    /// Whether the wheel and the size buttons change it: not a hide box (its size is the box).
     var hasWidth: Bool { tool != .mosaic || mosaicMode == .brush }
-    /// Whether a color applies: not to mosaic, only to a color box.
-    var hasColor: Bool { tool != .mosaic || mosaicMode == .fill }
+    /// Whether a color applies: everything but mosaic (a solid hide has one).
+    var hasColor: Bool { tool != .mosaic || solid }
 
     /// Drawn as a path of points (rather than from one corner to the other).
     var isStrokeLike: Bool { tool.isStroke || (tool == .mosaic && mosaicMode == .brush) }
@@ -114,10 +115,14 @@ struct Annotation {
             ctx.addPath(Self.smoothPath(points))
             ctx.strokePath()
         case .mosaic:
-            switch mosaicMode {
-            case .fill:
+            switch (mosaicMode, solid) {
+            case (.rect, true):
                 ctx.fill(CGRect(p0, p1))
-            case .rect, .brush:
+            case (.brush, true):
+                ctx.setLineWidth(Self.brushWidth(width))
+                ctx.addPath(Self.smoothPath(points))
+                ctx.strokePath()
+            default:
                 let block = mosaicMode == .rect ? Self.mosaicBlock(box: CGRect(p0, p1)) : Self.mosaicBlock(brush: width)
                 guard let img = mosaic(block) else { return }
                 if mosaicMode == .rect {
@@ -205,7 +210,7 @@ extension CGContext {
 
 extension Annotation {
     private var isBox: Bool {
-        tool == .rect || tool == .ellipse || (tool == .mosaic && mosaicMode != .brush)
+        tool == .rect || tool == .ellipse || (tool == .mosaic && mosaicMode == .rect)
     }
 
     /// Points that can be dragged to reshape it: the two ends of a line or an arrow, the four
@@ -271,7 +276,7 @@ extension Annotation {
             let rx = max(r.width / 2, 1), ry = max(r.height / 2, 1)
             let d = hypot((p.x - r.midX) / rx, (p.y - r.midY) / ry)
             return abs(d - 1) * min(rx, ry) <= t
-        case .mosaic where mosaicMode != .brush:
+        case .mosaic where mosaicMode == .rect:
             return CGRect(p0, p1).insetBy(dx: -4, dy: -4).contains(p)
         default:   // pen, marker, mosaic brush
             let w = tool == .marker ? width * 4 : (tool == .mosaic ? Self.brushWidth(width) : width)

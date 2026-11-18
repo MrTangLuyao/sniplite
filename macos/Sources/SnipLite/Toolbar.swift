@@ -2,7 +2,7 @@ import AppKit
 
 /// A square toolbar button showing an SF Symbol (or a color / size swatch).
 final class ToolButton: NSView {
-    enum Look { case symbol(String), color(NSColor), size(CGFloat), glyph(String, CGFloat), number(CGFloat) }
+    enum Look { case symbol(String), color(NSColor), size(CGFloat), glyph(String, CGFloat), number(CGFloat), mosaicSwatch }
     var look: Look { didSet { needsDisplay = true } }
     /// Shown faded: it still works, but does not apply as things are (colors for a mosaic).
     var dimmed = false { didSet { needsDisplay = true } }
@@ -61,6 +61,25 @@ final class ToolButton: NSView {
                 let o = NSBezierPath(roundedRect: r.insetBy(dx: 2, dy: 2), xRadius: 5, yRadius: 5)
                 o.lineWidth = 2; o.stroke()
             }
+        case .mosaicSwatch:
+            // like a color swatch, filled with mosaic squares
+            let d = r.insetBy(dx: 6, dy: 6)
+            let clip = NSBezierPath(roundedRect: d, xRadius: 3, yRadius: 3)
+            NSGraphicsContext.saveGraphicsState()
+            clip.addClip()
+            let n = 4, cw = d.width / CGFloat(n), ch = d.height / CGFloat(n)
+            let tones: [CGFloat] = [0.35, 0.6, 0.8, 0.5, 0.7, 0.45, 0.9, 0.55]
+            for i in 0..<n { for j in 0..<n {
+                NSColor(white: tones[(i * 3 + j * 5) % tones.count], alpha: 1).setFill()
+                NSRect(x: d.minX + CGFloat(i) * cw, y: d.minY + CGFloat(j) * ch, width: cw + 0.5, height: ch + 0.5).fill()
+            } }
+            NSGraphicsContext.restoreGraphicsState()
+            NSColor.black.withAlphaComponent(0.25).setStroke(); clip.lineWidth = 1; clip.stroke()
+            if selected {
+                Palette.accent.setStroke()
+                let o = NSBezierPath(roundedRect: r.insetBy(dx: 2, dy: 2), xRadius: 5, yRadius: 5)
+                o.lineWidth = 2; o.stroke()
+            }
         case .glyph(let g, let size):
             let str = NSAttributedString(string: g, attributes: [
                 .font: NSFont.systemFont(ofSize: size, weight: .semibold),
@@ -91,6 +110,7 @@ final class Toolbar: NSView {
     var onColor: ((Int) -> Void)?
     var onSize: ((Int) -> Void)?
     var onMosaicMode: ((MosaicMode) -> Void)?
+    var onMosaicSolid: ((Bool) -> Void)?
     /// The toolbar changed size (the second row's buttons depend on the tool and mosaic mode).
     var onResize: (() -> Void)?
 
@@ -102,6 +122,8 @@ final class Toolbar: NSView {
     private var paletteSeps: [NSView] = []
     private var colorIndex = Prefs.shared.colorIndex
     private(set) var mosaicMode = Prefs.shared.mosaicMode
+    private(set) var mosaicSolid = Prefs.shared.mosaicSolid
+    private let mosaicSwatch = ToolButton(.mosaicSwatch, tip: L.t("mosaicSwatch"), size: 32)
     private let mainRow = NSView()
     private let paletteRow = NSView()
     private(set) var tool: Tool?
@@ -164,7 +186,6 @@ final class Toolbar: NSView {
         let modes: [(MosaicMode, String, String)] = [
             (.rect, "checkerboard.rectangle", L.t("mosaicRect")),
             (.brush, "scribble.variable", L.t("mosaicBrush")),
-            (.fill, "rectangle.fill", L.t("mosaicFill")),
         ]
         for (m, sym, tip) in modes {
             let b = ToolButton(.symbol(sym), tip: tip, size: unit)
@@ -183,10 +204,13 @@ final class Toolbar: NSView {
                 self.colorIndex = i
                 self.onColor?(i)
                 // with the mosaic tool a color means: cover with that color
-                if self.tool == .mosaic && self.mosaicMode != .fill { self.setMosaicMode(.fill) } else { self.refreshPalette() }
+                // with the hide tool a color means: cover with that color (box or brush)
+                if self.tool == .mosaic { self.setMosaicSolid(true) } else { self.refreshPalette() }
             }
             colorButtons.append(b); paletteRow.addSubview(b)
         }
+        mosaicSwatch.onClick = { [weak self] in self?.setMosaicSolid(false) }
+        paletteRow.addSubview(mosaicSwatch)
         paletteRow.frame.origin = CGPoint(x: 0, y: unit + 10)
         paletteRow.isHidden = true
         layoutPalette()
@@ -217,10 +241,12 @@ final class Toolbar: NSView {
             paletteSeps[0].isHidden = true
         }
         if tool == .mosaic {
-            for m in [MosaicMode.rect, .brush, .fill] { put(modeButtons[m]!) }
+            for m in [MosaicMode.rect, .brush] { put(modeButtons[m]!) }
             sep(1)
+            put(mosaicSwatch)                      // mosaic, then the colors: what to cover with
         } else {
             modeButtons.values.forEach { $0.isHidden = true }
+            mosaicSwatch.isHidden = true
             paletteSeps[1].isHidden = true
         }
         colorButtons.forEach(put)
@@ -231,12 +257,9 @@ final class Toolbar: NSView {
     /// Selection marks: the chosen mosaic mode; a color only where it is used (not for mosaic squares).
     private func refreshPalette() {
         for (m, b) in modeButtons { b.selected = m == mosaicMode }
-        let colorUsed = tool != .mosaic || mosaicMode == .fill
-        for (k, b) in colorButtons.enumerated() {
-            b.selected = colorUsed && k == colorIndex
-            b.dimmed = !colorUsed          // a mosaic has no color; clicking one switches to a color box
-            b.toolTip = colorUsed ? nil : L.t("useFill")
-        }
+        let colorUsed = tool != .mosaic || mosaicSolid
+        for (k, b) in colorButtons.enumerated() { b.selected = colorUsed && k == colorIndex }
+        mosaicSwatch.selected = !colorUsed
     }
 
     func setMosaicMode(_ m: MosaicMode, notify: Bool = true) {
@@ -246,6 +269,13 @@ final class Toolbar: NSView {
         fitSize()
         if notify { onMosaicMode?(m) }
         onResize?()
+    }
+
+    func setMosaicSolid(_ on: Bool, notify: Bool = true) {
+        mosaicSolid = on
+        Prefs.shared.mosaicSolid = on
+        refreshPalette()
+        if notify { onMosaicSolid?(on) }
     }
 
     private func fitSize() {

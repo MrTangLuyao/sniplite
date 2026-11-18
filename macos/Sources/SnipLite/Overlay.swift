@@ -54,6 +54,17 @@ final class CaptureSession {
         for w in windows { w.orderOut(nil); w.close() }
         windows.removeAll()
         if CaptureSession.current === self { CaptureSession.current = nil }
+        CaptureSession.releaseMemory()
+    }
+
+    /// A capture frees its screen images (tens of MB), which malloc may keep cached for reuse;
+    /// Activity Monitor counts that against sniplite. Info.plist turns the large-block cache off
+    /// (LSEnvironment MallocLargeCache=0); this also hands back what other caches keep.
+    static func releaseMemory() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            autoreleasepool { }
+            malloc_zone_pressure_relief(nil, 0)
+        }
     }
 }
 
@@ -136,6 +147,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private var colorIndex = Prefs.shared.colorIndex
     private var width = Prefs.shared.strokeWidth
     private var mosaicMode = Prefs.shared.mosaicMode
+    private var mosaicSolid = Prefs.shared.mosaicSolid
     private var scrollSum: CGFloat = 0           // trackpad scrolling, collected into width steps
     private var sizeHUDUntil = Date.distantPast  // the width preview at the mouse
     private let toolbar = Toolbar()
@@ -166,6 +178,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         toolbar.onColor = { [weak self] i in self?.pickColor(i) }
         toolbar.onSize = { [weak self] i in self?.setWidth(Palette.widths[i], preview: false) }
         toolbar.onMosaicMode = { [weak self] m in self?.pickMosaicMode(m) }
+        toolbar.onMosaicSolid = { [weak self] on in self?.pickMosaicSolid(on) }
         toolbar.onResize = { [weak self] in self?.placeToolbar() }
         toolbar.onCommand = { [weak self] c in self?.command(c) }
     }
@@ -350,7 +363,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
                     drag = .none
                 default:
                     current = Annotation(tool: t, color: Palette.colors[colorIndex], width: width,
-                                         mosaicMode: mosaicMode, points: [p, p])
+                                         mosaicMode: mosaicMode, solid: mosaicSolid, points: [p, p])
                     if current?.isStrokeLike == true { current?.points = [p] }
                     drag = .draw
                 }
@@ -541,7 +554,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
             return
         }
         ctx.saveGState()
-        if t == .mosaic {
+        if t == .mosaic && !(selected.map { annotations[$0].solid } ?? mosaicSolid) {
             ctx.setStrokeColor(NSColor.white.cgColor); ctx.setLineWidth(1.5)
             ctx.setShadow(offset: .zero, blur: 2, color: NSColor.black.withAlphaComponent(0.6).cgColor)
             ctx.stroke(r)
@@ -713,7 +726,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
         toolbar.setWidth(a.width)
         if a.tool == .mosaic {
             mosaicMode = a.mosaicMode
+            mosaicSolid = a.solid
             toolbar.setMosaicMode(a.mosaicMode, notify: false)
+            toolbar.setMosaicSolid(a.solid, notify: false)
         }
         if a.hasColor, let c = Palette.colors.firstIndex(of: a.color) {
             colorIndex = c
@@ -727,23 +742,25 @@ final class OverlayView: NSView, NSTextViewDelegate {
         restyleText()
         guard let k = selected else { return }
         var a = annotations[k]
-        if a.tool == .mosaic {
-            guard a.mosaicMode != .brush else { return }      // a mosaic stroke has no box to fill
-            a.mosaicMode = .fill
-        }
+        if a.tool == .mosaic { a.solid = true }              // a hide box or stroke: now in this color
         saveUndo()
         a.color = Palette.colors[i]
         annotations[k] = a
     }
 
+    /// Box or brush, for the next hide (a drawn box cannot become a stroke): lets go of a selected one.
     private func pickMosaicMode(_ m: MosaicMode) {
         mosaicMode = m
-        // a selected mosaic box switches between mosaic and color; a brush stroke stays one
-        guard let k = selected, annotations[k].tool == .mosaic,
-              annotations[k].mosaicMode != .brush, m != .brush, annotations[k].mosaicMode != m else { return }
+        if let k = selected, annotations[k].tool == .mosaic, annotations[k].mosaicMode != m { selected = nil }
+    }
+
+    /// Mosaic or color: for the next hide, and for a selected one.
+    private func pickMosaicSolid(_ on: Bool) {
+        mosaicSolid = on
+        guard let k = selected, annotations[k].tool == .mosaic, annotations[k].solid != on else { return }
         saveUndo()
-        annotations[k].mosaicMode = m
-        if m == .fill { annotations[k].color = Palette.colors[colorIndex] }
+        annotations[k].solid = on
+        if on { annotations[k].color = Palette.colors[colorIndex] }
     }
 
     /// Double-click on a text: edit it again, where it is, with its color and size.
