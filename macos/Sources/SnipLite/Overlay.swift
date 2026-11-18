@@ -120,6 +120,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         case none, newSelection, move(CGPoint, CGRect), resize(Int, CGRect), draw
         case moveAnnotation(Int, CGPoint, Annotation)     // index, where the drag began, as it was
         case dragHandle(Int, Int, Annotation)             // index, handle, as it was
+        case scaleTextBox(Int, CGPoint, CGFloat, CGFloat) // corner, the fixed corner, start height, start width
     }
 
     static let edgeL = 1, edgeT = 2, edgeR = 4, edgeB = 8
@@ -183,7 +184,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         installLayers()
         toolbar.onTool = { [weak self] t in self?.setTool(t) }
         toolbar.onColor = { [weak self] i in self?.pickColor(i) }
-        toolbar.onSize = { [weak self] i in self?.setWidth(Palette.widths[i], preview: false) }
+        toolbar.onSize = { [weak self] i in self?.pickSize(Palette.widths[i]) }
         toolbar.onMosaicMode = { [weak self] m in self?.pickMosaicMode(m) }
         toolbar.onMosaicSolid = { [weak self] on in self?.pickMosaicSolid(on) }
         toolbar.onResize = { [weak self] in self?.placeToolbar() }
@@ -318,7 +319,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
             if toolbar.frame.contains(p) && !toolbar.isHidden { NSCursor.arrow.set(); return }
             let handle = annotationHandle(at: p)
             let e = handle == nil ? edges(at: p) : 0
-            if let (i, h) = handle {
+            if let tv = textView as? TextBox, let c = tv.corner(near: p) {
+                (c % 2 == 0 ? Cursors.resizeNWSE : Cursors.resizeNESW).set()
+            } else if let (i, h) = handle {
                 // the ends of a line move freely; a box corner resizes along its diagonal
                 let a = annotations[i]
                 if a.tool == .line || a.tool == .arrow { Cursors.move.set() }
@@ -348,6 +351,11 @@ final class OverlayView: NSView, NSTextViewDelegate {
         case .select:
             drag = .newSelection
         case .edit:
+            if let tv = textView as? TextBox, let c = tv.corner(near: p) {
+                let corners = TextBox.corners(tv.frame)
+                drag = .scaleTextBox(c, corners[(c + 2) % 4], tv.frame.height, width)
+                return
+            }
             if textView != nil { commitText(); if tool == .text { drag = .none; return } }
             pendingUndo = annotations
             if let (i, h) = annotationHandle(at: p) {
@@ -418,6 +426,18 @@ final class OverlayView: NSView, NSTextViewDelegate {
                 a.points[1] = shift ? constrain(a.points[0], q, a.tool) : q
             }
             current = a
+        case .scaleTextBox(let c, let fixed, let h0, let w0):
+            guard let tv = textView else { break }
+            let inset = TextBox.inset.height * 2
+            let scale = max(8, abs(p.y - fixed.y) - inset) / max(1, h0 - inset)
+            let font = Annotation.fontSize(for: w0) * scale
+            let w = min(max(((font - 9) / 2.6).rounded(), Palette.widthRange.lowerBound), Annotation.maxWidth(.text))
+            if w != width { setWidth(w, preview: true) }       // restyles and resizes the box
+            // keep the opposite corner where it was
+            let f = tv.frame
+            let x = (c == 1 || c == 2) ? fixed.x : fixed.x - f.width
+            let y = (c == 2 || c == 3) ? fixed.y : fixed.y - f.height
+            tv.setFrameOrigin(CGPoint(x: snap(x), y: snap(y)))
         case .moveAnnotation(let i, let start, let orig):
             guard i < annotations.count else { break }
             keepUndo()
@@ -459,6 +479,8 @@ final class OverlayView: NSView, NSTextViewDelegate {
                 if ok { push(a) }
             }
             current = nil
+        case .scaleTextBox:
+            window?.makeFirstResponder(textView)                // back to typing
         case .moveAnnotation, .dragHandle, .none: break
         }
         pendingUndo = nil
@@ -466,10 +488,20 @@ final class OverlayView: NSView, NSTextViewDelegate {
         needsDisplay = true
     }
 
+    /// One level back, as Esc and right-click do: end typing, let go of the selected drawing,
+    /// put the tool down. False when there is nothing left to undo that way.
+    private func stepBack() -> Bool {
+        if textView != nil { commitText(); return true }
+        if selected != nil { selected = nil; return true }
+        if tool != nil { toolbar.select(nil); return true }
+        return false
+    }
+
     override func rightMouseDown(with event: NSEvent) {
         switch phase {
         case .edit:
-            // back to choosing an area; what was drawn is dropped
+            if stepBack() { return }
+            // nothing selected, no tool: back to choosing an area; what was drawn is dropped
             commitText()
             annotations.removeAll(); undoStack.removeAll(); redoStack.removeAll(); current = nil; selected = nil
             phase = .select; toolbar.isHidden = true; toolbar.select(nil)
@@ -604,14 +636,14 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     private func drawHUDLabel(_ label: String, below r: CGRect, centerX: CGFloat? = nil) {
-        let str = NSAttributedString(string: label, attributes: [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold), .foregroundColor: NSColor.white])
+        let str = NSAttributedString(string: label, attributes: Badge.attributes)
         let sz = str.size()
         let cx = centerX ?? mouse.x
-        let box = CGRect(x: cx - sz.width / 2 - 6, y: r.maxY + 6, width: sz.width + 12, height: sz.height + 4)
-        NSColor.black.withAlphaComponent(0.72).setFill()
-        NSBezierPath(roundedRect: box, xRadius: 5, yRadius: 5).fill()
-        str.draw(at: CGPoint(x: box.minX + 6, y: box.minY + 2))
+        let box = CGRect(x: cx - sz.width / 2 - Badge.padX, y: r.maxY + 6,
+                         width: sz.width + Badge.padX * 2, height: sz.height + Badge.padY * 2)
+        Badge.background.setFill()
+        NSBezierPath(roundedRect: box, xRadius: Badge.radius, yRadius: Badge.radius).fill()
+        str.draw(at: CGPoint(x: box.minX + Badge.padX, y: box.minY + Badge.padY))
     }
 
     // MARK: keys
@@ -621,8 +653,8 @@ final class OverlayView: NSView, NSTextViewDelegate {
         let cmd = f.contains(.command), shift = f.contains(.shift)
         let chars = e.charactersIgnoringModifiers?.lowercased() ?? ""
         switch Int(e.keyCode) {
-        case 0x35: // Esc: let go of the selected annotation first, then cancel
-            if selected != nil { selected = nil; return }
+        case 0x35: // Esc: one level back (selection, then tool), then cancel
+            if stepBack() { return }
             session?.finish(); return
         case 0x33, 0x75: // Delete, Forward Delete: remove the selected annotation
             if let i = selected { saveUndo(); annotations.remove(at: i); selected = nil; needsDisplay = true }
@@ -749,9 +781,11 @@ final class OverlayView: NSView, NSTextViewDelegate {
     // MARK: editing annotations
 
     /// The topmost annotation under `p`.
+    /// The topmost drawing a click at `p` picks. With a tool, only drawings of that tool are
+    /// picked (to adjust them); others are drawn over, so an arrow can start on a box.
     private func annotationIndex(at p: CGPoint) -> Int? {
         guard phase == .edit, drag.isIdle else { return nil }
-        return annotations.indices.reversed().first { annotations[$0].hit(p) }
+        return annotations.indices.reversed().first { (tool == nil || annotations[$0].tool == tool) && annotations[$0].hit(p) }
     }
 
     /// An end or a corner of the selected annotation under `p`.
@@ -796,6 +830,15 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     /// Box or brush, for the next hide (a drawn box cannot become a stroke): lets go of a selected one.
+    /// A size button: like the wheel, for the selected drawing too.
+    private func pickSize(_ w: CGFloat) {
+        if let k = selected, annotations[k].hasWidth {
+            let v = min(w, Annotation.maxWidth(annotations[k].tool))
+            if annotations[k].width != v { saveUndo(); annotations[k].width = v }
+        }
+        setWidth(w, preview: false)
+    }
+
     private func pickMosaicMode(_ m: MosaicMode) {
         mosaicMode = m
         if let k = selected, annotations[k].tool == .mosaic, annotations[k].mosaicMode != m { selected = nil }
@@ -837,7 +880,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
             ctx.setLineDash(phase: 0, lengths: [])
         }
         for h in hs {
-            let r = CGRect(x: snap(h.x) - 5, y: snap(h.y) - 5, width: 10, height: 10)
+            let r = CGRect(x: snap(h.x) - Handle.radius, y: snap(h.y) - Handle.radius, width: Handle.radius * 2, height: Handle.radius * 2)
             ctx.setFillColor(NSColor.white.cgColor)
             ctx.setShadow(offset: .zero, blur: 2, color: NSColor.black.withAlphaComponent(0.4).cgColor)
             ctx.fillEllipse(in: r)
@@ -1126,13 +1169,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     private func sizeLabelText(_ r: CGRect) -> NSAttributedString {
         NSAttributedString(string: "\(Int((r.width * shot.scale).rounded())) × \(Int((r.height * shot.scale).rounded()))",
-                           attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium),
-                                        .foregroundColor: NSColor.white])
+                           attributes: Badge.attributes)
     }
 
     private func sizeLabelBox(_ r: CGRect) -> CGRect {
         let sz = sizeLabelText(r).size()
-        var box = CGRect(x: r.minX, y: r.minY - sz.height - 10, width: sz.width + 12, height: sz.height + 6)
+        var box = CGRect(x: r.minX, y: r.minY - sz.height - 10, width: sz.width + Badge.padX * 2, height: sz.height + Badge.padY * 2)
         if box.minY < 2 { box.origin.y = r.minY + 4; box.origin.x = r.minX + 4 }
         box.origin.x = min(box.minX, bounds.width - box.width - 2)
         return CGRect(x: snap(box.minX), y: snap(box.minY), width: ceil(box.width), height: ceil(box.height))
@@ -1159,9 +1201,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
         guard let r = holeRect else { return }
         let str = sizeLabelText(r)
         let box = sizeLabelBox(r)
-        NSColor.black.withAlphaComponent(0.7).setFill()
-        NSBezierPath(roundedRect: box, xRadius: 4, yRadius: 4).fill()
-        str.draw(at: CGPoint(x: box.minX + 6, y: box.minY + 3))
+        Badge.background.setFill()
+        NSBezierPath(roundedRect: box, xRadius: Badge.radius, yRadius: Badge.radius).fill()
+        str.draw(at: CGPoint(x: box.minX + Badge.padX, y: box.minY + Badge.padY))
     }
 
     private func pixelColor(at p: CGPoint) -> NSColor? {
@@ -1282,23 +1324,23 @@ final class DrawView: NSView {
 
 /// The dim around the area, its border and its handles, as vector layers: no bitmap to repaint.
 final class ShapesView: NSView {
-    private let dim = CAShapeLayer(), border = CAShapeLayer(), rings = CAShapeLayer(), dots = CAShapeLayer()
+    private let dim = CAShapeLayer(), border = CAShapeLayer(), rings = CAShapeLayer()
 
     init() {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.isGeometryFlipped = true                    // top-left origin, as the overlay
-        dim.fillColor = NSColor.black.withAlphaComponent(0.4).cgColor
-        dim.fillRule = .evenOdd
+        dim.fillColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 0.4)
         border.fillColor = nil
         border.strokeColor = Palette.accent.cgColor
-        rings.fillColor = Palette.accent.cgColor
+        rings.fillColor = NSColor.white.cgColor
+        rings.strokeColor = Palette.accent.cgColor
+        rings.lineWidth = 1.5
         rings.shadowColor = NSColor.black.cgColor
         rings.shadowOpacity = 0.35
         rings.shadowRadius = 1.5
         rings.shadowOffset = .zero
-        dots.fillColor = NSColor.white.cgColor
-        for l in [dim, border, rings, dots] { layer?.addSublayer(l) }
+        for l in [dim, border, rings] { layer?.addSublayer(l) }
     }
     required init?(coder: NSCoder) { fatalError() }
     override var isFlipped: Bool { true }
@@ -1307,20 +1349,25 @@ final class ShapesView: NSView {
     func update(bounds b: CGRect, hole: CGRect?, lineWidth lw: CGFloat, handles: [CGPoint], scale: CGFloat) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)              // no implicit animation: follow the mouse
-        for l in [dim, border, rings, dots] { l.frame = b; l.contentsScale = scale }
+        for l in [dim, border, rings] { l.frame = b; l.contentsScale = scale }
+        // the dim is the four bands around the area (no even-odd fill needed)
         let d = CGMutablePath()
-        d.addRect(b)
-        if let h = hole { d.addRect(h) }
+        if let h = hole?.intersection(b), !h.isNull {
+            d.addRect(CGRect(x: b.minX, y: b.minY, width: b.width, height: h.minY - b.minY))
+            d.addRect(CGRect(x: b.minX, y: h.maxY, width: b.width, height: b.maxY - h.maxY))
+            d.addRect(CGRect(x: b.minX, y: h.minY, width: h.minX - b.minX, height: h.height))
+            d.addRect(CGRect(x: h.maxX, y: h.minY, width: b.maxX - h.maxX, height: h.height))
+        } else {
+            d.addRect(b)
+        }
         dim.path = d
         border.path = hole.map { CGPath(rect: $0.insetBy(dx: -lw / 2, dy: -lw / 2), transform: nil) }
         border.lineWidth = lw
-        let r = CGMutablePath(), w = CGMutablePath()
+        let r = CGMutablePath()
         for c in handles {
-            r.addEllipse(in: CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8))
-            w.addEllipse(in: CGRect(x: c.x - 2.5, y: c.y - 2.5, width: 5, height: 5))
+            r.addEllipse(in: CGRect(x: c.x - Handle.radius, y: c.y - Handle.radius, width: Handle.radius * 2, height: Handle.radius * 2))
         }
         rings.path = r
-        dots.path = w
         CATransaction.commit()
     }
 }
@@ -1328,7 +1375,7 @@ final class ShapesView: NSView {
 /// The text being typed: room around the text and a dashed outline that follows its size.
 final class TextBox: NSTextView {
     static let inset = NSSize(width: 6, height: 4)
-    private let dash = CAShapeLayer()
+    private let dash = CAShapeLayer(), rings = CAShapeLayer()
 
     override init(frame: NSRect, textContainer: NSTextContainer?) {
         super.init(frame: frame, textContainer: textContainer)
@@ -1341,21 +1388,54 @@ final class TextBox: NSTextView {
 
     private func setUp() {
         wantsLayer = true
+        layer?.masksToBounds = false                     // the handles stand half outside the box
         dash.fillColor = nil
         dash.strokeColor = Palette.accent.cgColor
         dash.lineWidth = 1
         dash.lineDashPattern = [4, 3]
-        layer?.addSublayer(dash)
+        rings.fillColor = NSColor.white.cgColor
+        rings.strokeColor = Palette.accent.cgColor
+        rings.lineWidth = 1.5
+        rings.shadowColor = NSColor.black.cgColor
+        rings.shadowOpacity = 0.35
+        rings.shadowRadius = 1.5
+        rings.shadowOffset = .zero
+        for l in [dash, rings] { layer?.addSublayer(l) }
     }
     required init?(coder: NSCoder) { fatalError() }
+
+    /// Corners in the order of the drawings' handles: top left, top right, bottom right, bottom left.
+    static func corners(_ r: CGRect) -> [CGPoint] { Annotation.corners(r) }
+
+    /// The corner near `p` (in the superview's coordinates), if any: dragging it scales the text.
+    func corner(near p: CGPoint) -> Int? {
+        Self.corners(frame).firstIndex { hypot($0.x - p.x, $0.y - p.y) <= 7 }
+    }
+
+    /// Clicks on a corner go to the capture view, which scales the box; the rest is for typing.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        corner(near: point) != nil ? nil : super.hitTest(point)
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        for (i, c) in Self.corners(bounds).enumerated() {
+            addCursorRect(CGRect(x: c.x - 7, y: c.y - 7, width: 14, height: 14).intersection(bounds),
+                          cursor: i % 2 == 0 ? Cursors.resizeNWSE : Cursors.resizeNESW)
+        }
+    }
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         CATransaction.begin(); CATransaction.setDisableActions(true)
-        dash.frame = bounds
+        let scale = window?.backingScaleFactor ?? 2
+        for l in [dash, rings] { l.frame = bounds; l.contentsScale = scale }
         dash.path = CGPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), cornerWidth: 3, cornerHeight: 3, transform: nil)
-        dash.contentsScale = window?.backingScaleFactor ?? 2
+        let r = CGMutablePath()
+        for c in Self.corners(bounds) { r.addEllipse(in: CGRect(x: c.x - Handle.radius, y: c.y - Handle.radius, width: Handle.radius * 2, height: Handle.radius * 2)) }
+        rings.path = r
         CATransaction.commit()
+        window?.invalidateCursorRects(for: self)
     }
 }
 
@@ -1400,7 +1480,7 @@ final class MagnifierView: NSView {
         frameLine.strokeColor = NSColor.white.withAlphaComponent(0.9).cgColor
         frameLine.fillColor = nil
         frameLine.lineWidth = 1
-        infoBack.backgroundColor = NSColor.black.withAlphaComponent(0.8).cgColor
+        infoBack.backgroundColor = Badge.background.cgColor
         infoBack.frame = CGRect(x: box.minX, y: box.maxY, width: mw, height: info)
         swatch.frame = CGRect(x: box.minX + 6, y: box.maxY + 19, width: 10, height: 10)
         swatch.borderColor = NSColor.white.cgColor
@@ -1447,4 +1527,19 @@ final class MagnifierView: NSView {
         swatch.isHidden = color == nil
         CATransaction.commit()
     }
+}
+
+/// The handles of everything that can be dragged (the capture area, a drawing, the text being
+/// typed): one look, a white dot ringed in the accent color.
+enum Handle {
+    static let radius: CGFloat = 4.5
+}
+
+/// The dark labels (size of the area, size of a tool, the magnifier's info): one look.
+enum Badge {
+    static let background = NSColor.black.withAlphaComponent(0.75)
+    static let radius: CGFloat = 5
+    static let padX: CGFloat = 7, padY: CGFloat = 3
+    static let attributes: [NSAttributedString.Key: Any] = [
+        .font: NSFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .medium), .foregroundColor: NSColor.white]
 }
