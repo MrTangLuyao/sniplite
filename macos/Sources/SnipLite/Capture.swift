@@ -1,5 +1,6 @@
 import AppKit
 import ScreenCaptureKit
+import CoreVideo
 
 /// One captured display: its pixels and where it is.
 struct DisplayShot {
@@ -74,6 +75,9 @@ enum Capture {
                     cfg.captureResolution = .best
                     cfg.scalesToFit = false
                     cfg.colorSpaceName = CGColorSpace.sRGB
+                    // 8-bit color: otherwise the image can come as 16-bit floats, twice the memory
+                    // and slow to sample for the magnifier and the colors
+                    cfg.pixelFormat = kCVPixelFormatType_32BGRA
                     let img = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: cfg)
                     return (i, img)
                 }

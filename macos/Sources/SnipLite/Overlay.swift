@@ -16,10 +16,15 @@ final class CaptureSession {
         guard Permission.screenRecording.granted else { PermissionsWindow.show(); return }
         let s = CaptureSession(mode: mode)
         current = s
+        let t0 = CACurrentMediaTime()
         Task { @MainActor in
             do {
                 let shots = try await Capture.captureAll()
+                let t1 = CACurrentMediaTime()
                 s.show(shots)
+                // how long a capture takes to appear, for anyone checking speed later
+                Log.write(String(format: "capture %d display(s): grab %.0f ms, show %.0f ms",
+                                 shots.count, (t1 - t0) * 1000, (CACurrentMediaTime() - t1) * 1000))
             } catch CaptureError.noPermission {
                 current = nil
                 AppDelegate.askForPermission()
@@ -174,6 +179,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         super.init(frame: NSRect(origin: .zero, size: shot.screen.frame.size))
         toolbar.isHidden = true
         addSubview(toolbar)
+        installLayers()
         toolbar.onTool = { [weak self] t in self?.setTool(t) }
         toolbar.onColor = { [weak self] i in self?.pickColor(i) }
         toolbar.onSize = { [weak self] i in self?.setWidth(Palette.widths[i], preview: false) }
@@ -1000,72 +1006,115 @@ final class OverlayView: NSView, NSTextViewDelegate {
         return CGRect(x: x0, y: y0, width: snap(r.maxX) - x0, height: snap(r.maxY) - y0)
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-        var hole: CGRect?
-        switch phase {
-        case .select:
-            if case .newSelection = drag, dragged { hole = selection } else { hole = holeShown ?? hover }
-        case .edit: hole = selection
-        case .idle: hole = nil
-        }
+    // The view paints nothing itself: a full-screen bitmap repainted on every mouse move cost a
+    // quarter of a core and tens of MB. Marking it for display runs updateLayer(), which moves
+    // vector layers (dim, border, handles) and small views (label, magnifier, size preview),
+    // and repaints the annotations on a canvas only as big as the capture area.
+    override var wantsUpdateLayer: Bool { true }
 
-        hole = hole.map(snap)
-        ctx.setFillColor(NSColor.black.withAlphaComponent(0.4).cgColor)
-        if let h = hole {
-            ctx.addRect(bounds); ctx.addRect(h)
-            ctx.fillPath(using: .evenOdd)
-        } else {
-            ctx.fill(bounds)
-        }
-        guard let h = hole else { return }
+    private let shapes = ShapesView()
+    private lazy var canvas = DrawView { [unowned self] ctx in self.drawCanvas(ctx) }
+    private lazy var sizeLabel = DrawView { [unowned self] _ in self.drawSizeLabel() }
+    private lazy var magnifier = DrawView { [unowned self] ctx in self.drawMagnifier(ctx) }
+    private lazy var hud = DrawView { [unowned self] ctx in self.drawSizeHUD(ctx) }
 
-        if phase == .edit {
-            ctx.saveGState()
-            ctx.clip(to: h)
-            for a in annotations { a.draw(in: ctx, mosaic: mosaicImage, screenRect: bounds) }
-            current?.draw(in: ctx, mosaic: mosaicImage, screenRect: bounds)
-            ctx.restoreGState()
-            drawSelectionMarks(ctx)
-            drawSizeHUD(ctx)
+    private func installLayers() {
+        for v in [shapes, canvas, sizeLabel, magnifier, hud] as [NSView] {
+            addSubview(v, positioned: .below, relativeTo: toolbar)
         }
-
-        // the border: whole device pixels (3 on Retina, 2 at 1x) just outside the area
-        let lw = (pixelScale >= 2 ? 3 : 2) / pixelScale
-        ctx.setStrokeColor(Palette.accent.cgColor)
-        ctx.setLineWidth(lw)
-        ctx.stroke(h.insetBy(dx: -lw / 2, dy: -lw / 2))
-        if phase == .edit {
-            // handles: white dots ringed in the accent color, centered on whole pixels
-            ctx.saveGState()
-            ctx.setShadow(offset: .zero, blur: 1.5, color: NSColor.black.withAlphaComponent(0.35).cgColor)
-            for p in handles() {
-                let c = CGPoint(x: snap(p.x), y: snap(p.y))
-                ctx.setFillColor(Palette.accent.cgColor)
-                ctx.fillEllipse(in: CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8))
-            }
-            ctx.restoreGState()
-            ctx.setFillColor(NSColor.white.cgColor)
-            for p in handles() {
-                let c = CGPoint(x: snap(p.x), y: snap(p.y))
-                ctx.fillEllipse(in: CGRect(x: c.x - 2.5, y: c.y - 2.5, width: 5, height: 5))
-            }
-        }
-
-        drawSizeLabel(h)
-        var showMag = phase == .select
-        if case .resize = drag { showMag = true }
-        if showMag { drawMagnifier(ctx) }
+        shapes.frame = bounds
+        shapes.autoresizingMask = [.width, .height]
     }
 
-    private func drawSizeLabel(_ r: CGRect) {
-        let s = "\(Int((r.width * shot.scale).rounded())) × \(Int((r.height * shot.scale).rounded()))"
-        let str = NSAttributedString(string: s, attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium),
-                                                             .foregroundColor: NSColor.white])
-        let sz = str.size()
+    /// The highlighted or selected area, on whole device pixels.
+    private var holeRect: CGRect? {
+        let h: CGRect?
+        switch phase {
+        case .select:
+            if case .newSelection = drag, dragged { h = selection } else { h = holeShown ?? hover }
+        case .edit: h = selection
+        case .idle: h = nil
+        }
+        return h.map(snap)
+    }
+
+    /// What the dim, border and label last showed: unchanged while the mouse moves inside one
+    /// window or element, and then only the magnifier is repainted.
+    private var shownHole: CGRect?? = .none
+    private var shownPhase: Phase?
+
+    override func updateLayer() {
+        let hole = holeRect
+        let areaChanged = shownHole != .some(hole) || shownPhase != phase || phase == .edit
+        if areaChanged {
+            shapes.update(bounds: bounds, hole: hole, lineWidth: (pixelScale >= 2 ? 3 : 2) / pixelScale,
+                          handles: phase == .edit ? handles().map { CGPoint(x: snap($0.x), y: snap($0.y)) } : [],
+                          scale: pixelScale)
+            shownHole = .some(hole)
+            shownPhase = phase
+        }
+        func show(_ v: DrawView, _ frame: CGRect?, repaint: Bool = true) {
+            guard let f = frame, !f.isEmpty else { v.isHidden = true; return }
+            let moved = v.isHidden || v.frame != f
+            v.isHidden = false
+            if v.frame != f { v.frame = f }
+            if repaint || moved { v.needsDisplay = true }
+        }
+        show(canvas, phase == .edit ? hole.map { $0.insetBy(dx: -16, dy: -16).intersection(bounds) } : nil)
+        show(sizeLabel, hole.map { sizeLabelBox($0).insetBy(dx: -1, dy: -1) }, repaint: areaChanged)
+        var showMag = phase == .select
+        if case .resize = drag { showMag = true }
+        show(magnifier, showMag ? magnifierFrame() : nil)
+        show(hud, phase == .edit && Date() < sizeHUDUntil
+             ? CGRect(x: mouse.x - 110, y: mouse.y - 110, width: 220, height: 240) : nil)
+    }
+
+    /// The annotations, clipped to the capture area, and the marks of the selected one.
+    private func drawCanvas(_ ctx: CGContext) {
+        guard let h = holeRect else { return }
+        ctx.saveGState()
+        ctx.clip(to: h)
+        for a in annotations { a.draw(in: ctx, mosaic: mosaicImage, screenRect: bounds) }
+        current?.draw(in: ctx, mosaic: mosaicImage, screenRect: bounds)
+        ctx.restoreGState()
+        drawSelectionMarks(ctx)
+    }
+
+    private func sizeLabelText(_ r: CGRect) -> NSAttributedString {
+        NSAttributedString(string: "\(Int((r.width * shot.scale).rounded())) × \(Int((r.height * shot.scale).rounded()))",
+                           attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium),
+                                        .foregroundColor: NSColor.white])
+    }
+
+    private func sizeLabelBox(_ r: CGRect) -> CGRect {
+        let sz = sizeLabelText(r).size()
         var box = CGRect(x: r.minX, y: r.minY - sz.height - 10, width: sz.width + 12, height: sz.height + 6)
         if box.minY < 2 { box.origin.y = r.minY + 4; box.origin.x = r.minX + 4 }
         box.origin.x = min(box.minX, bounds.width - box.width - 2)
+        return CGRect(x: snap(box.minX), y: snap(box.minY), width: ceil(box.width), height: ceil(box.height))
+    }
+
+    private static let magCols = 25, magRows = 19
+    private static let magCell: CGFloat = 5, magInfo: CGFloat = 50
+
+    /// Where the magnifier goes: below right of the mouse, flipped to stay on screen.
+    private func magnifierBox() -> CGRect {
+        let mw = CGFloat(Self.magCols) * Self.magCell, mh = CGFloat(Self.magRows) * Self.magCell
+        var x = mouse.x + 20, y = mouse.y + 24
+        if x + mw > bounds.width - 4 { x = mouse.x - 20 - mw }
+        if y + mh + Self.magInfo > bounds.height - 4 { y = mouse.y - 24 - mh - Self.magInfo }
+        return CGRect(x: snap(x), y: snap(y), width: mw, height: mh)
+    }
+
+    private func magnifierFrame() -> CGRect {
+        let b = magnifierBox()
+        return CGRect(x: b.minX - 2, y: b.minY - 2, width: b.width + 4, height: b.height + Self.magInfo + 4)
+    }
+
+    private func drawSizeLabel() {
+        guard let r = holeRect else { return }
+        let str = sizeLabelText(r)
+        let box = sizeLabelBox(r)
         NSColor.black.withAlphaComponent(0.7).setFill()
         NSBezierPath(roundedRect: box, xRadius: 4, yRadius: 4).fill()
         str.draw(at: CGPoint(x: box.minX + 6, y: box.minY + 3))
@@ -1076,13 +1125,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     private func drawMagnifier(_ ctx: CGContext) {
-        let cols = 25, rows = 19, cell: CGFloat = 5
-        let mw = CGFloat(cols) * cell, mh = CGFloat(rows) * cell
-        let info: CGFloat = 50
-        var x = mouse.x + 20, y = mouse.y + 24
-        if x + mw > bounds.width - 4 { x = mouse.x - 20 - mw }
-        if y + mh + info > bounds.height - 4 { y = mouse.y - 24 - mh - info }
-        let box = CGRect(x: x, y: y, width: mw, height: mh)
+        let cols = Self.magCols, rows = Self.magRows, cell = Self.magCell, info = Self.magInfo
+        let box = magnifierBox()
+        let mw = box.width
 
         let cx = Int(mouse.x * shot.scale), cy = Int(mouse.y * shot.scale)
         let src = CGRect(x: cx - cols / 2, y: cy - rows / 2, width: cols, height: rows)
@@ -1217,5 +1262,71 @@ enum Cursors {
             image.addRepresentation(rep)
         }
         return NSCursor(image: image, hotSpot: NSPoint(x: side / 2, y: side / 2))
+    }
+}
+
+/// A view that draws with a closure in its superview's coordinates and lets clicks through.
+final class DrawView: NSView {
+    private let drawer: (CGContext) -> Void
+    init(_ drawer: @escaping (CGContext) -> Void) {
+        self.drawer = drawer
+        super.init(frame: .zero)
+        wantsLayer = true
+        layerContentsRedrawPolicy = .onSetNeedsDisplay
+        layer?.contentsFormat = .RGBA8Uint              // 8-bit: the screen image is 8-bit too
+        isHidden = true
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func draw(_ dirtyRect: NSRect) {
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        ctx.translateBy(x: -frame.minX, y: -frame.minY)
+        drawer(ctx)
+    }
+}
+
+/// The dim around the area, its border and its handles, as vector layers: no bitmap to repaint.
+final class ShapesView: NSView {
+    private let dim = CAShapeLayer(), border = CAShapeLayer(), rings = CAShapeLayer(), dots = CAShapeLayer()
+
+    init() {
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.isGeometryFlipped = true                    // top-left origin, as the overlay
+        dim.fillColor = NSColor.black.withAlphaComponent(0.4).cgColor
+        dim.fillRule = .evenOdd
+        border.fillColor = nil
+        border.strokeColor = Palette.accent.cgColor
+        rings.fillColor = Palette.accent.cgColor
+        rings.shadowColor = NSColor.black.cgColor
+        rings.shadowOpacity = 0.35
+        rings.shadowRadius = 1.5
+        rings.shadowOffset = .zero
+        dots.fillColor = NSColor.white.cgColor
+        for l in [dim, border, rings, dots] { layer?.addSublayer(l) }
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    func update(bounds b: CGRect, hole: CGRect?, lineWidth lw: CGFloat, handles: [CGPoint], scale: CGFloat) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)              // no implicit animation: follow the mouse
+        for l in [dim, border, rings, dots] { l.frame = b; l.contentsScale = scale }
+        let d = CGMutablePath()
+        d.addRect(b)
+        if let h = hole { d.addRect(h) }
+        dim.path = d
+        border.path = hole.map { CGPath(rect: $0.insetBy(dx: -lw / 2, dy: -lw / 2), transform: nil) }
+        border.lineWidth = lw
+        let r = CGMutablePath(), w = CGMutablePath()
+        for c in handles {
+            r.addEllipse(in: CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8))
+            w.addEllipse(in: CGRect(x: c.x - 2.5, y: c.y - 2.5, width: 5, height: 5))
+        }
+        rings.path = r
+        dots.path = w
+        CATransaction.commit()
     }
 }
