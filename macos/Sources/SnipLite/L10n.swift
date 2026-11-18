@@ -51,7 +51,7 @@ enum L {
         "permIntro": "sniplite needs these permissions. Click a button: System Settings opens with sniplite's icon below it; drag the icon into the list and turn it on.",
         "permDrag": "After “Allow…”, drag the sniplite icon under System Settings into the list and turn it on.",
         "permTitle2": "Welcome to sniplite", "permSubtitle": "Allow the permissions below once, and press F1 to capture.",
-        "required": "Required", "done": "Done", "doneIn": "Done  %ds",
+        "required": "Required", "done": "Done", "doneIn": "Done · closes in %ds",
         "permDone": "All set.", "permRestart": "All set. Restarting sniplite to use Screen Recording…",
         "dragTitle": "Drag into the list above, then turn it on", "dragBig": "Drag sniplite into the list", "step1": "Hold this row", "stepUp": "Drag to the list above", "stepLeft": "Drag to the list on the left", "stepRight": "Drag to the list on the right", "step3": "Turn it on", "dragTitleLeft": "Drag into the list on the left, then turn it on", "dragTitleRight": "Drag into the list on the right, then turn it on",
     ]
@@ -83,7 +83,7 @@ enum L {
         "permIntro": "sniplite 需要下面这些权限。点按钮会打开系统设置，下方出现 sniplite 图标，把图标拖进列表并打开开关即可。",
         "permDrag": "点“去开启”后，把系统设置下方的 sniplite 图标拖进列表，再打开开关。",
         "permTitle2": "欢迎使用 sniplite", "permSubtitle": "授予下面的权限后，按 F1 即可截图。只需设置一次。",
-        "required": "必需", "done": "完成", "doneIn": "完成  %ds",
+        "required": "必需", "done": "完成", "doneIn": "完成 · 自动关闭 %ds",
         "permDone": "全部完成。", "permRestart": "全部完成，sniplite 将重新启动以启用屏幕录制。",
         "dragTitle": "拖到上方列表，再打开开关", "dragBig": "把 sniplite 拖进列表", "step1": "按住下面这一行", "stepUp": "拖到上方列表", "stepLeft": "拖到左侧列表", "stepRight": "拖到右侧列表", "step3": "打开开关", "dragTitleLeft": "拖到左侧列表，再打开开关", "dragTitleRight": "拖到右侧列表，再打开开关",
     ]
@@ -115,7 +115,7 @@ enum L {
         "permIntro": "sniplite 需要下面這些權限。點按鈕會打開系統設定，下方出現 sniplite 圖示，把圖示拖進列表並打開開關即可。",
         "permDrag": "點「去開啟」後，把系統設定下方的 sniplite 圖示拖進列表，再打開開關。",
         "permTitle2": "歡迎使用 sniplite", "permSubtitle": "授予下面的權限後，按 F1 即可截圖。只需設定一次。",
-        "required": "必需", "done": "完成", "doneIn": "完成  %ds",
+        "required": "必需", "done": "完成", "doneIn": "完成 · 自動關閉 %ds",
         "permDone": "全部完成。", "permRestart": "全部完成，正在重新啟動 sniplite 以啟用螢幕錄製…",
         "dragTitle": "拖到上方列表，再打開開關", "dragBig": "把 sniplite 拖進列表", "step1": "按住下面這一行", "stepUp": "拖到上方列表", "stepLeft": "拖到左側列表", "stepRight": "拖到右側列表", "step3": "打開開關", "dragTitleLeft": "拖到左側列表，再打開開關", "dragTitleRight": "拖到右側列表，再打開開關",
     ]
