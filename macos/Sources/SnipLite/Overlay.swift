@@ -485,7 +485,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
             }
             current = a
         case .moveTextBox(let start, let origin):
-            textView?.setFrameOrigin(CGPoint(x: snap(origin.x + p.x - start.x), y: snap(origin.y + p.y - start.y)))
+            if let tv = textView {
+                let f = CGRect(origin: origin, size: tv.frame.size)
+                let x = min(max(origin.x + p.x - start.x, selection.minX), max(selection.minX, selection.maxX - f.width))
+                let y = min(max(origin.y + p.y - start.y, selection.minY), max(selection.minY, selection.maxY - f.height))
+                tv.setFrameOrigin(CGPoint(x: snap(x), y: snap(y)))
+            }
         case .scaleTextBox(let c, let fixed, let h0, let w0):
             guard let tv = textView else { break }
             let inset = TextBox.inset.height * 2
@@ -502,7 +507,8 @@ final class OverlayView: NSView, NSTextViewDelegate {
             guard i < annotations.count else { break }
             keepUndo()
             var a = orig
-            a.offset(p.x - start.x, p.y - start.y)
+            let d = keepInside(orig.bounds, dx: p.x - start.x, dy: p.y - start.y)
+            a.offset(d.dx, d.dy)
             annotations[i] = a
         case .dragHandle(let i, let h, let orig):
             guard i < annotations.count else { break }
@@ -805,7 +811,8 @@ final class OverlayView: NSView, NSTextViewDelegate {
             // the selected drawing moves; a burst of presses is one undo step
             if Date().timeIntervalSince(lastNudge) > 0.6 { saveUndo() }
             lastNudge = Date()
-            annotations[i].offset(dx * k, dy * k)
+            let d = keepInside(annotations[i].bounds, dx: dx * k, dy: dy * k)
+            annotations[i].offset(d.dx, d.dy)
             needsDisplay = true
         } else if phase == .edit {
             var r = selection.offsetBy(dx: dx * k, dy: dy * k)
@@ -873,6 +880,14 @@ final class OverlayView: NSView, NSTextViewDelegate {
     func editArea(_ r: CGRect) {
         selection = snap(r)
         enterEdit(after: false)
+    }
+
+    /// A move limited so the drawing's middle stays in the capture area: outside it would be
+    /// clipped away, out of reach and out of the result.
+    private func keepInside(_ b: CGRect, dx: CGFloat, dy: CGFloat) -> CGVector {
+        let cx = min(max(b.midX + dx, selection.minX), selection.maxX)
+        let cy = min(max(b.midY + dy, selection.minY), selection.maxY)
+        return CGVector(dx: cx - b.midX, dy: cy - b.midY)
     }
 
     // MARK: editing annotations
@@ -981,9 +996,14 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     /// Double-click on a text: edit it again, where it is, with its color and size.
+    /// The text being typed replaces one that was there (double-click): its undo step is
+    /// taken already, so committing it adds none.
+    private var reeditingText = false
+
     private func editText(_ i: Int) {
         let a = annotations[i]
         saveUndo()
+        reeditingText = true
         annotations.remove(at: i)
         selected = nil
         if let c = Palette.index(of: a.color) { colorIndex = c; toolbar.setColor(c) }
@@ -1148,6 +1168,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private func commitText() {
         guard let tv = textView else { return }
         textView = nil
+        defer { reeditingText = false }
         let s = tv.string
         if !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let o = tv.textContainerOrigin
@@ -1156,7 +1177,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
             if let storage = tv.textStorage {
                 (a.color, a.colorRuns) = Annotation.colors(of: storage, default: drawColor)
             }
-            push(a)
+            if reeditingText {
+                annotations.append(a)                      // one undo step with the removal
+                selected = annotations.count - 1
+            } else {
+                push(a)
+            }
         }
         tv.removeFromSuperview()
         window?.makeFirstResponder(self)
