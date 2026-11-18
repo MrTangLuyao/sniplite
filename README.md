@@ -39,6 +39,8 @@ Get the latest installer from [Releases](https://github.com/MrTangLuyao/sniplite
 
 There are two portable versions too, with nothing to install: `sniplite_<version>_portable_x64.exe`, and `sniplite_<version>_portable_with_OCR_x64.exe`, which carries the text recognition module.
 
+On a Mac (macOS 14 or later), build the native version in [`macos`](macos/README.md) with `macos/build.sh`.
+
 > [!TIP]
 > The icon is at the right end of the taskbar; click the small arrow there if you do not see it. To keep it in view, search Windows Settings for "Other system tray icons" and turn sniplite on.
 
