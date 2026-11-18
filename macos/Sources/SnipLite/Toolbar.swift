@@ -8,14 +8,73 @@ final class ToolButton: NSView {
     var dimmed = false { didSet { needsDisplay = true } }
     /// The main action (✓): drawn in the accent color.
     var prominent = false { didSet { needsDisplay = true } }
-    static let iconBox: CGFloat = 18
+    /// The mosaic tool's icon, drawn like an SF Symbol of the same size and weight (15 pt
+    /// regular: an 18 x 17 canvas, 1.25 pt lines): a rounded square holding a checkerboard.
+    static let mosaicIconName = "sniplite.mosaic"
+
+    /// SF Symbols at one point size differ in how big they look (a wide rectangle, a small "A",
+    /// a full circle). Each gets the point size that makes its drawn part about as big as the
+    /// others' (the square root of its area near 15.5 pt), kept within 13-17 pt so the line
+    /// weights stay alike.
+    static func pointSize(for name: String) -> CGFloat {
+        if let p = pointSizes[name] { return p }
+        var p: CGFloat = 15
+        if let img = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 15, weight: .regular)),
+           let ink = inkSize(img), ink.width > 0, ink.height > 0 {
+            p = min(17, max(13, 15 * 15.5 / sqrt(ink.width * ink.height)))
+        }
+        pointSizes[name] = p
+        return p
+    }
+    private static var pointSizes: [String: CGFloat] = [:]
+
+    /// The size of the drawn (non-transparent) part of an image, in points.
+    private static func inkSize(_ img: NSImage) -> CGSize? {
+        let k: CGFloat = 4
+        let w = Int(img.size.width * k), h = Int(img.size.height * k)
+        guard w > 0, h > 0, let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+                                                 space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue),
+              let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        guard let data = ctx.data?.assumingMemoryBound(to: UInt8.self) else { return nil }
+        var minX = w, minY = h, maxX = -1, maxY = -1
+        for y in 0..<h { for x in 0..<w where data[y * w + x] > 64 {
+            minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+        } }
+        guard maxX >= minX, maxY >= minY else { return nil }
+        return CGSize(width: CGFloat(maxX - minX + 1) / k, height: CGFloat(maxY - minY + 1) / k)
+    }
+    static let mosaicIcon: NSImage = {
+        let img = NSImage(size: NSSize(width: 18, height: 17), flipped: false) { _ in
+            let frame = NSRect(x: 1.75, y: 1.25, width: 14.5, height: 14.5)
+            let outline = NSBezierPath(roundedRect: frame, xRadius: 3.4, yRadius: 3.4)
+            outline.lineWidth = 1.25
+            NSColor.black.setStroke()
+            outline.stroke()
+            // a checkerboard of half-tone squares inside: reads as mosaic, weighs like the others
+            let inner = frame.insetBy(dx: 0.6, dy: 0.6)
+            let cell = inner.width / 4
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath(roundedRect: inner, xRadius: 2.8, yRadius: 2.8).addClip()
+            NSColor.black.withAlphaComponent(0.45).setFill()
+            for i in 0..<4 { for j in 0..<4 where (i + j) % 2 == 0 {
+                NSRect(x: inner.minX + CGFloat(i) * cell, y: inner.minY + CGFloat(j) * cell, width: cell, height: cell).fill()
+            } }
+            NSGraphicsContext.restoreGraphicsState()
+            return true
+        }
+        img.isTemplate = true
+        return img
+    }()
     var selected = false { didSet { needsDisplay = true } }
     var enabled = true { didSet { needsDisplay = true } }
     var onClick: (() -> Void)?
     private var hover = false { didSet { needsDisplay = true } }
     private lazy var image: NSImage? = {
         guard case .symbol(let name) = look else { return nil }
-        let cfg = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
+        if name == ToolButton.mosaicIconName { return ToolButton.mosaicIcon }
+        let cfg = NSImage.SymbolConfiguration(pointSize: ToolButton.pointSize(for: name), weight: .regular)
         return NSImage(systemSymbolName: name, accessibilityDescription: toolTip)?.withSymbolConfiguration(cfg)
     }()
 
@@ -51,10 +110,9 @@ final class ToolButton: NSView {
             let tinted = NSImage(size: img.size, flipped: false) { rect in
                 img.draw(in: rect); tint.set(); rect.fill(using: .sourceAtop); return true
             }
-            // every icon in the same box: wide ones are scaled down, so none looks bigger than the rest
-            let box = ToolButton.iconBox
-            let k = min(1, box / max(img.size.width, img.size.height))
-            let s = NSSize(width: img.size.width * k, height: img.size.height * k)
+            // drawn at their own size: SF Symbols of one size and weight are balanced already, and
+            // scaling one would thin its lines
+            let s = img.size
             tinted.draw(in: NSRect(x: bounds.midX - s.width / 2, y: bounds.midY - s.height / 2, width: s.width, height: s.height))
         case .color(let c):
             let d = r.insetBy(dx: 6, dy: 6)

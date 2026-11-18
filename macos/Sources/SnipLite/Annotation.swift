@@ -11,7 +11,7 @@ enum Tool: Int, CaseIterable {
         case .arrow: return "arrow.up.right"
         case .pen: return "scribble"
         case .marker: return "highlighter"
-        case .mosaic: return "square.grid.3x3.square"
+        case .mosaic: return ToolButton.mosaicIconName      // drawn by sniplite (see ToolButton)
         case .text: return "character"
         case .number: return "1.circle"
         }
