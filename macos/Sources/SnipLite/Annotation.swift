@@ -62,6 +62,8 @@ struct Annotation {
     var number: Int = 0
 
     var fontSize: CGFloat { Self.fontSize(for: width) }
+    /// A number's circle: about 17 / 22 / 31 pt across for the three sizes.
+    static func numberRadius(_ width: CGFloat) -> CGFloat { 6 + width * 1.2 }
     /// Width 2 / 4 / 8 -> about 14 / 20 / 30 pt, as the three sizes of the Windows version.
     static func fontSize(for width: CGFloat) -> CGFloat { 9 + width * 2.6 }
     /// Mosaic squares are not set by hand: big enough that text under them cannot be read,
@@ -70,7 +72,7 @@ struct Annotation {
     static func mosaicBlock(brush width: CGFloat) -> CGFloat { min(20, max(8, brushWidth(width) / 2.5)) }
     static func brushWidth(_ width: CGFloat) -> CGFloat { max(10, width * 5) }
 
-    /// The largest width per tool: lines up to 40, text up to about 72 pt, numbers up to a 40 pt radius.
+    /// The largest width per tool: lines up to 40, text up to about 72 pt, numbers up to a 30 pt radius.
     static func maxWidth(_ t: Tool) -> CGFloat { t == .text ? 24 : (t == .number ? 20 : 40) }
 
     /// Whether the wheel and the size buttons change it: not a hide box (its size is the box).
@@ -143,7 +145,7 @@ struct Annotation {
             s.draw(at: p0)
             NSGraphicsContext.restoreGraphicsState()
         case .number:
-            let r = 8 + width * 1.6
+            let r = Annotation.numberRadius(width)
             ctx.fillEllipse(in: CGRect(x: p0.x - r, y: p0.y - r, width: r * 2, height: r * 2))
             let light = Palette.hex[Palette.colors.firstIndex(of: color) ?? 0] == 0xFFFFFF
                 || Palette.hex[Palette.colors.firstIndex(of: color) ?? 0] == 0xFDD835
@@ -270,7 +272,7 @@ extension Annotation {
             let sz = NSAttributedString(string: text, attributes: Self.textAttributes(color: color, size: fontSize)).size()
             return CGRect(origin: p0, size: sz)
         case .number:
-            let r = 8 + width * 1.6
+            let r = Annotation.numberRadius(width)
             return CGRect(x: p0.x - r, y: p0.y - r, width: r * 2, height: r * 2)
         default:
             if isBox || tool == .line || tool == .arrow { return CGRect(p0, points.last ?? p0) }

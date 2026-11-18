@@ -148,7 +148,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private var lastNudge = Date.distantPast
     /// The annotation being edited (drawn last, or clicked): it shows handles, the wheel sizes it,
     /// a color recolors it, Delete removes it.
-    private var selected: Int? { didSet { if selected != oldValue { needsDisplay = true } } }
+    private var selected: Int? { didSet { if selected != oldValue { marksFaded = false; needsDisplay = true } } }
     private var hoverAnnotation = false
     private var current: Annotation?
     private var tool: Tool?
@@ -305,27 +305,28 @@ final class OverlayView: NSView, NSTextViewDelegate {
         if window?.isKeyWindow == false, case .none = drag { window?.makeKey(); window?.makeFirstResponder(self) }
     }
 
-    /// Focus follows the mouse: moving well away from the text being typed ends it (an empty
-    /// box stays, to be typed in), and from the selected drawing lets go of it.
-    private func releaseFocus(awayFrom p: CGPoint) {
+    /// Away from the selected drawing or the text being typed, their marks fade: the screen is
+    /// calmer, yet they stay selected / being typed, so the toolbar (color, size), Delete and the
+    /// arrow keys still act on them. Over the toolbar the marks stay full, as what it will change.
+    private var marksFaded = false
+
+    private func fadeMarks(for p: CGPoint) {
         guard phase == .edit, drag.isIdle else { return }
         func distance(_ r: CGRect) -> CGFloat {
             hypot(max(r.minX - p.x, 0, p.x - r.maxX), max(r.minY - p.y, 0, p.y - r.maxY))
         }
-        let away: CGFloat = 24
-        if let tv = textView {
-            if distance(tv.frame) > away, !tv.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                commitText()
-                selected = nil
-            }
-        } else if let i = selected, i < annotations.count, distance(annotations[i].bounds) > away {
-            selected = nil
-        }
+        let target = textView?.frame ?? selected.flatMap { $0 < annotations.count ? annotations[$0].bounds : nil }
+        let overToolbar = !toolbar.isHidden && toolbar.frame.insetBy(dx: -8, dy: -8).contains(p)
+        let away = target.map { distance($0) > 24 } ?? false && !overToolbar
+        guard away != marksFaded else { return }
+        marksFaded = away
+        (textView as? TextBox)?.setFaded(away)
+        needsDisplay = true
     }
 
     override func mouseMoved(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
-        releaseFocus(awayFrom: p)
+        fadeMarks(for: p)
         if window?.isKeyWindow == false && phase != .idle { window?.makeKey() }
         mouseAt(p)
         updateCursor(p)
@@ -618,17 +619,18 @@ final class OverlayView: NSView, NSTextViewDelegate {
         let d: CGFloat
         switch t {
         case .text: d = Annotation.fontSize(for: width)
-        case .number: d = (8 + width * 1.6) * 2
+        case .number: d = Annotation.numberRadius(width) * 2
         case .marker: d = width * 4
         case .mosaic: d = Annotation.brushWidth(width)
         default: d = width
         }
-        let r = CGRect(x: mouse.x - d / 2, y: mouse.y - d / 2, width: d, height: d)
-        if t == .text, let anchor = textBeingSized() {
-            // resizing a text: the text shows its size itself; just the number, under it
-            drawHUDLabel("\(Int(d.rounded())) pt", below: anchor, centerX: anchor.midX)
+        // an existing drawing shows its new size itself: only the number, under it
+        if let anchor = drawingBeingSized() {
+            let label = t == .text ? "\(Int(d.rounded())) pt" : "\(Int(d.rounded())) px"
+            drawHUDLabel(label, below: anchor, centerX: anchor.midX)
             return
         }
+        let r = CGRect(x: mouse.x - d / 2, y: mouse.y - d / 2, width: d, height: d)
         if t == .text {
             // the text tool before typing: a sample at its size and color
             let sample = NSAttributedString(string: "Aa", attributes: Annotation.textAttributes(color: c, size: d))
@@ -654,10 +656,10 @@ final class OverlayView: NSView, NSTextViewDelegate {
         drawHUDLabel("\(Int(width)) px", below: r)
     }
 
-    /// The text whose size is changing: the selected text, or the one being typed.
-    private func textBeingSized() -> CGRect? {
+    /// The drawing whose size is changing: the text being typed, or the selected drawing.
+    private func drawingBeingSized() -> CGRect? {
         if let tv = textView { return tv.frame }
-        if let i = selected, i < annotations.count, annotations[i].tool == .text {
+        if let i = selected, i < annotations.count {
             return annotations[i].bounds.insetBy(dx: -Annotation.textPad, dy: -Annotation.textPad)
         }
         return nil
@@ -899,6 +901,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         let a = annotations[i]
         let hs = grabPoints(a)
         ctx.saveGState()
+        ctx.setAlpha(marksFaded ? 0.35 : 1)
         if hs.isEmpty || a.tool == .rect || a.tool == .ellipse || a.tool == .text {
             ctx.setStrokeColor(Palette.accent.withAlphaComponent(0.9).cgColor)
             ctx.setLineWidth(1)
@@ -996,6 +999,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         tv.delegate = self
         addSubview(tv)
         textView = tv
+        marksFaded = false
         restyleText()
         tv.sizeToFit()
         window?.makeFirstResponder(tv)
@@ -1177,8 +1181,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         }
         let hudFrame: CGRect? = {
             guard phase == .edit, Date() < sizeHUDUntil else { return nil }
-            let isText = (selected.map { annotations[$0].tool } ?? tool) == .text
-            if isText, let r = textBeingSized() { return CGRect(x: r.midX - 60, y: r.maxY, width: 120, height: 34) }
+            if let r = drawingBeingSized() { return CGRect(x: r.midX - 60, y: r.maxY, width: 120, height: 34) }
             return CGRect(x: mouse.x - 110, y: mouse.y - 110, width: 220, height: 240)
         }()
         show(hud, hudFrame)
@@ -1442,6 +1445,14 @@ final class TextBox: NSTextView {
 
     /// On the box's edge (its padding and a little outside), away from the corners: dragging
     /// there moves the box.
+    func setFaded(_ on: Bool) {
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.15)
+        dash.opacity = on ? 0.35 : 1
+        rings.opacity = on ? 0.35 : 1
+        CATransaction.commit()
+    }
+
     func onEdge(_ p: CGPoint) -> Bool {
         let outer = frame.insetBy(dx: -4, dy: -4)
         let text = frame.insetBy(dx: Self.inset.width, dy: Self.inset.height)

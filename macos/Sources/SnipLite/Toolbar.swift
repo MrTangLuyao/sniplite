@@ -248,7 +248,7 @@ final class Toolbar: NSView {
                 let w = Palette.widths[k]
                 switch tool {
                 case .text: b.look = .glyph("A", Annotation.fontSize(for: w) * 0.6)
-                case .number: b.look = .number(min(22, (8 + w * 1.6) * 0.95))
+                case .number: b.look = .number(min(22, Annotation.numberRadius(w) * 1.2))
                 default: b.look = .size(w)
                 }
             }
