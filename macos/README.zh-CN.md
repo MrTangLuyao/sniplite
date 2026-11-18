@@ -1,0 +1,116 @@
+<div align="center">
+
+<img src="../pics/icon.png" width="96" alt="sniplite 图标">
+
+# sniplite for macOS
+
+**sniplite 的 macOS 原生版：截图、标注、贴图、识别文字，不到 1 MB**
+
+[English](README.md) • [简体中文](README.zh-CN.md)
+
+</div>
+
+sniplite 在 macOS 上的原生移植，用 Swift 和 AppKit 编写，功能和快捷键与 Windows 版一致。只用系统自带的能力：截图用 ScreenCaptureKit，识别窗口和窗口内元素用辅助功能接口，识别文字用 Vision。应用不到 1 MB，原生支持 Apple 芯片和 Intel，需要 macOS 14 Sonoma 或更高版本。
+
+Windows 版（`../src`）没有任何改动；这个文件夹是一个独立的程序。
+
+## 特色
+
+- **截图**：按 F1（不用按 fn），自动框出鼠标下的窗口或窗口里的元素（按钮、输入框、列表、面板），滚轮可以逐级扩大到外层、整个窗口、整个屏幕。也可以拖拽框选任意区域，放大镜显示像素和颜色。
+- **标注**：矩形、椭圆、直线、箭头、画笔、记号笔、马赛克、文字、序号，8 种颜色、3 种粗细，可撤销、重做。
+- **复制、保存、贴图**：Enter 复制，⌘S 保存（PNG 或 JPEG），⌘T 把截图贴在所有窗口之上。贴图可以拖动、滚轮缩放、⌥+滚轮调透明度，可以复制、保存、识别文字。
+- **文字识别**（可选，默认关闭）：识别截图里的文字，表格保持分列（制表符分隔，或 Markdown）。用苹果的 Vision 在本机运行，并放在一个用完即退的辅助进程里，模型不会一直占着内存。
+- **轻量**：空闲时内存约 15–25 MB。
+- **多语言**：English、简体中文、繁體中文，默认跟随系统，也可以在设置里选。
+
+## 安装
+
+先编译（见下文），然后把 `build/sniplite.app` 复制到"应用程序"文件夹并打开。菜单栏会出现剪刀图标，程序坞里没有图标。
+
+sniplite 没有用 Apple 开发者证书签名，也没有公证，所以从网上下载的版本会被 macOS 拦下（提示"无法打开"或"已损坏"）。复制到"应用程序"文件夹后，运行一次下面的命令去掉隔离标记：
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/sniplite.app"
+```
+
+### 权限
+
+第一次启动会显示**权限**页，列出 sniplite 需要的权限：
+
+| 权限 | 用途 |
+| --- | --- |
+| **屏幕录制** | 截取屏幕画面 |
+| **辅助功能**（macOS 27 上叫"设备控制和数据访问"） | 不按 fn 直接用 F1–F12，以及识别窗口里的元素 |
+
+逐项点**去开启…**：系统设置会打开到对应页面，旁边出现一个带 sniplite 的小面板，把 sniplite 拖进列表并打开开关即可。之后系统设置会自动关闭，权限页回到前台，接着授权下一项。全部授权完之前权限页不能关闭；授权屏幕录制后 sniplite 会自动重启一次，这是 macOS 的要求。菜单栏的"权限…"和设置里也能打开这一页。
+
+## 快捷键
+
+和 Windows 版一样，Ctrl 换成 ⌘。都可以在设置里修改。
+
+| 按键 | 作用 |
+| --- | --- |
+| **F1** | 截图 |
+| **F3** | 把复制的图片或文字贴到屏幕上 |
+| **⇧F3** | 隐藏 / 显示所有贴图 |
+| **F4** | 截图并识别文字（开启文字识别时） |
+| **⇧F4** | 截图并复制文字（开启文字识别时） |
+| **Enter** / 双击 | 复制截图 |
+| **⌘S** | 保存截图 |
+| **⌘T** / 鼠标中键 | 贴图 |
+| **⌘O** / **⇧⌘C** | 识别 / 复制选区里的文字 |
+| **⌘Z** / **⇧⌘Z** | 撤销 / 重做 |
+| **Esc** | 取消截图 |
+| **右键** | 回到选择区域；再按一次取消 |
+| **方向键**、**W A S D** | 光标或选区移动 1 像素；按住 Shift 移动 10 像素 |
+| **C**（选择区域时） | 复制光标下的颜色 |
+| **滚轮** | 截图时：更大或更小的元素；贴图上：缩放；⌥+滚轮：贴图透明度 |
+| **双击** / **Esc** | 关闭贴图 |
+
+Mac 键盘上的 F1–F12 默认是调亮度、调度中心等功能。有了辅助功能权限，sniplite 会接管绑定为快捷键的那几个键，所以直接按 F1 就能截图（这个键也就不再调亮度）；没有这个权限时，要按住 fn 再按。
+
+## 编译
+
+只需要 Xcode 命令行工具（`xcode-select --install`），不需要安装 Xcode。
+
+```bash
+cd macos
+./build.sh          # 生成 build/sniplite.app（Apple 芯片 + Intel）
+./build.sh --zip    # 同时生成 build/sniplite_<版本>_macos.zip
+```
+
+**签名。** 默认是临时签名，macOS 会把每次编译的结果当成一个新应用：每次重新编译后都要重新授权（sniplite 会自动清掉失效的旧授权项，列表里不会出现"看着开着、其实不生效"的条目）。想在重新编译后保留权限，需要用固定的身份签名：
+
+- 运行一次 `./make-cert.sh`，在登录钥匙串里创建本地签名证书"sniplite Local Signing"，之后 `build.sh` 会自动使用。这个证书只能在这台 Mac 上签名，可以随时在"钥匙串访问"里删除。
+- 或者用你自己的 Apple 证书：`SIGN_ID="Developer ID Application: …" ./build.sh`（要分发给别人且不弹警告，还需要公证）。
+
+诊断日志写在 `~/Library/Logs/sniplite.log`（快捷键、权限、识别耗时）。
+
+## 还没有做的
+
+Windows 版的长截图、命令行和检查更新。
+
+## 代码
+
+| 文件 | 内容 |
+| --- | --- |
+| `App.swift`、`main.swift` | 菜单栏图标和菜单、启动 |
+| `HotKeys.swift` | 全局快捷键（Carbon `RegisterEventHotKey`） |
+| `TopRowKeys.swift` | 不按 fn 使用 F1–F12（事件监听） |
+| `Capture.swift` | 截取所有显示器（ScreenCaptureKit）和可吸附的窗口 |
+| `Elements.swift` | 鼠标下的窗口元素（辅助功能接口） |
+| `Overlay.swift` | 截图界面：选择、编辑、放大镜、生成结果 |
+| `Annotation.swift`、`Toolbar.swift` | 标注工具和工具栏 |
+| `Pin.swift` | 贴图 |
+| `OCR.swift` | 文字识别（Vision，辅助进程）和文字面板 |
+| `Permissions.swift` | 权限页和拖拽授权面板 |
+| `Settings.swift` | 设置和快捷键录制 |
+| `L10n.swift`、`Util.swift` | 文案；剪贴板、保存、提示、日志 |
+
+## 致谢
+
+拖拽授权面板参考了 jaywcjlove 的 [PermissionFlow](https://github.com/jaywcjlove/PermissionFlow)（MIT）的做法，用 AppKit 重写，这样不装 Xcode 也能编译。
+
+## 许可证
+
+[MIT](../LICENSE)

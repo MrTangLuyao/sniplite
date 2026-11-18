@@ -39,6 +39,8 @@ Den neuesten Installer gibt es unter [Releases](https://github.com/MrTangLuyao/s
 
 Dazu gibt es zwei portable Versionen ohne Installation: `sniplite_<Version>_portable_x64.exe` und `sniplite_<Version>_portable_with_OCR_x64.exe`, die das Texterkennungsmodul mitbringt.
 
+**macOS**: Eine native Version für macOS 14 oder neuer (Apple Silicon und Intel) liegt in [`macos`](../macos/README.md). Mit `macos/build.sh` bauen, `sniplite.app` nach „Programme“ kopieren und, da sie nicht notarisiert ist, einmal `xattr -dr com.apple.quarantine "/Applications/sniplite.app"` ausführen.
+
 > [!TIP]
 > Das Symbol sitzt am rechten Ende der Taskleiste; ist es nicht zu sehen, klicken Sie dort auf den kleinen Pfeil. Damit es sichtbar bleibt, suchen Sie in den Windows-Einstellungen nach „Weitere Taskleistensymbole“ und schalten sniplite ein.
 
@@ -125,6 +127,8 @@ Ja. `sniplite help` zeigt alle Befehle.
 ## Selbst bauen
 
 [w64devkit](https://github.com/skeeto/w64devkit) (oder ein anderes MinGW-w64) installieren, dessen Ordner `bin` in den PATH aufnehmen und `build.bat` ausführen; die Programme entstehen im Ordner `build`. Der Quelltext liegt in `src`: Die schnellen Teile sind Assemblerdateien (`.S`), die gcc mit dem GNU-Assembler übersetzt, der Rest ist C (`.c`). Es wird keine C-Laufzeitbibliothek gelinkt, nur die Systembibliotheken, die Windows mitbringt.
+
+Die macOS-Version wird mit `macos/build.sh` gebaut und braucht nur die Xcode Command Line Tools; siehe [`macos`](../macos/README.md).
 
 ## Lizenz
 

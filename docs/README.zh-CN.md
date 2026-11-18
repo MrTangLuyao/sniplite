@@ -39,6 +39,8 @@
 
 也有两个免安装的便携版：`sniplite_<版本>_portable_x64.exe`，以及自带文字识别模块的 `sniplite_<版本>_portable_with_OCR_x64.exe`。
 
+**macOS**：适用于 macOS 14 及以上（Apple 芯片和 Intel）的原生版在 [`macos`](../macos/README.zh-CN.md) 文件夹。用 `macos/build.sh` 编译，把 `sniplite.app` 复制到"应用程序"，因为没有公证，需要先运行一次 `xattr -dr com.apple.quarantine "/Applications/sniplite.app"`。
+
 > [!TIP]
 > 图标在任务栏右下角，没看到的话点一下那里的小箭头。想让它一直显示，在 Windows 设置里搜索“其他系统托盘图标”，把 sniplite 打开。
 
@@ -125,6 +127,8 @@
 ## 自己编译
 
 装好 [w64devkit](https://github.com/skeeto/w64devkit)（或其他 MinGW-w64），把它的 `bin` 文件夹加进 PATH，然后运行 `build.bat`，程序会生成在 `build` 文件夹里。源码在 `src` 里：要快的部分是汇编文件（`.S`），由 gcc 调用 GNU 汇编器编译，其余是 C 文件（`.c`）。不链接 C 运行库，只用到 Windows 自带的系统库。
+
+macOS 版用 `macos/build.sh` 编译，只需要 Xcode 命令行工具，详见 [`macos`](../macos/README.zh-CN.md)。
 
 ## 许可证
 

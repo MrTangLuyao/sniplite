@@ -39,6 +39,8 @@
 
 インストール不要のポータブル版も 2 つあります。`sniplite_<バージョン>_portable_x64.exe` と、文字認識モジュールを含む `sniplite_<バージョン>_portable_with_OCR_x64.exe` です。
 
+**macOS**：macOS 14 以降（Apple シリコンと Intel）向けのネイティブ版は [`macos`](../macos/README.md) にあります。`macos/build.sh` でビルドし、`sniplite.app` を「アプリケーション」にコピーしたら、公証されていないため一度 `xattr -dr com.apple.quarantine "/Applications/sniplite.app"` を実行してください。
+
 > [!TIP]
 > アイコンはタスクバーの右端にあります。見当たらないときは、そこの小さな矢印をクリックしてください。常に表示するには、Windows の設定で **その他のシステム トレイ アイコン** を検索し、sniplite をオンにします。
 
@@ -125,6 +127,8 @@
 ## 自分でビルドする
 
 [w64devkit](https://github.com/skeeto/w64devkit)（またはほかの MinGW-w64）をインストールし、その `bin` フォルダーを PATH に追加して `build.bat` を実行すると、`build` フォルダーにプログラムができます。ソースは `src` にあります。速さが必要な部分はアセンブリファイル（`.S`）で、gcc が GNU アセンブラーでアセンブルし、それ以外は C ファイル（`.c`）です。C ランタイムはリンクせず、Windows 標準のシステムライブラリだけを使います。
+
+macOS 版は `macos/build.sh` でビルドでき、Xcode コマンドラインツールだけで足ります。詳しくは [`macos`](../macos/README.md) を参照してください。
 
 ## ライセンス
 

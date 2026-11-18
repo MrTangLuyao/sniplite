@@ -39,6 +39,8 @@
 
 설치가 필요 없는 포터블 버전도 두 가지 있습니다. `sniplite_<버전>_portable_x64.exe` 와 텍스트 인식 모듈을 포함한 `sniplite_<버전>_portable_with_OCR_x64.exe` 입니다.
 
+**macOS**: macOS 14 이상(Apple 실리콘과 Intel)용 네이티브 버전은 [`macos`](../macos/README.md)에 있습니다. `macos/build.sh`로 빌드하고 `sniplite.app`을 응용 프로그램에 복사한 뒤, 공증되지 않았으므로 `xattr -dr com.apple.quarantine "/Applications/sniplite.app"`를 한 번 실행하세요.
+
 > [!TIP]
 > 아이콘은 작업 표시줄 오른쪽 끝에 있습니다. 보이지 않으면 그곳의 작은 화살표를 누르세요. 항상 보이게 하려면 Windows 설정에서 "기타 시스템 트레이 아이콘"을 검색해 sniplite를 켜세요.
 
@@ -125,6 +127,8 @@
 ## 직접 빌드하기
 
 [w64devkit](https://github.com/skeeto/w64devkit)(또는 다른 MinGW-w64)을 설치하고 `bin` 폴더를 PATH에 추가한 뒤 `build.bat`을 실행하면 `build` 폴더에 프로그램이 만들어집니다. 소스는 `src`에 있습니다. 빨라야 하는 부분은 어셈블리 파일(`.S`)이며 gcc가 GNU 어셈블러로 어셈블하고, 나머지는 C 파일(`.c`)입니다. C 런타임은 링크하지 않고 Windows에 기본으로 들어 있는 시스템 라이브러리만 씁니다.
+
+macOS 버전은 `macos/build.sh`로 빌드하며 Xcode 명령줄 도구만 있으면 됩니다. 자세한 내용은 [`macos`](../macos/README.md)를 보세요.
 
 ## 라이선스
 

@@ -1,20 +1,48 @@
+<div align="center">
+
+<img src="../pics/icon.png" width="96" alt="sniplite icon">
+
 # sniplite for macOS
 
-A native macOS version of sniplite, written in Swift and AppKit. It needs nothing besides the system: capture through ScreenCaptureKit, text recognition through Apple's Vision framework (on this Mac, with no module to download). The app is about 0.7 MB and runs on Apple Silicon and Intel Macs with macOS 14 Sonoma or later.
+**The native macOS version of sniplite: capture, draw, pin and read text, in under 1 MB**
 
-The Windows version (`../src`, x86-64 assembly and Win32) is unchanged; this folder is a separate program with the same features and shortcuts.
+[English](README.md) • [简体中文](README.zh-CN.md)
 
-## Build
+</div>
+
+A native port of sniplite to macOS, written in Swift and AppKit, with the features and shortcuts of the Windows version. It uses nothing but the system: ScreenCaptureKit to capture, the Accessibility API to find windows and their parts, Vision to read text. The app is under 1 MB, runs natively on Apple Silicon and Intel, and needs macOS 14 Sonoma or later.
+
+The Windows version (`../src`) is unchanged; this folder is a separate program.
+
+## Features
+
+- **Capture**: press F1 (no fn needed); the window or the part of a window under the mouse (a button, a field, a list, a pane) is found for you, and the wheel steps out to bigger parts, the window and the screen. Drag to select any area; a magnifier shows the pixels and their color.
+- **Draw**: rectangle, ellipse, line, arrow, pen, marker, mosaic, text and numbers, in eight colors and three sizes; undo and redo.
+- **Copy, save, pin**: Enter copies, ⌘S saves (PNG or JPEG), ⌘T pins the capture above other windows. Pins move, zoom with the wheel, change opacity with ⌥ + wheel, copy, save and read their text.
+- **Text recognition** (optional, off by default): read the text of a capture; tables keep their columns (tab-separated, or Markdown). It runs on this Mac with Apple's Vision, in a short-lived helper process, so its models do not stay in memory.
+- **Light**: about 15–25 MB of memory while idle.
+- **Languages**: English, 简体中文, 繁體中文, following the system unless one is picked in Settings.
+
+## Install
+
+Build it (below), then copy `build/sniplite.app` to `/Applications` and open it. The scissors icon appears in the menu bar; there is no Dock icon.
+
+sniplite is not signed with an Apple Developer ID or notarized, so macOS blocks a downloaded copy ("cannot be opened" / "is damaged"). After copying it to `/Applications`, remove the quarantine flag once:
 
 ```bash
-xcode-select --install      # once, if the Command Line Tools are not there
-./build.sh                  # -> build/sniplite.app
-./build.sh --zip            # also build/sniplite_<version>_macos.zip
+xattr -dr com.apple.quarantine "/Applications/sniplite.app"
 ```
 
-Copy `build/sniplite.app` to `/Applications` and open it. The scissors icon appears in the menu bar; there is no Dock icon.
+### Permissions
 
-On first start a **Permissions** window lists what sniplite needs: **Screen Recording** (to capture) and **Accessibility** ("Device Control and Data Access" on macOS 27; for F1–F12 without fn and for picking parts of windows). Each button opens its page of System Settings with sniplite's icon in a panel below it: drag the icon into the list and turn it on. System Settings closes when the permission is granted, and the window when all are; sniplite restarts by itself after Screen Recording. The window is also in the menu (Permissions…). The build is signed ad hoc, so macOS asks again after every rebuild; `SIGN_ID="Developer ID Application: …" ./build.sh` signs with your own certificate. A downloaded copy that is not notarized has to be opened once with right-click › Open.
+On first start the **Permissions** page lists what sniplite needs:
+
+| Permission | Why |
+| --- | --- |
+| **Screen Recording** | to capture the screen |
+| **Accessibility** (called "Device Control and Data Access" on macOS 27) | F1–F12 without fn, and finding the parts of windows |
+
+Click **Allow…** on each: System Settings opens at the right page with sniplite in a panel beside it; drag sniplite into the list and turn it on. System Settings then closes and the page comes back for the next one. The page stays until everything is allowed; sniplite restarts once after Screen Recording, which macOS needs. The page is also in the menu (Permissions…) and in Settings.
 
 ## Shortcuts
 
@@ -26,42 +54,63 @@ The same as on Windows, with ⌘ in place of Ctrl. They can be changed in Settin
 | **F3** | Pin the copied image or text to the screen |
 | **⇧F3** | Hide / show all pins |
 | **F4** | Capture and read the text (when text recognition is on) |
-| **⇧F4** | Capture and copy the text |
+| **⇧F4** | Capture and copy the text (when text recognition is on) |
 | **Enter** / double-click | Copy the capture |
-| **⌘S** | Save the capture (PNG or JPEG) |
-| **⌘T** / middle click | Pin the capture to the screen |
-| **⌘O** | Read the text of the selection |
-| **⇧⌘C** | Copy the text of the selection |
+| **⌘S** | Save the capture |
+| **⌘T** / middle click | Pin the capture |
+| **⌘O** / **⇧⌘C** | Read / copy the text of the selection |
 | **⌘Z** / **⇧⌘Z** | Undo / redo |
 | **Esc** | Cancel the capture |
 | **Right click** | Back to choosing an area; once more to cancel |
 | **Arrow keys**, **W A S D** | Move the cursor or the selection by one pixel; with Shift, by ten |
 | **C** (while choosing) | Copy the color under the cursor |
-| **Wheel** | Capturing: pick a bigger or smaller window; on a pin: zoom; ⌥ + wheel: pin opacity |
+| **Wheel** | Capturing: a bigger or smaller part; on a pin: zoom; ⌥ + wheel: pin opacity |
 | **Double-click** / **Esc** | Close a pin |
 
-On a Mac keyboard F1–F12 control brightness, Mission Control and so on. With the Accessibility permission sniplite takes those keys for its shortcuts, so F1 captures without fn (the key then no longer dims the screen); without it, press **fn** with them.
+On a Mac keyboard F1–F12 control brightness, Mission Control and so on. With the Accessibility permission sniplite takes the keys bound to its shortcuts, so F1 captures without fn (and no longer dims the screen); without it, press fn with them.
 
-## What is the same and what is not
+## Build
 
-- The same: choosing an area or a window under the mouse, the magnifier with pixel colors, rectangle, ellipse, line, arrow, pen, marker, mosaic, text and numbers in eight colors and three sizes, undo / redo, copy, save, pins (move, zoom, copy, save, read text), text recognition with tables kept as columns (tab-separated, or Markdown), changeable shortcuts, open at login.
-- Also: picking a part of a window (a button, a field, a list, a pane) through the Accessibility API; the wheel steps out to bigger parts, the window and the screen.
-- Text recognition is off until turned on in Settings; it runs in a short-lived helper process, so Vision's models (over 100 MB) do not stay in memory. sniplite itself uses about 15–25 MB.
-- Not yet: long screenshots, the command line, the update check.
-- Languages: English, 简体中文 and 繁體中文, following the system unless one is picked in Settings.
+Needs only the Xcode Command Line Tools (`xcode-select --install`); Xcode itself is not required.
+
+```bash
+cd macos
+./build.sh          # -> build/sniplite.app (Apple Silicon + Intel)
+./build.sh --zip    # also build/sniplite_<version>_macos.zip
+```
+
+**Signing.** By default the app is signed ad hoc. macOS then sees every build as a new app: its permissions must be granted again after each rebuild (sniplite removes the stale entries itself, so the list never shows one that no longer applies). To keep them across rebuilds, sign with a fixed identity:
+
+- `./make-cert.sh` once creates a local signing certificate, "sniplite Local Signing", in your login keychain; `build.sh` uses it from then on. It is good only for signing on that Mac and can be deleted in Keychain Access.
+- Or `SIGN_ID="Developer ID Application: …" ./build.sh` with your own Apple certificate (needed to share the app without warnings, together with notarization).
+
+Diagnostics go to `~/Library/Logs/sniplite.log` (hotkeys, permissions, recognition time).
+
+## Not yet
+
+Long screenshots, the command line and the update check of the Windows version.
 
 ## Code
 
 | File | What it holds |
 | --- | --- |
 | `App.swift`, `main.swift` | the menu bar icon and menu, start-up |
-| `HotKeys.swift` | global shortcuts (Carbon `RegisterEventHotKey`, no Accessibility permission needed) |
-| `Capture.swift` | screenshots of every display (ScreenCaptureKit) and the window list for snapping |
+| `HotKeys.swift` | global shortcuts (Carbon `RegisterEventHotKey`) |
+| `TopRowKeys.swift` | F1–F12 without fn (an event tap) |
+| `Capture.swift` | screenshots of every display (ScreenCaptureKit) and the windows to snap to |
+| `Elements.swift` | the parts of a window under the mouse (Accessibility API) |
 | `Overlay.swift` | the capture overlay: choosing, editing, magnifier, rendering the result |
 | `Annotation.swift`, `Toolbar.swift` | the drawing tools and the toolbar |
 | `Pin.swift` | pins |
-| `OCR.swift` | text recognition (Vision) and the text panel |
-| `Elements.swift` | the parts of a window under the mouse (Accessibility API) |
-| `TopRowKeys.swift` | F1–F12 without fn (an event tap) |
-| `Permissions.swift` | the permissions window and the drag-to-authorize panel (after [PermissionFlow](https://github.com/jaywcjlove/PermissionFlow), MIT) |
-| `Settings.swift`, `L10n.swift`, `Util.swift` | settings, texts, clipboard / save / notices, log (`~/Library/Logs/sniplite.log`) |
+| `OCR.swift` | text recognition (Vision, in a helper process) and the text panel |
+| `Permissions.swift` | the permissions page and the drag-to-authorize panel |
+| `Settings.swift` | settings and the shortcut recorder |
+| `L10n.swift`, `Util.swift` | texts; clipboard, saving, notices, log |
+
+## Credits
+
+The drag-to-authorize panel follows the approach of [PermissionFlow](https://github.com/jaywcjlove/PermissionFlow) by jaywcjlove (MIT), rewritten in AppKit so the app builds without Xcode.
+
+## License
+
+[MIT](../LICENSE)

@@ -8,7 +8,7 @@
 
 [![English](https://img.shields.io/badge/English-1677e5?style=flat-square)](README.md) [![简体中文](https://img.shields.io/badge/%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-eaeef2?style=flat-square)](docs/README.zh-CN.md) [![繁體中文](https://img.shields.io/badge/%E7%B9%81%E9%AB%94%E4%B8%AD%E6%96%87-eaeef2?style=flat-square)](docs/README.zh-TW.md) [![日本語](https://img.shields.io/badge/%E6%97%A5%E6%9C%AC%E8%AA%9E-eaeef2?style=flat-square)](docs/README.ja.md) [![한국어](https://img.shields.io/badge/%ED%95%9C%EA%B5%AD%EC%96%B4-eaeef2?style=flat-square)](docs/README.ko.md) [![Français](https://img.shields.io/badge/Fran%C3%A7ais-eaeef2?style=flat-square)](docs/README.fr.md) [![Deutsch](https://img.shields.io/badge/Deutsch-eaeef2?style=flat-square)](docs/README.de.md) [![Español](https://img.shields.io/badge/Espa%C3%B1ol-eaeef2?style=flat-square)](docs/README.es.md)
 
-[![version](https://img.shields.io/github/v/tag/MrTangLuyao/sniplite?sort=date&label=version&style=flat-square&color=1677e5)](https://github.com/MrTangLuyao/sniplite/releases) [![system](https://img.shields.io/badge/system-Windows%2010%20%2F%2011-3b82f6?style=flat-square)](#download) [![license](https://img.shields.io/badge/license-MIT-3b82f6?style=flat-square)](LICENSE)
+[![version](https://img.shields.io/github/v/tag/MrTangLuyao/sniplite?sort=date&label=version&style=flat-square&color=1677e5)](https://github.com/MrTangLuyao/sniplite/releases) [![system](https://img.shields.io/badge/system-Windows%2010%20%2F%2011%20%7C%20macOS%2014%2B-3b82f6?style=flat-square)](#download) [![license](https://img.shields.io/badge/license-MIT-3b82f6?style=flat-square)](LICENSE)
 
 [**Download**](#download) | [Default shortcuts](#default-shortcuts) | [FAQ](#faq)
 
@@ -39,7 +39,7 @@ Get the latest installer from [Releases](https://github.com/MrTangLuyao/sniplite
 
 There are two portable versions too, with nothing to install: `sniplite_<version>_portable_x64.exe`, and `sniplite_<version>_portable_with_OCR_x64.exe`, which carries the text recognition module.
 
-On a Mac (macOS 14 or later), build the native version in [`macos`](macos/README.md) with `macos/build.sh`.
+**macOS**: a native version for macOS 14 or later (Apple Silicon and Intel) is in [`macos`](macos/README.md). Build it with `macos/build.sh`, copy `sniplite.app` to Applications and, since it is not notarized, run `xattr -dr com.apple.quarantine "/Applications/sniplite.app"` once.
 
 > [!TIP]
 > The icon is at the right end of the taskbar; click the small arrow there if you do not see it. To keep it in view, search Windows Settings for "Other system tray icons" and turn sniplite on.
@@ -127,6 +127,8 @@ Yes. Run `sniplite help` to see it.
 ## Build it yourself
 
 Install [w64devkit](https://github.com/skeeto/w64devkit) (or another MinGW-w64), add its `bin` folder to PATH and run `build.bat`; the programs appear in the `build` folder. The source is in `src`: the fast parts are assembly files (`.S`), assembled by gcc with the GNU assembler, the rest is C (`.c`). No C runtime is linked, only the system libraries that come with Windows.
+
+The macOS version is built with `macos/build.sh` and needs only the Xcode Command Line Tools; see [`macos`](macos/README.md).
 
 ## License
 
