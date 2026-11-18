@@ -200,7 +200,7 @@ final class Toolbar: NSView {
         sizeSlider.toolTip = L.t("sizeTip")
         sizeValue.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         sizeValue.textColor = .secondaryLabelColor
-        sizeValue.alignment = .right
+        sizeValue.alignment = .left
         sizeValue.frame = NSRect(x: 0, y: 0, width: 38, height: 16)
         paletteRow.addSubview(sizeSlider)
         paletteRow.addSubview(sizeValue)
@@ -250,10 +250,9 @@ final class Toolbar: NSView {
         if sizesApply {
             // the size: a slider up to this tool's limit, and its value
             sizeSlider.maxValue = Annotation.maxWidth(tool ?? .rect)
-            x += 6
             sizeSlider.frame.origin = CGPoint(x: x, y: (unit + 4 - sizeSlider.frame.height) / 2)
             sizeSlider.isHidden = false
-            x += sizeSlider.frame.width + 4
+            x += sizeSlider.frame.width - 4          // the knob's margin already leaves room
             sizeValue.frame.origin = CGPoint(x: x, y: (unit + 4 - sizeValue.frame.height) / 2)
             sizeValue.isHidden = false
             x += sizeValue.frame.width + 2
@@ -378,16 +377,18 @@ final class SizeSlider: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let midY = bounds.midY, x0 = inset, x1 = bounds.width - inset
-        let thin: CGFloat = 1, thick: CGFloat = 5
+        let thin: CGFloat = 1.5, thick: CGFloat = 5
         // the wedge: half height grows from `thin` to `thick` from left to right
+        // rounded at both ends: a small cap on the thin end, a big one on the thick end
         func wedge(to x: CGFloat) -> NSBezierPath {
             let t = (x - x0) / max(1, x1 - x0)
             let h = thin + (thick - thin) * t
             let p = NSBezierPath()
             p.move(to: NSPoint(x: x0, y: midY - thin))
             p.line(to: NSPoint(x: x, y: midY - h))
-            p.line(to: NSPoint(x: x, y: midY + h))
+            p.appendArc(withCenter: NSPoint(x: x, y: midY), radius: h, startAngle: 270, endAngle: 90, clockwise: false)
             p.line(to: NSPoint(x: x0, y: midY + thin))
+            p.appendArc(withCenter: NSPoint(x: x0, y: midY), radius: thin, startAngle: 90, endAngle: 270, clockwise: false)
             p.close()
             return p
         }
