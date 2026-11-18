@@ -309,17 +309,24 @@ final class OverlayView: NSView, NSTextViewDelegate {
         case .idle: NSCursor.arrow.set()
         case .edit:
             if toolbar.frame.contains(p) && !toolbar.isHidden { NSCursor.arrow.set(); return }
-            let e = annotationHandle(at: p) == nil ? edges(at: p) : 0
-            if e != 0 {
+            let handle = annotationHandle(at: p)
+            let e = handle == nil ? edges(at: p) : 0
+            if let (i, h) = handle {
+                // the ends of a line move freely; a box corner resizes along its diagonal
+                let a = annotations[i]
+                if a.tool == .line || a.tool == .arrow { Cursors.move.set() }
+                else { (h % 2 == 0 ? Cursors.resizeNWSE : Cursors.resizeNESW).set() }
+            } else if e != 0 {
                 if e == Self.edgeL || e == Self.edgeR { NSCursor.resizeLeftRight.set() }
                 else if e == Self.edgeT || e == Self.edgeB { NSCursor.resizeUpDown.set() }
-                else { NSCursor.crosshair.set() }
-            } else if annotationHandle(at: p) != nil || annotationIndex(at: p) != nil {
-                NSCursor.openHand.set()                    // an end, a corner or the annotation: drag to move
+                else if e == Self.edgeL | Self.edgeT || e == Self.edgeR | Self.edgeB { Cursors.resizeNWSE.set() }
+                else { Cursors.resizeNESW.set() }
+            } else if annotationIndex(at: p) != nil {
+                Cursors.move.set()                         // a drawing: drag to move it
             } else if let t = tool {
                 (t == .text ? NSCursor.iBeam : NSCursor.crosshair).set()
             } else if selection.contains(p) {
-                NSCursor.openHand.set()
+                Cursors.move.set()                         // the capture area: drag to move it
             } else {
                 NSCursor.arrow.set()
             }
@@ -338,14 +345,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
             pendingUndo = annotations
             if let (i, h) = annotationHandle(at: p) {
                 drag = .dragHandle(i, h, annotations[i])
-                NSCursor.closedHand.set()
                 return
             }
             if let i = annotationIndex(at: p) {
                 if event.clickCount == 2 && annotations[i].tool == .text { editText(i); return }
                 select(i)
                 drag = .moveAnnotation(i, p, annotations[i])
-                NSCursor.closedHand.set()
                 return
             }
             selected = nil
@@ -370,7 +375,6 @@ final class OverlayView: NSView, NSTextViewDelegate {
             } else if tool == nil && selection.contains(p) {
                 if event.clickCount == 2 { command(.ok); return }
                 drag = .move(p, selection); toolbar.isHidden = true
-                NSCursor.closedHand.set()
             } else {
                 drag = .none
             }
@@ -1107,4 +1111,34 @@ extension NSColor {
 
 private extension OverlayView.Drag {
     var isIdle: Bool { if case .none = self { return true }; return false }
+}
+
+/// Cursors macOS does not offer publicly: the four-way move arrow and the diagonal resize arrows,
+/// drawn from SF Symbols, black with a white outline so they show on any background.
+enum Cursors {
+    static let move = make("arrow.up.and.down.and.arrow.left.and.right")
+    static let resizeNWSE = make("arrow.up.left.and.arrow.down.right")
+    static let resizeNESW = make("arrow.down.left.and.arrow.up.right")
+
+    private static func make(_ symbol: String) -> NSCursor {
+        guard let base = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 13, weight: .bold)) else { return .crosshair }
+        func tinted(_ c: NSColor) -> NSImage {
+            NSImage(size: base.size, flipped: false) { r in
+                base.draw(in: r); c.set(); r.fill(using: .sourceAtop); return true
+            }
+        }
+        let black = tinted(.black), white = tinted(.white)
+        let pad: CGFloat = 3
+        let size = NSSize(width: base.size.width + pad * 2, height: base.size.height + pad * 2)
+        let img = NSImage(size: size, flipped: false) { _ in
+            // a white outline: the white symbol drawn around, then the black one on top
+            for dx in [-1.5, 0, 1.5] { for dy in [-1.5, 0, 1.5] where dx != 0 || dy != 0 {
+                white.draw(in: NSRect(x: pad + dx, y: pad + dy, width: base.size.width, height: base.size.height))
+            } }
+            black.draw(in: NSRect(x: pad, y: pad, width: base.size.width, height: base.size.height))
+            return true
+        }
+        return NSCursor(image: img, hotSpot: NSPoint(x: size.width / 2, y: size.height / 2))
+    }
 }
