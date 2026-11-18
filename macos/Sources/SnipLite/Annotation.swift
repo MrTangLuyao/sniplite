@@ -60,6 +60,35 @@ struct Annotation {
     var points: [CGPoint]          // shapes: [start, end]; strokes: the path; text / number: [origin]
     var text: String = ""
     var number: Int = 0
+    /// Text: parts in other colors than `color` (UTF-16 ranges), from coloring while typing.
+    var colorRuns: [ColorRun] = []
+
+    struct ColorRun: Equatable {
+        var location: Int, length: Int
+        var color: NSColor
+    }
+
+    /// The text with its size and its colors.
+    var attributedText: NSAttributedString {
+        let m = NSMutableAttributedString(string: text, attributes: Self.textAttributes(color: color, size: fontSize))
+        for r in colorRuns where r.location >= 0 && r.location + r.length <= m.length {
+            m.addAttribute(.foregroundColor, value: r.color, range: NSRange(location: r.location, length: r.length))
+        }
+        return m
+    }
+
+    /// Colors as an attributed string has them: the first one is the text's color, the parts in
+    /// other colors become runs.
+    static func colors(of s: NSAttributedString, default d: NSColor) -> (NSColor, [ColorRun]) {
+        var base: NSColor?
+        var runs: [ColorRun] = []
+        s.enumerateAttribute(.foregroundColor, in: NSRange(location: 0, length: s.length)) { v, r, _ in
+            let c = (v as? NSColor) ?? d
+            if base == nil { base = c }
+            if c != base { runs.append(ColorRun(location: r.location, length: r.length, color: c)) }
+        }
+        return (base ?? d, runs)
+    }
 
     var fontSize: CGFloat { Self.fontSize(for: width) }
     /// A number's circle: about 17 / 22 / 31 pt across for the three sizes.
@@ -139,7 +168,7 @@ struct Annotation {
                 ctx.drawFlipped(img, in: screenRect)
             }
         case .text:
-            let s = NSAttributedString(string: text, attributes: Self.textAttributes(color: color, size: fontSize))
+            let s = attributedText
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: true)
             s.draw(at: p0)
@@ -269,7 +298,7 @@ extension Annotation {
         guard let p0 = points.first else { return .null }
         switch tool {
         case .text:
-            let sz = NSAttributedString(string: text, attributes: Self.textAttributes(color: color, size: fontSize)).size()
+            let sz = attributedText.size()
             return CGRect(origin: p0, size: sz)
         case .number:
             let r = Annotation.numberRadius(width)

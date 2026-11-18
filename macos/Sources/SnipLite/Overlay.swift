@@ -850,12 +850,14 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private func pickColor(_ i: Int) {
         colorIndex = i
         Prefs.shared.colorIndex = i
-        restyleText()
+        // typing: the selected characters and what comes next, nothing else
+        if textView != nil { restyleText(recolor: true); return }
         guard let k = selected else { return }
         var a = annotations[k]
         if a.tool == .mosaic { a.solid = true }              // a hide box or stroke: now in this color
         saveUndo()
         a.color = Palette.colors[i]
+        a.colorRuns = []                                     // a selected text: all of it
         annotations[k] = a
     }
 
@@ -893,6 +895,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
         width = a.width
         toolbar.setWidth(a.width)
         beginText(at: a.points[0], origin: a.points[0], text: a.text)
+        // its colors back, part by part
+        if let tv = textView, let storage = tv.textStorage {
+            storage.setAttributedString(a.attributedText)
+            tv.setSelectedRange(NSRange(location: storage.length, length: 0))
+            restyleText()
+        }
     }
 
     /// Handles and outline of the selected annotation.
@@ -986,7 +994,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
         let tv = TextBox(frame: NSRect(x: o.x - inset.width, y: o.y - inset.height, width: 20, height: 20))
         tv.string = text
         tv.drawsBackground = false
-        tv.isRichText = false
+        tv.isRichText = true                       // parts can have their own color
+        tv.importsGraphics = false
+        tv.usesFontPanel = false
         TextInput.quiet(tv)
         tv.textContainerInset = inset
         tv.textContainer?.lineFragmentPadding = 0
@@ -1005,12 +1015,21 @@ final class OverlayView: NSView, NSTextViewDelegate {
         window?.makeFirstResponder(tv)
     }
 
-    private func restyleText() {
+    /// The size applies to the whole text; a color only to the selected characters (`recolor`)
+    /// and to what is typed next, never to what is there already.
+    private func restyleText(recolor: Bool = false) {
         guard let tv = textView else { return }
-        let attrs = Annotation.textAttributes(color: Palette.colors[colorIndex], size: Annotation.fontSize(for: width))
+        let color = Palette.colors[colorIndex]
+        let attrs = Annotation.textAttributes(color: color, size: Annotation.fontSize(for: width))
+        if let storage = tv.textStorage, let font = attrs[.font] {
+            storage.addAttribute(.font, value: font, range: NSRange(location: 0, length: storage.length))
+            let sel = tv.selectedRange()
+            if recolor, sel.length > 0, sel.location + sel.length <= storage.length {
+                storage.addAttribute(.foregroundColor, value: color, range: sel)
+            }
+        }
         tv.typingAttributes = attrs
-        tv.textStorage?.setAttributes(attrs, range: NSRange(location: 0, length: tv.string.utf16.count))
-        tv.insertionPointColor = Palette.colors[colorIndex]
+        tv.insertionPointColor = color
         // room for a few characters and a line, whatever the size
         let fs = Annotation.fontSize(for: width)
         tv.minSize = NSSize(width: fs * 3 + TextBox.inset.width * 2, height: ceil(fs * 1.25) + TextBox.inset.height * 2)
@@ -1028,8 +1047,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
         let s = tv.string
         if !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let o = tv.textContainerOrigin
-            push(Annotation(tool: .text, color: Palette.colors[colorIndex], width: width,
-                            points: [CGPoint(x: tv.frame.minX + o.x, y: tv.frame.minY + o.y)], text: s))
+            var a = Annotation(tool: .text, color: Palette.colors[colorIndex], width: width,
+                               points: [CGPoint(x: tv.frame.minX + o.x, y: tv.frame.minY + o.y)], text: s)
+            if let storage = tv.textStorage {
+                (a.color, a.colorRuns) = Annotation.colors(of: storage, default: Palette.colors[colorIndex])
+            }
+            push(a)
         }
         tv.removeFromSuperview()
         window?.makeFirstResponder(self)

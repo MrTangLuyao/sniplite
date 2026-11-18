@@ -1,5 +1,6 @@
 import Testing
 import CoreGraphics
+import AppKit
 @testable import SnipLite
 
 /// Hit testing, handles and the rules for sizes and colors of the drawings.
@@ -99,5 +100,22 @@ struct OCRLayoutTests {
         let t = OCR.layout([(CGRect(x: 0, y: 0, width: 40, height: 10), "Hello"), (CGRect(x: 45, y: 0, width: 40, height: 10), "world")])
         #expect(t.plain == "Hello world")
         #expect(t.markdown == nil)
+    }
+}
+
+/// A text typed in several colors keeps them.
+struct TextColorTests {
+    @Test func runsRoundTrip() {
+        let red = Palette.colors[0], blue = Palette.colors[4]
+        let s = NSMutableAttributedString(string: "Hello world", attributes: [.foregroundColor: red])
+        s.addAttribute(.foregroundColor, value: blue, range: NSRange(location: 6, length: 5))
+        let (base, runs) = Annotation.colors(of: s, default: red)
+        #expect(base == red)
+        #expect(runs == [Annotation.ColorRun(location: 6, length: 5, color: blue)])
+        var a = Annotation(tool: .text, color: base, width: 4, points: [.zero], text: "Hello world")
+        a.colorRuns = runs
+        let t = a.attributedText
+        #expect((t.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor) == red)
+        #expect((t.attribute(.foregroundColor, at: 8, effectiveRange: nil) as? NSColor) == blue)
     }
 }
