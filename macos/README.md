@@ -17,7 +17,7 @@ The Windows version (`../src`) is unchanged; this folder is a separate program.
 ## Features
 
 - **Capture**: press F1; the window or the part of a window under the mouse (a button, a field, a list, a pane) is found for you, and the wheel steps out to bigger parts, the window and the screen. Drag to select any area; a magnifier shows the pixels and their color.
-- **Draw**: rectangle, ellipse, line, arrow, pen, marker, text and numbers, in eight colors; three preset sizes, and the wheel (two fingers up / down on a trackpad) sets any width. Undo and redo.
+- **Draw**: rectangle, ellipse, line, arrow, pen, marker, text and numbers, in eight colors; a size slider, or the wheel (two fingers up / down on a trackpad). Each tool keeps its own size. Undo and redo.
 - **Hide**: a dragged box (the default) or a brush, covered with mosaic or with a solid color (the mosaic swatch, or any color); mosaic squares are sized so text under them cannot be read.
 - **Edit afterwards**: click anything drawn to select it (with a tool, drawings of that tool; others are drawn over): drag it to move it, drag the ends of a line or arrow and the corners of a box (the corners of a text scale it), the arrow keys nudge it, scroll to change its width or size, click a color to recolor it, Delete removes it, double-click a text to edit it. While typing, drag the box's edge to move it and its corners to scale it. With the mouse away, their marks fade; they stay selected, so the toolbar, Delete and the arrow keys still act on them. All of it undoes with ⌘Z.
 - **Smooth**: the highlight glides from one window or element to the next.

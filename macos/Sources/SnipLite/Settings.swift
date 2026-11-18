@@ -27,9 +27,22 @@ final class Prefs {
         set { d.set(newValue, forKey: "colorIndex") }
     }
     /// The width of the drawing tools (also sets text size, number size and mosaic squares).
-    var strokeWidth: CGFloat {
-        get { CGFloat(d.object(forKey: "strokeWidth") as? Double ?? 4) }
-        set { d.set(Double(newValue), forKey: "strokeWidth") }
+    /// Each tool has its own size, remembered between captures; one does not change another.
+    /// The defaults are on the small side: lines 3 px, text about 17 pt, numbers about 19 pt across.
+    static let defaultWidths: [Tool: CGFloat] = [.rect: 3, .ellipse: 3, .line: 3, .arrow: 3, .pen: 3,
+                                                  .marker: 3, .mosaic: 4, .text: 3, .number: 3]
+    private var widths: [Tool: CGFloat] = [:]
+
+    func width(for t: Tool) -> CGFloat {
+        if let w = widths[t] { return w }
+        let w = (d.object(forKey: "width.\(t)") as? Double).map { CGFloat($0) } ?? Self.defaultWidths[t] ?? 3
+        widths[t] = w
+        return w
+    }
+
+    func setWidth(_ w: CGFloat, for t: Tool) {
+        widths[t] = w
+        d.set(Double(w), forKey: "width.\(t)")
     }
     var mosaicMode: MosaicMode {
         get { MosaicMode(rawValue: d.string(forKey: "mosaicMode") ?? "") ?? .rect }   // "fill" from before: a box

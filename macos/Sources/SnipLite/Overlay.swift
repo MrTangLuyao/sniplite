@@ -153,7 +153,18 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private var current: Annotation?
     private var tool: Tool?
     private var colorIndex = Prefs.shared.colorIndex
-    private var width = Prefs.shared.strokeWidth
+    /// The tool whose size is shown and changed: the text being typed, the selected drawing's
+    /// tool, or the tool in hand.
+    private var widthTool: Tool {
+        if textView != nil { return .text }
+        if let i = selected, i < annotations.count { return annotations[i].tool }
+        return tool ?? .rect
+    }
+    /// That tool's own size (each tool keeps its own).
+    private var width: CGFloat {
+        get { Prefs.shared.width(for: widthTool) }
+        set { Prefs.shared.setWidth(newValue, for: widthTool) }
+    }
     private var mosaicMode = Prefs.shared.mosaicMode
     private var mosaicSolid = Prefs.shared.mosaicSolid
     private var scrollSum: CGFloat = 0           // trackpad scrolling, collected into width steps
@@ -185,7 +196,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         installLayers()
         toolbar.onTool = { [weak self] t in self?.setTool(t) }
         toolbar.onColor = { [weak self] i in self?.pickColor(i) }
-        toolbar.onSize = { [weak self] i in self?.pickSize(Palette.widths[i]) }
+        toolbar.onWidth = { [weak self] w in self?.pickSize(w) }
         toolbar.onMosaicMode = { [weak self] m in self?.pickMosaicMode(m) }
         toolbar.onMosaicSolid = { [weak self] on in self?.pickMosaicSolid(on) }
         toolbar.onResize = { [weak self] in self?.placeToolbar() }
@@ -601,7 +612,6 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     private func setWidth(_ w: CGFloat, preview: Bool) {
         width = w
-        Prefs.shared.strokeWidth = w
         toolbar.setWidth(w)
         restyleText()
         if preview {
@@ -776,6 +786,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         commitText()
         if let i = selected, annotations[i].tool != t { selected = nil }
         tool = t
+        toolbar.setWidth(width)                       // this tool's own size
         placeToolbar()
         updateCursor(mouse)
     }
@@ -862,11 +873,15 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     /// Box or brush, for the next hide (a drawn box cannot become a stroke): lets go of a selected one.
-    /// A size button: like the wheel, for the selected drawing too.
+    /// The size slider: like the wheel, for the selected drawing too; one drag is one undo step.
     private func pickSize(_ w: CGFloat) {
         if let k = selected, annotations[k].hasWidth {
             let v = min(w, Annotation.maxWidth(annotations[k].tool))
-            if annotations[k].width != v { saveUndo(); annotations[k].width = v }
+            if annotations[k].width != v {
+                if Date().timeIntervalSince(lastScrollEdit) > 0.5 { saveUndo() }
+                lastScrollEdit = Date()
+                annotations[k].width = v
+            }
         }
         setWidth(w, preview: false)
     }
@@ -892,7 +907,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         annotations.remove(at: i)
         selected = nil
         if let c = Palette.colors.firstIndex(of: a.color) { colorIndex = c; toolbar.setColor(c) }
-        width = a.width
+        Prefs.shared.setWidth(a.width, for: .text)
         toolbar.setWidth(a.width)
         beginText(at: a.points[0], origin: a.points[0], text: a.text)
         // its colors back, part by part

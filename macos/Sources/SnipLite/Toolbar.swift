@@ -108,7 +108,7 @@ final class Toolbar: NSView {
     var onTool: ((Tool?) -> Void)?
     var onCommand: ((Command) -> Void)?
     var onColor: ((Int) -> Void)?
-    var onSize: ((Int) -> Void)?
+    var onWidth: ((CGFloat) -> Void)?
     var onMosaicMode: ((MosaicMode) -> Void)?
     var onMosaicSolid: ((Bool) -> Void)?
     /// The toolbar changed size (the second row's buttons depend on the tool and mosaic mode).
@@ -117,7 +117,8 @@ final class Toolbar: NSView {
     private var toolButtons: [Tool: ToolButton] = [:]
     private var commandButtons: [Command: ToolButton] = [:]
     private var colorButtons: [ToolButton] = []
-    private var sizeButtons: [ToolButton] = []
+    private let sizeSlider = NSSlider(value: 3, minValue: 1, maxValue: 40, target: nil, action: nil)
+    private let sizeValue = NSTextField(labelWithString: "")
     private var modeButtons: [MosaicMode: ToolButton] = [:]
     private var paletteSeps: [NSView] = []
     private var colorIndex = Prefs.shared.colorIndex
@@ -195,11 +196,18 @@ final class Toolbar: NSView {
         mainRow.frame = NSRect(x: 0, y: 0, width: x + 4, height: unit + 4)
 
         // second row: sizes | mosaic modes (mosaic tool only) | colors; laid out by layoutPalette()
-        for (i, w) in Palette.widths.enumerated() {
-            let b = ToolButton(.size(w), tip: nil, size: unit)
-            b.onClick = { [weak self] in self?.onSize?(i) }
-            sizeButtons.append(b); paletteRow.addSubview(b)
-        }
+        sizeSlider.controlSize = .small
+        sizeSlider.isContinuous = true
+        sizeSlider.target = self
+        sizeSlider.action = #selector(slid)
+        sizeSlider.frame = NSRect(x: 0, y: 0, width: 104, height: 20)
+        sizeSlider.toolTip = L.t("sizeTip")
+        sizeValue.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        sizeValue.textColor = .secondaryLabelColor
+        sizeValue.alignment = .right
+        sizeValue.frame = NSRect(x: 0, y: 0, width: 38, height: 16)
+        paletteRow.addSubview(sizeSlider)
+        paletteRow.addSubview(sizeValue)
         let modes: [(MosaicMode, String, String)] = [
             (.rect, "checkerboard.rectangle", L.t("mosaicRect")),
             (.brush, "scribble.variable", L.t("mosaicBrush")),
@@ -232,7 +240,7 @@ final class Toolbar: NSView {
         paletteRow.isHidden = true
         layoutPalette()
         setFrameSize(NSSize(width: mainRow.frame.width, height: mainRow.frame.height))
-        setWidth(Prefs.shared.strokeWidth)
+        setWidth(Prefs.shared.width(for: .rect))
         applyAppearance()
     }
 
@@ -244,18 +252,19 @@ final class Toolbar: NSView {
         // sizes: what they look like follows the tool; none for a mosaic box or a color box
         let sizesApply = tool != .mosaic || mosaicMode == .brush
         if sizesApply {
-            for (k, b) in sizeButtons.enumerated() {
-                let w = Palette.widths[k]
-                switch tool {
-                case .text: b.look = .glyph("A", Annotation.fontSize(for: w) * 0.6)
-                case .number: b.look = .number(min(22, Annotation.numberRadius(w) * 1.2))
-                default: b.look = .size(w)
-                }
-            }
-            sizeButtons.forEach(put)
+            // the size: a slider up to this tool's limit, and its value
+            sizeSlider.maxValue = Double(Annotation.maxWidth(tool ?? .rect))
+            x += 6
+            sizeSlider.frame.origin = CGPoint(x: x, y: (unit + 4 - sizeSlider.frame.height) / 2)
+            sizeSlider.isHidden = false
+            x += sizeSlider.frame.width + 4
+            sizeValue.frame.origin = CGPoint(x: x, y: (unit + 4 - sizeValue.frame.height) / 2)
+            sizeValue.isHidden = false
+            x += sizeValue.frame.width + 2
             sep(0)
         } else {
-            sizeButtons.forEach { $0.isHidden = true }
+            sizeSlider.isHidden = true
+            sizeValue.isHidden = true
             paletteSeps[0].isHidden = true
         }
         if tool == .mosaic {
@@ -330,7 +339,26 @@ final class Toolbar: NSView {
     func setColor(_ i: Int) { colorIndex = i; refreshPalette() }
     /// Marks the size button matching the width, if one does (the wheel sets widths in between).
     func setWidth(_ w: CGFloat) {
-        for (k, b) in sizeButtons.enumerated() { b.selected = abs(Palette.widths[k] - w) < 0.5 }
+        sizeSlider.doubleValue = Double(w)
+        showValue(w)
+    }
+
+    /// The value beside the slider, in what the tool shows: points of text, the width of a
+    /// number's circle, the width of a line or a brush.
+    private func showValue(_ w: CGFloat) {
+        switch tool {
+        case .text: sizeValue.stringValue = "\(Int(Annotation.fontSize(for: w).rounded())) pt"
+        case .number: sizeValue.stringValue = "\(Int((Annotation.numberRadius(w) * 2).rounded()))"
+        case .marker: sizeValue.stringValue = "\(Int(w * 4))"
+        case .mosaic: sizeValue.stringValue = "\(Int(Annotation.brushWidth(w)))"
+        default: sizeValue.stringValue = "\(Int(w))"
+        }
+    }
+
+    @objc private func slid() {
+        let w = CGFloat(sizeSlider.doubleValue.rounded())
+        showValue(w)
+        onWidth?(w)
     }
     func setEnabled(_ c: Command, _ on: Bool) { commandButtons[c]?.enabled = on }
 }
