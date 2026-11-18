@@ -59,6 +59,15 @@ final class TopRowKeys {
         tap = nil; source = nil
     }
 
+    static func carbonMods(_ flags: CGEventFlags) -> UInt32 {
+        var mods: UInt32 = 0
+        if flags.contains(.maskCommand) { mods |= UInt32(cmdKey) }
+        if flags.contains(.maskShift) { mods |= UInt32(shiftKey) }
+        if flags.contains(.maskAlternate) { mods |= UInt32(optionKey) }
+        if flags.contains(.maskControl) { mods |= UInt32(controlKey) }
+        return mods
+    }
+
     /// The shortcut bound to this F key with these modifiers, if any.
     private func action(fKey: Int, flags: CGEventFlags) -> HotAction? {
         var mods: UInt32 = 0
@@ -95,6 +104,14 @@ final class TopRowKeys {
             }
             down = type == .keyDown
             if down && fKey != nil { Log.write("key \(code) -> F key \(fKey ?? 0)") }
+        }
+        // a shortcut field recording: the key is for it, not for a shortcut
+        if let f = fKey, HotKeyField.active != nil {
+            if down {
+                let mods = Self.carbonMods(event.flags)
+                DispatchQueue.main.async { HotKeyField.active?.takeFKey(f, mods: mods) }
+            }
+            return nil
         }
         guard let f = fKey, let a = action(fKey: f, flags: event.flags) else { return Unmanaged.passUnretained(event) }
         if down && event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {

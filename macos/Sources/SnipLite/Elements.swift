@@ -12,11 +12,20 @@ final class ElementFinder {
 
     /// Looks up the elements at `p` (CG global coordinates) in the app `pid`, off the main thread;
     /// `done` runs on the main thread with their frames (CG global), unless a newer lookup started.
+    /// The newest lookup asked for; read on the lookup queue, so behind a lock.
+    private let lock = NSLock()
+    private var newest = 0
+
     func find(at p: CGPoint, pid: pid_t, done: @escaping ([CGRect]) -> Void) {
         guard AXIsProcessTrusted() else { return }
         latest += 1
         let id = latest
+        lock.lock(); newest = id; lock.unlock()
         queue.async { [self] in
+            // a slow app (up to 80 ms a lookup) must not build a queue behind the mouse:
+            // a lookup that is no longer the newest is skipped
+            lock.lock(); let current = newest; lock.unlock()
+            guard id == current else { return }
             let rects = lookup(p, pid)
             DispatchQueue.main.async { [self] in if id == latest { done(rects) } }
         }

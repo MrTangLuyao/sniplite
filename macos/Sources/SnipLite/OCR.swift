@@ -75,8 +75,12 @@ enum OCR {
                 p.standardOutput = pipe
                 p.standardError = FileHandle.nullDevice
                 if (try? p.run()) != nil {
+                    // a helper that hangs is stopped after 20 s (the recognition then finds nothing)
+                    let watchdog = DispatchWorkItem { if p.isRunning { p.terminate() } }
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 20, execute: watchdog)
                     let data = pipe.fileHandleForReading.readDataToEndOfFile()
                     p.waitUntilExit()
+                    watchdog.cancel()
                     for line in (String(data: data, encoding: .utf8) ?? "").split(separator: "\n") {
                         let parts = line.split(separator: "\t", maxSplits: 1)
                         guard parts.count == 2 else { continue }

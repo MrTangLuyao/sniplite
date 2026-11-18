@@ -56,7 +56,7 @@ final class CaptureSession {
     }
 
     func finish() {
-        for w in windows { w.orderOut(nil); w.close() }
+        for w in windows { w.overlay.goIdle(); w.orderOut(nil); w.close() }
         windows.removeAll()
         if CaptureSession.current === self { CaptureSession.current = nil }
         CaptureSession.releaseMemory()

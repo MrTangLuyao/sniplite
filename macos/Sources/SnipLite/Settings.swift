@@ -58,7 +58,19 @@ final class Prefs {
 final class HotKeyField: NSButton {
     var hotkey: HotKey? { didSet { refresh() } }
     var onChange: ((HotKey?) -> Void)?
-    private var recording = false { didSet { refresh() } }
+    private var recording = false { didSet { refresh(); HotKeyField.active = recording ? self : nil } }
+
+    /// The field recording now: the event tap hands it the F keys (it would run their shortcuts
+    /// otherwise, since on a Mac keyboard F1 without fn never reaches a key-down here).
+    static weak var active: HotKeyField?
+
+    /// An F key seen by the event tap while recording.
+    func takeFKey(_ code: Int, mods: UInt32) {
+        guard recording, let label = HotKey.fKeys[code] else { return }
+        hotkey = HotKey(keyCode: UInt32(code), mods: mods, label: label)
+        onChange?(hotkey)
+        window?.makeFirstResponder(nil)
+    }
 
     init(_ k: HotKey?) {
         hotkey = k
