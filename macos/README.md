@@ -16,7 +16,7 @@ The Windows version (`../src`) is unchanged; this folder is a separate program.
 
 ## Features
 
-- **Capture**: press F1 (no fn needed); the window or the part of a window under the mouse (a button, a field, a list, a pane) is found for you, and the wheel steps out to bigger parts, the window and the screen. Drag to select any area; a magnifier shows the pixels and their color.
+- **Capture**: press F1; the window or the part of a window under the mouse (a button, a field, a list, a pane) is found for you, and the wheel steps out to bigger parts, the window and the screen. Drag to select any area; a magnifier shows the pixels and their color.
 - **Draw**: rectangle, ellipse, line, arrow, pen, marker, mosaic, text and numbers, in eight colors and three sizes; undo and redo.
 - **Copy, save, pin**: Enter copies, ⌘S saves (PNG or JPEG), ⌘T pins the capture above other windows. Pins move, zoom with the wheel, change opacity with ⌥ + wheel, copy, save and read their text.
 - **Text recognition** (optional, off by default): read the text of a capture; tables keep their columns (tab-separated, or Markdown). It runs on this Mac with Apple's Vision, in a short-lived helper process, so its models do not stay in memory.
@@ -40,7 +40,7 @@ On first start the **Permissions** page lists what sniplite needs:
 | Permission | Why |
 | --- | --- |
 | **Screen Recording** | to capture the screen |
-| **Accessibility** (called "Device Control and Data Access" on macOS 27) | F1–F12 without fn, and finding the parts of windows |
+| **Accessibility** (called "Device Control and Data Access" on macOS 27) | the F1–F12 shortcuts, and finding the parts of windows |
 
 Click **Allow…** on each: System Settings opens at the right page with sniplite in a panel beside it; drag sniplite into the list and turn it on. System Settings then closes and the page comes back for the next one. The page stays until everything is allowed; sniplite restarts once after Screen Recording, which macOS needs. The page is also in the menu (Permissions…) and in Settings.
 
@@ -67,7 +67,7 @@ The same as on Windows, with ⌘ in place of Ctrl. They can be changed in Settin
 | **Wheel** | Capturing: a bigger or smaller part; on a pin: zoom; ⌥ + wheel: pin opacity |
 | **Double-click** / **Esc** | Close a pin |
 
-On a Mac keyboard F1–F12 control brightness, Mission Control and so on. With the Accessibility permission sniplite takes the keys bound to its shortcuts, so F1 captures without fn (and no longer dims the screen); without it, press fn with them.
+The F1–F12 shortcuts use the Accessibility permission: sniplite takes the keys bound to its shortcuts, so on a Mac keyboard F1 captures instead of dimming the screen.
 
 ## Build
 
@@ -96,7 +96,7 @@ Long screenshots, the command line and the update check of the Windows version.
 | --- | --- |
 | `App.swift`, `main.swift` | the menu bar icon and menu, start-up |
 | `HotKeys.swift` | global shortcuts (Carbon `RegisterEventHotKey`) |
-| `TopRowKeys.swift` | F1–F12 without fn (an event tap) |
+| `TopRowKeys.swift` | the F1–F12 shortcuts on Mac keyboards (an event tap) |
 | `Capture.swift` | screenshots of every display (ScreenCaptureKit) and the windows to snap to |
 | `Elements.swift` | the parts of a window under the mouse (Accessibility API) |
 | `Overlay.swift` | the capture overlay: choosing, editing, magnifier, rendering the result |

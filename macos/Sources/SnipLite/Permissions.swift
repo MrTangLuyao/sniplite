@@ -14,7 +14,7 @@ enum Permission: CaseIterable {
         }
     }
 
-    /// Only Screen Recording is needed to capture; Accessibility is for F1 without fn.
+    /// Only Screen Recording is needed to capture; Accessibility is for the F1–F12 shortcuts and the parts of windows.
     var required: Bool { self == .screenRecording || Prefs.shared.topRowKeys }
 
     var name: String {

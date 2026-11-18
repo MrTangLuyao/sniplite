@@ -44,10 +44,9 @@ enum L {
         "hkConflict": "This shortcut could not be registered; another app may be using it.",
         "copyColor": "C: copy color", "ocrTitle": "Text", "copyAll": "Copy all", "copyMarkdown": "Copy as Markdown",
         "reading": "Reading text…", "ocrEnable": "Text recognition (F4 / ⇧F4, buttons on the toolbar)",
-        "topRow": "F1–F12 work without fn (needs the “%@” permission)",
-        "permissions": "Permissions", "manage": "Manage…", "permStatus": "Status", "permAllOK": "All allowed", "permMissing": "%d missing", "topRowTitle": "F1–F12 without fn", "topRowDetail": "Needs “%@”.", "ocrTitle2": "Text recognition", "ocrDetail": "F4 / ⇧F4 and the toolbar buttons; runs on this Mac.", "screenRecording": "Screen Recording", "granted": "Allowed", "grant": "Allow…",
+        "permissions": "Permissions", "manage": "Manage…", "permStatus": "Status", "permAllOK": "All allowed", "permMissing": "%d missing", "ocrTitle2": "Text recognition", "ocrDetail": "F4 / ⇧F4 and the toolbar buttons; runs on this Mac.", "screenRecording": "Screen Recording", "granted": "Allowed", "grant": "Allow…",
         "accessibility": "Accessibility", "deviceControl": "Device Control and Data Access",
-        "whyScreen": "Lets sniplite read the screen; capturing needs it.", "whyAX": "Press F1 without fn, and pick buttons and fields inside windows.",
+        "whyScreen": "Lets sniplite read the screen; capturing needs it.", "whyAX": "Makes the F1–F12 shortcuts work, and picks buttons and fields inside windows.",
         "notGranted": "Not allowed", "optional": "Optional", "openPane": "Allow…",
         "permIntro": "sniplite needs these permissions. Click a button: System Settings opens with sniplite's icon below it; drag the icon into the list and turn it on.",
         "permDrag": "After “Allow…”, drag the sniplite icon under System Settings into the list and turn it on.",
@@ -55,7 +54,6 @@ enum L {
         "required": "Required", "done": "Done",
         "permDone": "All set.", "permRestart": "All set. Restarting sniplite to use Screen Recording…",
         "dragTitle": "Drag into the list above, then turn it on", "dragTitleLeft": "Drag into the list on the left, then turn it on", "dragTitleRight": "Drag into the list on the right, then turn it on",
-        "fnHint": "On a Mac keyboard, press fn with F1–F12, or turn on “Use F1, F2, etc. keys as standard function keys”.",
     ]
 
     static let zhHans: [String: String] = [
@@ -78,10 +76,9 @@ enum L {
         "hkConflict": "无法注册这个快捷键，可能已被其他应用占用。",
         "copyColor": "C：复制颜色", "ocrTitle": "文字", "copyAll": "全部复制", "copyMarkdown": "复制为 Markdown",
         "reading": "正在识别文字…", "ocrEnable": "文字识别（F4 / ⇧F4，以及工具栏按钮）",
-        "topRow": "F1–F12 不用按 fn 直接用（需要“%@”权限）",
-        "permissions": "权限", "manage": "管理…", "permStatus": "授权状态", "permAllOK": "全部已允许", "permMissing": "缺少 %d 项", "topRowTitle": "F1–F12 不用按 fn", "topRowDetail": "需要“%@”权限。", "ocrTitle2": "文字识别", "ocrDetail": "F4 / ⇧F4 和工具栏按钮，在本机运行。", "screenRecording": "屏幕录制", "granted": "已允许", "grant": "去授权…",
+        "permissions": "权限", "manage": "管理…", "permStatus": "授权状态", "permAllOK": "全部已允许", "permMissing": "缺少 %d 项", "ocrTitle2": "文字识别", "ocrDetail": "F4 / ⇧F4 和工具栏按钮，在本机运行。", "screenRecording": "屏幕录制", "granted": "已允许", "grant": "去授权…",
         "accessibility": "辅助功能", "deviceControl": "设备控制和数据访问",
-        "whyScreen": "用来读取屏幕画面，截图离不开它。", "whyAX": "直接按 F1 截图（不用按 fn），并识别窗口里的按钮、输入框等元素。",
+        "whyScreen": "用来读取屏幕画面，截图离不开它。", "whyAX": "让 F1–F12 快捷键生效，并识别窗口里的按钮、输入框等元素。",
         "notGranted": "未允许", "optional": "可选", "openPane": "去开启…",
         "permIntro": "sniplite 需要下面这些权限。点按钮会打开系统设置，下方出现 sniplite 图标，把图标拖进列表并打开开关即可。",
         "permDrag": "点“去开启”后，把系统设置下方的 sniplite 图标拖进列表，再打开开关。",
@@ -89,7 +86,6 @@ enum L {
         "required": "必需", "done": "完成",
         "permDone": "全部完成。", "permRestart": "全部完成，sniplite 将重新启动以启用屏幕录制。",
         "dragTitle": "拖到上方列表，再打开开关", "dragTitleLeft": "拖到左侧列表，再打开开关", "dragTitleRight": "拖到右侧列表，再打开开关",
-        "fnHint": "在 Mac 键盘上请按住 fn 再按 F1–F12，或在系统设置中开启“将 F1、F2 等键用作标准功能键”。",
     ]
 
     static let zhHant: [String: String] = [
@@ -112,10 +108,9 @@ enum L {
         "hkConflict": "無法註冊這個快速鍵，可能已被其他 App 佔用。",
         "copyColor": "C：複製顏色", "ocrTitle": "文字", "copyAll": "全部複製", "copyMarkdown": "複製為 Markdown",
         "reading": "正在辨識文字…", "ocrEnable": "文字辨識（F4 / ⇧F4，以及工具列按鈕）",
-        "topRow": "F1–F12 不用按 fn 直接用（需要「%@」權限）",
-        "permissions": "權限", "manage": "管理…", "permStatus": "授權狀態", "permAllOK": "全部已允許", "permMissing": "缺少 %d 項", "topRowTitle": "F1–F12 不用按 fn", "topRowDetail": "需要「%@」權限。", "ocrTitle2": "文字辨識", "ocrDetail": "F4 / ⇧F4 和工具列按鈕，在本機執行。", "screenRecording": "螢幕錄製", "granted": "已允許", "grant": "去授權…",
+        "permissions": "權限", "manage": "管理…", "permStatus": "授權狀態", "permAllOK": "全部已允許", "permMissing": "缺少 %d 項", "ocrTitle2": "文字辨識", "ocrDetail": "F4 / ⇧F4 和工具列按鈕，在本機執行。", "screenRecording": "螢幕錄製", "granted": "已允許", "grant": "去授權…",
         "accessibility": "輔助使用", "deviceControl": "裝置控制和資料取用",
-        "whyScreen": "截圖一定要有。", "whyAX": "不按 fn 直接用 F1–F12，以及辨識視窗裡的按鈕、輸入框等元素。",
+        "whyScreen": "截圖一定要有。", "whyAX": "讓 F1–F12 快速鍵生效，並辨識視窗裡的按鈕、輸入框等元素。",
         "notGranted": "未允許", "optional": "可選", "openPane": "去開啟…",
         "permIntro": "sniplite 需要下面這些權限。點按鈕會打開系統設定，下方出現 sniplite 圖示，把圖示拖進列表並打開開關即可。",
         "permDrag": "點「去開啟」後，把系統設定下方的 sniplite 圖示拖進列表，再打開開關。",
@@ -125,6 +120,5 @@ enum L {
         "required": "必需", "done": "完成",
         "permDone": "全部完成。", "permRestart": "全部完成，正在重新啟動 sniplite 以啟用螢幕錄製…",
         "dragTitle": "拖到上方列表，再打開開關", "dragTitleLeft": "拖到左側列表，再打開開關", "dragTitleRight": "拖到右側列表，再打開開關",
-        "fnHint": "在 Mac 鍵盤上請按住 fn 再按 F1–F12，或在系統設定中開啟「將 F1、F2 等鍵作為標準功能鍵」。",
     ]
 }

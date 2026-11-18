@@ -14,7 +14,7 @@ final class Prefs {
         get { d.object(forKey: "pinOnTop") as? Bool ?? true }
         set { d.set(newValue, forKey: "pinOnTop") }
     }
-    /// F1–F12 work without fn (an event tap; needs the Accessibility permission).
+    /// The F1–F12 shortcuts on Mac keyboards (an event tap; needs the Accessibility permission).
     var topRowKeys: Bool { true }   // always: F1 should just work, as on Windows
     /// Text recognition: its buttons, menu items and F4 / ⇧F4. Off until turned on.
     var ocrEnabled: Bool {
