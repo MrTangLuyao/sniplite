@@ -794,7 +794,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
             ctx.setLineDash(phase: 0, lengths: [])
         }
         for h in hs {
-            let r = CGRect(x: h.x - 5, y: h.y - 5, width: 10, height: 10)
+            let r = CGRect(x: snap(h.x) - 5, y: snap(h.y) - 5, width: 10, height: 10)
             ctx.setFillColor(NSColor.white.cgColor)
             ctx.setShadow(offset: .zero, blur: 2, color: NSColor.black.withAlphaComponent(0.4).cgColor)
             ctx.fillEllipse(in: r)
@@ -820,7 +820,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
             if y < 4 { y = selection.maxY - h - 8; above = false }
         }
         toolbar.setPaletteAbove(above)
-        toolbar.frame.origin = CGPoint(x: x, y: y)
+        toolbar.frame.origin = CGPoint(x: snap(x), y: snap(y))
     }
 
     private func edges(at p: CGPoint) -> Int {
@@ -984,9 +984,18 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     // MARK: drawing
 
+    /// Device pixels per point of this screen: 2 on Retina, 1 on most external displays.
+    private var pixelScale: CGFloat { window?.backingScaleFactor ?? shot.scale }
+    private func snap(_ v: CGFloat) -> CGFloat { (v * pixelScale).rounded() / pixelScale }
+    /// A rectangle on whole device pixels, so its edges are sharp at 1x as at 2x.
+    private func snap(_ r: CGRect) -> CGRect {
+        let x0 = snap(r.minX), y0 = snap(r.minY)
+        return CGRect(x: x0, y: y0, width: snap(r.maxX) - x0, height: snap(r.maxY) - y0)
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-        let hole: CGRect?
+        var hole: CGRect?
         switch phase {
         case .select:
             if case .newSelection = drag, dragged { hole = selection } else { hole = holeShown ?? hover }
@@ -994,6 +1003,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         case .idle: hole = nil
         }
 
+        hole = hole.map(snap)
         ctx.setFillColor(NSColor.black.withAlphaComponent(0.4).cgColor)
         if let h = hole {
             ctx.addRect(bounds); ctx.addRect(h)
@@ -1013,14 +1023,26 @@ final class OverlayView: NSView, NSTextViewDelegate {
             drawSizeHUD(ctx)
         }
 
+        // the border: whole device pixels (3 on Retina, 2 at 1x) just outside the area
+        let lw = (pixelScale >= 2 ? 3 : 2) / pixelScale
         ctx.setStrokeColor(Palette.accent.cgColor)
-        ctx.setLineWidth(phase == .edit ? 1.5 : 2)
-        ctx.stroke(h.insetBy(dx: -0.75, dy: -0.75))
+        ctx.setLineWidth(lw)
+        ctx.stroke(h.insetBy(dx: -lw / 2, dy: -lw / 2))
         if phase == .edit {
-            ctx.setFillColor(Palette.accent.cgColor)
-            for p in handles() { ctx.fillEllipse(in: CGRect(x: p.x - 3.5, y: p.y - 3.5, width: 7, height: 7)) }
+            // handles: white dots ringed in the accent color, centered on whole pixels
+            ctx.saveGState()
+            ctx.setShadow(offset: .zero, blur: 1.5, color: NSColor.black.withAlphaComponent(0.35).cgColor)
+            for p in handles() {
+                let c = CGPoint(x: snap(p.x), y: snap(p.y))
+                ctx.setFillColor(Palette.accent.cgColor)
+                ctx.fillEllipse(in: CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8))
+            }
+            ctx.restoreGState()
             ctx.setFillColor(NSColor.white.cgColor)
-            for p in handles() { ctx.fillEllipse(in: CGRect(x: p.x - 2, y: p.y - 2, width: 4, height: 4)) }
+            for p in handles() {
+                let c = CGPoint(x: snap(p.x), y: snap(p.y))
+                ctx.fillEllipse(in: CGRect(x: c.x - 2.5, y: c.y - 2.5, width: 5, height: 5))
+            }
         }
 
         drawSizeLabel(h)
@@ -1113,32 +1135,80 @@ private extension OverlayView.Drag {
     var isIdle: Bool { if case .none = self { return true }; return false }
 }
 
-/// Cursors macOS does not offer publicly: the four-way move arrow and the diagonal resize arrows,
-/// drawn from SF Symbols, black with a white outline so they show on any background.
+/// Cursors macOS does not offer publicly: the four-way move arrow and the diagonal resize arrows.
+/// Drawn as vector paths in the style of the system's cursors (black, an even white outline, a
+/// soft shadow) and rendered into a 1x and a 2x bitmap, so they are sharp on every display.
 enum Cursors {
-    static let move = make("arrow.up.and.down.and.arrow.left.and.right")
-    static let resizeNWSE = make("arrow.up.left.and.arrow.down.right")
-    static let resizeNESW = make("arrow.down.left.and.arrow.up.right")
+    static let move = make { moveArrows() }
+    static let resizeNWSE = make { doubleArrow(angle: -.pi / 4) }   // ↖↘ (y grows downward when drawn)
+    static let resizeNESW = make { doubleArrow(angle: .pi / 4) }    // ↗↙
 
-    private static func make(_ symbol: String) -> NSCursor {
-        guard let base = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(pointSize: 13, weight: .bold)) else { return .crosshair }
-        func tinted(_ c: NSColor) -> NSImage {
-            NSImage(size: base.size, flipped: false) { r in
-                base.draw(in: r); c.set(); r.fill(using: .sourceAtop); return true
-            }
+    private static let side: CGFloat = 26      // points; the hot spot is the middle
+
+    /// One closed outline through the given points, turned by `angle` about the middle. A single
+    /// outline has no inner seams, so the white edge runs only around the outside.
+    private static func outline(_ pts: [CGPoint], angle: CGFloat = 0) -> NSBezierPath {
+        let p = NSBezierPath()
+        let c = side / 2, ca = cos(angle), sa = sin(angle)
+        for (i, q) in pts.enumerated() {
+            let r = NSPoint(x: c + q.x * ca - q.y * sa, y: c + q.x * sa + q.y * ca)
+            if i == 0 { p.move(to: r) } else { p.line(to: r) }
         }
-        let black = tinted(.black), white = tinted(.white)
-        let pad: CGFloat = 3
-        let size = NSSize(width: base.size.width + pad * 2, height: base.size.height + pad * 2)
-        let img = NSImage(size: size, flipped: false) { _ in
-            // a white outline: the white symbol drawn around, then the black one on top
-            for dx in [-1.5, 0, 1.5] { for dy in [-1.5, 0, 1.5] where dx != 0 || dy != 0 {
-                white.draw(in: NSRect(x: pad + dx, y: pad + dy, width: base.size.width, height: base.size.height))
-            } }
-            black.draw(in: NSRect(x: pad, y: pad, width: base.size.width, height: base.size.height))
-            return true
+        p.close()
+        return p
+    }
+
+    /// Four arrows from the middle: thin shafts, solid heads, as one outline.
+    private static func moveArrows() -> NSBezierPath {
+        let w: CGFloat = 1.25, reach: CGFloat = 11, hl: CGFloat = 4, hw: CGFloat = 3.2
+        var pts: [CGPoint] = []
+        for k in 0..<4 {
+            let arm = [CGPoint(x: w, y: -w), CGPoint(x: reach - hl, y: -w), CGPoint(x: reach - hl, y: -hw),
+                       CGPoint(x: reach, y: 0), CGPoint(x: reach - hl, y: hw), CGPoint(x: reach - hl, y: w)]
+            let a = CGFloat(k) * .pi / 2
+            pts += arm.map { CGPoint(x: $0.x * cos(a) - $0.y * sin(a), y: $0.x * sin(a) + $0.y * cos(a)) }
         }
-        return NSCursor(image: img, hotSpot: NSPoint(x: size.width / 2, y: size.height / 2))
+        return outline(pts)
+    }
+
+    /// A double-headed arrow through the middle, turned by `angle`, as one outline.
+    private static func doubleArrow(angle: CGFloat) -> NSBezierPath {
+        let w: CGFloat = 1.25, reach: CGFloat = 10.5, hl: CGFloat = 5, hw: CGFloat = 4.2
+        return outline([CGPoint(x: -reach, y: 0), CGPoint(x: -reach + hl, y: hw), CGPoint(x: -reach + hl, y: w),
+                        CGPoint(x: reach - hl, y: w), CGPoint(x: reach - hl, y: hw), CGPoint(x: reach, y: 0),
+                        CGPoint(x: reach - hl, y: -hw), CGPoint(x: reach - hl, y: -w),
+                        CGPoint(x: -reach + hl, y: -w), CGPoint(x: -reach + hl, y: -hw)], angle: angle)
+    }
+
+    private static func make(_ shape: () -> NSBezierPath) -> NSCursor {
+        let path = shape()
+        let image = NSImage(size: NSSize(width: side, height: side))
+        for scale in [CGFloat(1), 2] {
+            let px = Int(side * scale)
+            guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: px,
+                                             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                             colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { continue }
+            rep.size = NSSize(width: side, height: side)
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+            // outline first (a wide white stroke under a soft shadow), then the black shape on it
+            let shadow = NSShadow()
+            shadow.shadowColor = NSColor.black.withAlphaComponent(0.35)
+            shadow.shadowBlurRadius = 1.5
+            shadow.shadowOffset = NSSize(width: 0, height: -0.5)
+            shadow.set()
+            NSColor.white.setStroke()
+            path.lineWidth = 2.4
+            path.lineJoinStyle = .round
+            path.stroke()
+            NSShadow().set()
+            NSColor.white.setFill()
+            path.fill()
+            NSColor.black.setFill()
+            path.fill()
+            NSGraphicsContext.restoreGraphicsState()
+            image.addRepresentation(rep)
+        }
+        return NSCursor(image: image, hotSpot: NSPoint(x: side / 2, y: side / 2))
     }
 }
