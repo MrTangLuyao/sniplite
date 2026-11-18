@@ -53,7 +53,7 @@ enum L {
         "permTitle2": "Welcome to sniplite", "permSubtitle": "Allow the permissions below once, and press F1 to capture.",
         "required": "Required", "done": "Done",
         "permDone": "All set.", "permRestart": "All set. Restarting sniplite to use Screen Recording…",
-        "dragTitle": "Drag into the list above, then turn it on", "dragTitleLeft": "Drag into the list on the left, then turn it on", "dragTitleRight": "Drag into the list on the right, then turn it on",
+        "dragTitle": "Drag into the list above, then turn it on", "dragBig": "Drag sniplite into the list", "step1": "Hold this row", "stepUp": "Drag to the list above", "stepLeft": "Drag to the list on the left", "stepRight": "Drag to the list on the right", "step3": "Turn it on", "dragTitleLeft": "Drag into the list on the left, then turn it on", "dragTitleRight": "Drag into the list on the right, then turn it on",
     ]
 
     static let zhHans: [String: String] = [
@@ -85,7 +85,7 @@ enum L {
         "permTitle2": "欢迎使用 sniplite", "permSubtitle": "授予下面的权限后，按 F1 即可截图。只需设置一次。",
         "required": "必需", "done": "完成",
         "permDone": "全部完成。", "permRestart": "全部完成，sniplite 将重新启动以启用屏幕录制。",
-        "dragTitle": "拖到上方列表，再打开开关", "dragTitleLeft": "拖到左侧列表，再打开开关", "dragTitleRight": "拖到右侧列表，再打开开关",
+        "dragTitle": "拖到上方列表，再打开开关", "dragBig": "把 sniplite 拖进列表", "step1": "按住下面这一行", "stepUp": "拖到上方列表", "stepLeft": "拖到左侧列表", "stepRight": "拖到右侧列表", "step3": "打开开关", "dragTitleLeft": "拖到左侧列表，再打开开关", "dragTitleRight": "拖到右侧列表，再打开开关",
     ]
 
     static let zhHant: [String: String] = [
@@ -119,6 +119,6 @@ enum L {
         "permTitle2": "歡迎使用 sniplite", "permSubtitle": "授予下面的權限後，按 F1 即可截圖。只需設定一次。",
         "required": "必需", "done": "完成",
         "permDone": "全部完成。", "permRestart": "全部完成，正在重新啟動 sniplite 以啟用螢幕錄製…",
-        "dragTitle": "拖到上方列表，再打開開關", "dragTitleLeft": "拖到左側列表，再打開開關", "dragTitleRight": "拖到右側列表，再打開開關",
+        "dragTitle": "拖到上方列表，再打開開關", "dragBig": "把 sniplite 拖進列表", "step1": "按住下面這一行", "stepUp": "拖到上方列表", "stepLeft": "拖到左側列表", "stepRight": "拖到右側列表", "step3": "打開開關", "dragTitleLeft": "拖到左側列表，再打開開關", "dragTitleRight": "拖到右側列表，再打開開關",
     ]
 }

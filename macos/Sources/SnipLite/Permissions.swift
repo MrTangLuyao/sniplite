@@ -219,6 +219,9 @@ final class PermissionsWindow: NSWindowController, NSWindowDelegate {
         w.isMovableByWindowBackground = true
         w.isReleasedWhenClosed = false
         w.title = "sniplite " + L.t("permissions")
+        // sniplite has no Dock icon, so macOS does not switch desktops to bring this page back:
+        // the page comes to the desktop the user is on instead (System Settings may be on another)
+        w.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         super.init(window: w)
         w.delegate = self
         build()
@@ -482,7 +485,7 @@ final class PermissionGuide {
         place(below: f)
     }
 
-    static let size = CGSize(width: 380, height: 112)
+    static let size = CGSize(width: 420, height: 176)
 
     /// Under the content side of the System Settings window; with no room there, beside it (right,
     /// then left) level with the bottom of its list; only then over its bottom edge.
@@ -531,30 +534,96 @@ final class PermissionGuide {
     }
 }
 
-/// The drag panel: a line of instructions and, under it, sniplite as a row like the ones in the
-/// list of System Settings (icon, name, drag handle). The whole row is dragged.
+/// The drag panel: a title, three numbered steps, and sniplite as a row like the ones in the list
+/// of System Settings, glowing, with a hand that keeps dragging it toward the list.
 private final class DragPanelView: NSVisualEffectView {
     enum Direction { case up, left, right }
+    private let step2 = NSTextField(labelWithString: "")
     private let arrow = NSImageView()
-    private let title = NSTextField(labelWithString: "")
+    private let hand = NSImageView()
+    private let row = AppDragRow()
     var direction: Direction = .up { didSet { if direction != oldValue { applyDirection() } } }
 
+    private func label(_ s: String, size: CGFloat, weight: NSFont.Weight = .regular, color: NSColor = .labelColor) -> NSTextField {
+        let l = NSTextField(labelWithString: s)
+        l.font = .systemFont(ofSize: size, weight: weight)
+        l.textColor = color
+        return l
+    }
+
+    /// A numbered step: an accent circle with the number, then the text.
+    private func step(_ n: Int, _ text: NSTextField) -> NSView {
+        let dot = NSTextField(labelWithString: "\(n)")
+        dot.font = .systemFont(ofSize: 10, weight: .bold)
+        dot.textColor = .white
+        dot.alignment = .center
+        let circle = NSView()
+        circle.wantsLayer = true
+        circle.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+        circle.layer?.cornerRadius = 8
+        dot.translatesAutoresizingMaskIntoConstraints = false
+        circle.addSubview(dot)
+        circle.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            circle.widthAnchor.constraint(equalToConstant: 16), circle.heightAnchor.constraint(equalToConstant: 16),
+            dot.centerXAnchor.constraint(equalTo: circle.centerXAnchor),
+            dot.centerYAnchor.constraint(equalTo: circle.centerYAnchor, constant: 0.5),
+        ])
+        text.font = .systemFont(ofSize: 11.5, weight: .medium)
+        text.textColor = .secondaryLabelColor
+        let st = NSStackView(views: [circle, text])
+        st.spacing = 5
+        st.alignment = .centerY
+        return st
+    }
+
+    private func chevron() -> NSImageView {
+        let v = NSImageView(image: NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)!)
+        v.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
+        v.contentTintColor = .tertiaryLabelColor
+        return v
+    }
+
     private func applyDirection() {
-        let (symbol, key, dx, dy): (String, String, CGFloat, CGFloat) = {
+        let (symbol, key): (String, String) = {
             switch direction {
-            case .up: return ("arrow.up", "dragTitle", 0, 2.5)
-            case .left: return ("arrow.left", "dragTitleLeft", -2.5, 0)
-            case .right: return ("arrow.right", "dragTitleRight", 2.5, 0)
+            case .up: return ("arrow.up", "stepUp")
+            case .left: return ("arrow.left", "stepLeft")
+            case .right: return ("arrow.right", "stepRight")
             }
         }()
         arrow.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
-        title.stringValue = L.t(key)
-        arrow.layer?.removeAnimation(forKey: "bob")
-        let bob = CABasicAnimation(keyPath: dx != 0 ? "transform.translation.x" : "transform.translation.y")
-        bob.fromValue = 0; bob.toValue = dx != 0 ? dx : dy
-        bob.duration = 0.7; bob.autoreverses = true; bob.repeatCount = .infinity
-        bob.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        arrow.layer?.add(bob, forKey: "bob")
+        step2.stringValue = L.t(key)
+        animateHand()
+    }
+
+    /// The hand presses on the row and slides toward the list, fading out, again and again.
+    private func animateHand() {
+        guard let layer = hand.layer else { return }
+        layer.removeAllAnimations()
+        let dist: CGFloat = 34
+        let (key, to): (String, CGFloat) = {
+            switch direction {
+            case .up: return ("transform.translation.y", dist)      // the panel is not flipped: up is +y
+            case .left: return ("transform.translation.x", -dist)
+            case .right: return ("transform.translation.x", dist)
+            }
+        }()
+        let move = CAKeyframeAnimation(keyPath: key)
+        move.values = [0, 0, to, to]
+        move.keyTimes = [0, 0.25, 0.8, 1]
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = [0, 1, 1, 0]
+        fade.keyTimes = [0, 0.15, 0.7, 0.95]
+        let press = CAKeyframeAnimation(keyPath: "transform.scale")
+        press.values = [1.15, 0.9, 0.9, 0.9]
+        press.keyTimes = [0, 0.25, 0.8, 1]
+        let g = CAAnimationGroup()
+        g.animations = [move, fade, press]
+        g.duration = 1.8
+        g.repeatCount = .infinity
+        g.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        layer.add(g, forKey: "drag")
     }
 
     init(permission p: Permission) {
@@ -565,7 +634,7 @@ private final class DragPanelView: NSVisualEffectView {
         state = .active
         // a rounded mask: behind-window blur ignores the layer's corner radius, and the window
         // shadow follows the mask, so both corners and shadow come out round
-        let r: CGFloat = 16
+        let r: CGFloat = 18
         let mask = NSImage(size: NSSize(width: r * 2 + 1, height: r * 2 + 1), flipped: false) { rect in
             NSColor.black.setFill()
             NSBezierPath(roundedRect: rect, xRadius: r, yRadius: r).fill()
@@ -575,33 +644,76 @@ private final class DragPanelView: NSVisualEffectView {
         mask.resizingMode = .stretch
         maskImage = mask
 
-        // instructions, with an arrow that nudges upward
-        arrow.symbolConfiguration = .init(pointSize: 11, weight: .bold)
-        arrow.contentTintColor = .controlAccentColor
-        arrow.wantsLayer = true
-        title.font = .systemFont(ofSize: 12.5, weight: .semibold)
+        // title: an accent badge with a hand, and what to do
+        let badge = NSView()
+        badge.wantsLayer = true
+        badge.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+        badge.layer?.cornerRadius = 8
+        let badgeIcon = NSImageView(image: NSImage(systemSymbolName: "hand.draw.fill", accessibilityDescription: nil)!)
+        badgeIcon.symbolConfiguration = .init(pointSize: 14, weight: .semibold)
+        badgeIcon.contentTintColor = .white
+        badgeIcon.translatesAutoresizingMaskIntoConstraints = false
+        badge.addSubview(badgeIcon)
+        badge.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            badge.widthAnchor.constraint(equalToConstant: 28), badge.heightAnchor.constraint(equalToConstant: 28),
+            badgeIcon.centerXAnchor.constraint(equalTo: badge.centerXAnchor),
+            badgeIcon.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
+        ])
+        let title = label(L.t("dragBig"), size: 14, weight: .semibold)
         title.lineBreakMode = .byTruncatingTail
         title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let head = NSStackView(views: [arrow, title])
-        head.spacing = 5
+        arrow.symbolConfiguration = .init(pointSize: 13, weight: .bold)
+        arrow.contentTintColor = .controlAccentColor
+        let head = NSStackView(views: [badge, title, arrow])
+        head.spacing = 9
+        head.alignment = .centerY
 
-        let row = AppDragRow()
-        let stack = NSStackView(views: [head, row])
+        // the steps
+        let steps = NSStackView(views: [step(1, label(L.t("step1"), size: 11.5)), chevron(),
+                                        step(2, step2), chevron(),
+                                        step(3, label(L.t("step3"), size: 11.5))])
+        steps.spacing = 7
+        steps.alignment = .centerY
+
+        // the row to drag, glowing
+        row.wantsLayer = true
+        row.layer?.shadowColor = NSColor.controlAccentColor.cgColor
+        row.layer?.shadowOffset = .zero
+        row.layer?.shadowRadius = 9
+        row.layer?.shadowOpacity = 0
+
+        let stack = NSStackView(views: [head, steps, row])
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 10
+        stack.spacing = 12
+        stack.setCustomSpacing(14, after: steps)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 18),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -18),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
             row.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            row.heightAnchor.constraint(equalToConstant: 46),
-            head.trailingAnchor.constraint(lessThanOrEqualTo: stack.trailingAnchor, constant: -18),
+            row.heightAnchor.constraint(equalToConstant: 50),
+            head.trailingAnchor.constraint(lessThanOrEqualTo: stack.trailingAnchor, constant: -22),
         ])
 
-        DispatchQueue.main.async { [weak self] in self?.applyDirection() }
+        // the hand that shows the drag, over the row's icon
+        hand.image = NSImage(systemSymbolName: "hand.point.up.left.fill", accessibilityDescription: nil)
+        hand.symbolConfiguration = .init(pointSize: 26, weight: .regular)
+        hand.contentTintColor = .controlAccentColor
+        hand.wantsLayer = true
+        hand.shadow = NSShadow()
+        hand.layer?.shadowOpacity = 0.35
+        hand.layer?.shadowRadius = 2
+        hand.layer?.shadowOffset = CGSize(width: 0, height: -1)
+        hand.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(hand)
+        NSLayoutConstraint.activate([
+            hand.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 118),
+            hand.topAnchor.constraint(equalTo: row.centerYAnchor, constant: -4),
+        ])
 
         let close = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: L.t("close.pin"))!,
                              target: PermissionGuideCloser.shared, action: #selector(PermissionGuideCloser.close))
@@ -611,9 +723,18 @@ private final class DragPanelView: NSVisualEffectView {
         close.translatesAutoresizingMaskIntoConstraints = false
         addSubview(close)
         NSLayoutConstraint.activate([
-            close.topAnchor.constraint(equalTo: topAnchor, constant: 11),
-            close.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -13),
+            close.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+            close.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
         ])
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.applyDirection()
+            let glow = CABasicAnimation(keyPath: "shadowOpacity")
+            glow.fromValue = 0.15; glow.toValue = 0.9
+            glow.duration = 0.9; glow.autoreverses = true; glow.repeatCount = .infinity
+            self.row.layer?.add(glow, forKey: "glow")
+        }
     }
     required init?(coder: NSCoder) { fatalError() }
 }
@@ -647,9 +768,8 @@ final class AppDragRow: NSView, NSDraggingSource {
         (isDark ? NSColor.white.withAlphaComponent(hover ? 0.12 : 0.08)
                 : NSColor.white.withAlphaComponent(hover ? 1 : 0.92)).setFill()
         path.fill()
-        (hover ? NSColor.controlAccentColor.withAlphaComponent(0.7)
-               : (isDark ? NSColor.white.withAlphaComponent(0.12) : NSColor.black.withAlphaComponent(0.1))).setStroke()
-        path.lineWidth = 1
+        NSColor.controlAccentColor.withAlphaComponent(hover ? 1 : 0.75).setStroke()
+        path.lineWidth = 1.5
         path.stroke()
 
         icon.draw(in: NSRect(x: 10, y: (bounds.height - 28) / 2, width: 28, height: 28))

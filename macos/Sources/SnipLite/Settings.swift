@@ -125,6 +125,7 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
                          styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
         w.titlebarAppearsTransparent = true
         w.isMovableByWindowBackground = true
+        w.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]   // opens on the current desktop
         w.title = L.t("settings").replacingOccurrences(of: "…", with: "")
         w.isReleasedWhenClosed = false
         super.init(window: w)
