@@ -252,10 +252,13 @@ final class Toolbar: NSView {
             sizeSlider.maxValue = Annotation.maxWidth(tool ?? .rect)
             sizeSlider.frame.origin = CGPoint(x: x, y: (unit + 4 - sizeSlider.frame.height) / 2)
             sizeSlider.isHidden = false
-            x += sizeSlider.frame.width - 4          // the knob's margin already leaves room
-            sizeValue.frame.origin = CGPoint(x: x, y: (unit + 4 - sizeValue.frame.height) / 2)
+            x += sizeSlider.frame.width + 4          // a little room after the knob at its largest
+            // as wide as the widest value this tool shows: no blank after it, no jumping while dragging
+            let widest = valueText(Annotation.maxWidth(tool ?? .rect))
+            let w = ceil(NSAttributedString(string: widest, attributes: [.font: sizeValue.font as Any]).size().width) + 2
+            sizeValue.frame = NSRect(x: x, y: (unit + 4 - sizeValue.frame.height) / 2, width: w, height: sizeValue.frame.height)
             sizeValue.isHidden = false
-            x += sizeValue.frame.width + 2
+            x += w + 4
             sep(0)
         } else {
             sizeSlider.isHidden = true
@@ -340,13 +343,15 @@ final class Toolbar: NSView {
 
     /// The value beside the slider, in what the tool shows: points of text, the width of a
     /// number's circle, the width of a line or a brush.
-    private func showValue(_ w: CGFloat) {
+    private func showValue(_ w: CGFloat) { sizeValue.stringValue = valueText(w) }
+
+    private func valueText(_ w: CGFloat) -> String {
         switch tool {
-        case .text: sizeValue.stringValue = "\(Int(Annotation.fontSize(for: w).rounded())) pt"
-        case .number: sizeValue.stringValue = "\(Int((Annotation.numberRadius(w) * 2).rounded()))"
-        case .marker: sizeValue.stringValue = "\(Int(w * 4))"
-        case .mosaic: sizeValue.stringValue = "\(Int(Annotation.brushWidth(w)))"
-        default: sizeValue.stringValue = "\(Int(w))"
+        case .text: return "\(Int(Annotation.fontSize(for: w).rounded())) pt"
+        case .number: return "\(Int((Annotation.numberRadius(w) * 2).rounded()))"
+        case .marker: return "\(Int(w * 4))"
+        case .mosaic: return "\(Int(Annotation.brushWidth(w)))"
+        default: return "\(Int(w))"
         }
     }
 
