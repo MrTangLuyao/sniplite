@@ -122,11 +122,23 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private var current: Annotation?
     private var tool: Tool?
     private var colorIndex = Prefs.shared.colorIndex
-    private var sizeIndex = Prefs.shared.sizeIndex
+    private var width = Prefs.shared.strokeWidth
+    private var mosaicMode = Prefs.shared.mosaicMode
+    private var scrollSum: CGFloat = 0           // trackpad scrolling, collected into width steps
+    private var sizeHUDUntil = Date.distantPast  // the width preview at the mouse
     private let toolbar = Toolbar()
     private var textView: NSTextView?
     private var textOrigin: CGPoint = .zero
-    private lazy var mosaic: CGImage? = shot.image.pixelated(block: max(1, Int(10 * shot.scale)))
+    private var mosaicCache: [Int: CGImage] = [:]
+
+    /// The blocky copy of the screen for squares of `block` points, made once per size.
+    private func mosaicImage(_ block: CGFloat) -> CGImage? {
+        let px = max(2, Int((block * shot.scale).rounded()))
+        if let m = mosaicCache[px] { return m }
+        let m = shot.image.pixelated(block: px)
+        mosaicCache[px] = m
+        return m
+    }
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -140,7 +152,8 @@ final class OverlayView: NSView, NSTextViewDelegate {
         addSubview(toolbar)
         toolbar.onTool = { [weak self] t in self?.setTool(t) }
         toolbar.onColor = { [weak self] i in self?.colorIndex = i; Prefs.shared.colorIndex = i; self?.restyleText() }
-        toolbar.onSize = { [weak self] i in self?.sizeIndex = i; Prefs.shared.sizeIndex = i; self?.restyleText() }
+        toolbar.onSize = { [weak self] i in self?.setWidth(Palette.widths[i], preview: false) }
+        toolbar.onMosaicMode = { [weak self] m in self?.mosaicMode = m }
         toolbar.onCommand = { [weak self] c in self?.command(c) }
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -259,11 +272,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
                     drag = .none
                 case .number:
                     let n = (annotations.filter { $0.tool == .number }.map(\.number).max() ?? 0) + 1
-                    push(Annotation(tool: .number, color: Palette.colors[colorIndex], sizeIndex: sizeIndex, points: [p], number: n))
+                    push(Annotation(tool: .number, color: Palette.colors[colorIndex], width: width, points: [p], number: n))
                     drag = .none
                 default:
-                    current = Annotation(tool: t, color: Palette.colors[colorIndex], sizeIndex: sizeIndex, points: [p, p])
-                    if t.isStroke { current?.points = [p] }
+                    current = Annotation(tool: t, color: Palette.colors[colorIndex], width: width,
+                                         mosaicMode: mosaicMode, points: [p, p])
+                    if current?.isStrokeLike == true { current?.points = [p] }
                     drag = .draw
                 }
             } else if tool == nil && selection.contains(p) {
@@ -300,7 +314,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         case .draw:
             guard var a = current else { break }
             let q = clamp(p, to: selection)
-            if a.tool.isStroke {
+            if a.isStrokeLike {
                 if let last = a.points.last, hypot(q.x - last.x, q.y - last.y) >= 1 { a.points.append(q) }
             } else {
                 a.points[1] = shift ? constrain(a.points[0], q, a.tool) : q
@@ -324,7 +338,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
             placeToolbar()
         case .draw:
             if let a = current {
-                let ok = a.tool.isStroke ? true : hypot(a.points[0].x - a.points[1].x, a.points[0].y - a.points[1].y) > 2
+                let ok = a.isStrokeLike ? true : hypot(a.points[0].x - a.points[1].x, a.points[0].y - a.points[1].y) > 2
                 if ok { push(a) }
             }
             current = nil
@@ -353,11 +367,82 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        if phase == .edit, tool != nil { scrollWidth(event); return }
         guard phase == .select, !chain.isEmpty else { return }
         let dy = event.scrollingDeltaY
         guard abs(dy) > 0.5 else { return }
         if dy > 0 { chainIndex = min(chainIndex + 1, chain.count - 1) } else { chainIndex = max(chainIndex - 1, 0) }
         needsDisplay = true
+    }
+
+    /// With a tool, the wheel (or two fingers up / down on a trackpad) sets its width: border,
+    /// line, arrow, text and number size, mosaic squares. Up makes it bigger, whichever way the
+    /// system's scrolling direction is set.
+    private func scrollWidth(_ e: NSEvent) {
+        var dy = e.scrollingDeltaY
+        if e.isDirectionInvertedFromDevice { dy = -dy }
+        var steps = 0
+        if e.hasPreciseScrollingDeltas {
+            if e.phase == .began { scrollSum = 0 }
+            scrollSum += dy
+            while scrollSum >= 6 { steps += 1; scrollSum -= 6 }
+            while scrollSum <= -6 { steps -= 1; scrollSum += 6 }
+        } else if abs(dy) > 0.1 {
+            steps = dy > 0 ? 1 : -1
+        }
+        guard steps != 0 else { return }
+        var w = width
+        for _ in 0..<abs(steps) {
+            let step: CGFloat = w >= 10 ? 2 : 1          // finer when thin
+            w += steps > 0 ? step : -step
+        }
+        setWidth(min(max(w.rounded(), Palette.widthRange.lowerBound), Palette.widthRange.upperBound), preview: true)
+    }
+
+    private func setWidth(_ w: CGFloat, preview: Bool) {
+        width = w
+        Prefs.shared.strokeWidth = w
+        toolbar.setWidth(w)
+        restyleText()
+        if preview {
+            sizeHUDUntil = Date().addingTimeInterval(0.9)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.95) { [weak self] in self?.needsDisplay = true }
+        }
+        needsDisplay = true
+    }
+
+    /// The width preview: what the tool will draw, at the mouse, with its size in pixels.
+    private func drawSizeHUD(_ ctx: CGContext) {
+        guard phase == .edit, let t = tool, Date() < sizeHUDUntil else { return }
+        let c = Palette.colors[colorIndex]
+        let d: CGFloat
+        switch t {
+        case .text: d = Annotation.fontSize(for: width)
+        case .number: d = (8 + width * 1.6) * 2
+        case .marker: d = width * 4
+        case .mosaic: d = mosaicMode == .brush ? max(10, width * 5) : Annotation.mosaicBlock(for: width) * 2
+        default: d = width
+        }
+        let r = CGRect(x: mouse.x - d / 2, y: mouse.y - d / 2, width: d, height: d)
+        ctx.saveGState()
+        if t == .mosaic && mosaicMode != .fill {
+            ctx.setStrokeColor(NSColor.white.cgColor); ctx.setLineWidth(1.5)
+            ctx.setShadow(offset: .zero, blur: 2, color: NSColor.black.withAlphaComponent(0.6).cgColor)
+            ctx.stroke(r)
+        } else {
+            ctx.setFillColor(c.cgColor)
+            ctx.setShadow(offset: .zero, blur: 3, color: NSColor.black.withAlphaComponent(0.5).cgColor)
+            ctx.fillEllipse(in: r)
+        }
+        ctx.restoreGState()
+        let label = t == .text ? "\(Int(Annotation.fontSize(for: width).rounded())) pt" : "\(Int(width)) px"
+        let str = NSAttributedString(string: label, attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold), .foregroundColor: NSColor.white])
+        let sz = str.size()
+        let box = CGRect(x: mouse.x - sz.width / 2 - 6, y: r.maxY + 6, width: sz.width + 12, height: sz.height + 4)
+        NSColor.black.withAlphaComponent(0.72).setFill()
+        NSBezierPath(roundedRect: box, xRadius: 5, yRadius: 5).fill()
+        str.draw(at: CGPoint(x: box.minX + 6, y: box.minY + 2))
     }
 
     // MARK: keys
@@ -508,7 +593,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     private func constrain(_ a: CGPoint, _ b: CGPoint, _ t: Tool) -> CGPoint {
         let dx = b.x - a.x, dy = b.y - a.y
-        if t == .rect || t == .ellipse {
+        if t == .rect || t == .ellipse || t == .mosaic {
             let s = max(abs(dx), abs(dy))
             return CGPoint(x: a.x + (dx < 0 ? -s : s), y: a.y + (dy < 0 ? -s : s))
         }
@@ -520,7 +605,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
     // MARK: text
 
     private func beginText(at p: CGPoint) {
-        let tv = NSTextView(frame: NSRect(x: p.x, y: p.y - Palette.fontSizes[sizeIndex] * 0.6, width: 20, height: 20))
+        let tv = NSTextView(frame: NSRect(x: p.x, y: p.y - Annotation.fontSize(for: width) * 0.6, width: 20, height: 20))
         tv.drawsBackground = false
         tv.isRichText = false
         TextInput.quiet(tv)
@@ -545,7 +630,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     private func restyleText() {
         guard let tv = textView else { return }
-        let attrs = Annotation.textAttributes(color: Palette.colors[colorIndex], size: Palette.fontSizes[sizeIndex])
+        let attrs = Annotation.textAttributes(color: Palette.colors[colorIndex], size: Annotation.fontSize(for: width))
         tv.typingAttributes = attrs
         tv.textStorage?.setAttributes(attrs, range: NSRange(location: 0, length: tv.string.utf16.count))
         tv.insertionPointColor = Palette.colors[colorIndex]
@@ -562,7 +647,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         textView = nil
         let s = tv.string
         if !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            push(Annotation(tool: .text, color: Palette.colors[colorIndex], sizeIndex: sizeIndex,
+            push(Annotation(tool: .text, color: Palette.colors[colorIndex], width: width,
                             points: [tv.frame.origin], text: s))
         }
         tv.removeFromSuperview()
@@ -632,7 +717,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         ctx.scaleBy(x: s, y: -s)
         ctx.translateBy(x: -px.minX / s, y: -px.minY / s)
         ctx.clip(to: selection)
-        for a in annotations { a.draw(in: ctx, mosaic: mosaic, screenRect: bounds) }
+        for a in annotations { a.draw(in: ctx, mosaic: mosaicImage, screenRect: bounds) }
         return ctx.makeImage()
     }
 
@@ -660,9 +745,10 @@ final class OverlayView: NSView, NSTextViewDelegate {
         if phase == .edit {
             ctx.saveGState()
             ctx.clip(to: h)
-            for a in annotations { a.draw(in: ctx, mosaic: mosaic, screenRect: bounds) }
-            current?.draw(in: ctx, mosaic: mosaic, screenRect: bounds)
+            for a in annotations { a.draw(in: ctx, mosaic: mosaicImage, screenRect: bounds) }
+            current?.draw(in: ctx, mosaic: mosaicImage, screenRect: bounds)
             ctx.restoreGState()
+            drawSizeHUD(ctx)
         }
 
         ctx.setStrokeColor(Palette.accent.cgColor)

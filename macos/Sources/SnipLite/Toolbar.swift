@@ -74,11 +74,16 @@ final class Toolbar: NSView {
     var onCommand: ((Command) -> Void)?
     var onColor: ((Int) -> Void)?
     var onSize: ((Int) -> Void)?
+    var onMosaicMode: ((MosaicMode) -> Void)?
 
     private var toolButtons: [Tool: ToolButton] = [:]
     private var commandButtons: [Command: ToolButton] = [:]
     private var colorButtons: [ToolButton] = []
     private var sizeButtons: [ToolButton] = []
+    private var modeButtons: [MosaicMode: ToolButton] = [:]
+    private var paletteSeps: [NSView] = []
+    private var colorIndex = Prefs.shared.colorIndex
+    private(set) var mosaicMode = Prefs.shared.mosaicMode
     private let mainRow = NSView()
     private let paletteRow = NSView()
     private(set) var tool: Tool?
@@ -132,26 +137,78 @@ final class Toolbar: NSView {
         }
         mainRow.frame = NSRect(x: 0, y: 0, width: x + 4, height: unit + 4)
 
-        x = 4
+        // second row: sizes | mosaic modes (mosaic tool only) | colors; laid out by layoutPalette()
         for (i, w) in Palette.widths.enumerated() {
             let b = ToolButton(.size(w), tip: nil, size: unit)
-            b.onClick = { [weak self] in self?.setSize(i); self?.onSize?(i) }
-            sizeButtons.append(b); place(b, in: paletteRow)
+            b.onClick = { [weak self] in self?.onSize?(i) }
+            sizeButtons.append(b); paletteRow.addSubview(b)
         }
-        let sep = NSView(frame: NSRect(x: x + 4, y: 9, width: 1, height: unit - 14))
-        sep.wantsLayer = true; sep.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.15).cgColor
-        paletteRow.addSubview(sep); x += 9
+        let modes: [(MosaicMode, String, String)] = [
+            (.rect, "checkerboard.rectangle", L.t("mosaicRect")),
+            (.brush, "scribble.variable", L.t("mosaicBrush")),
+            (.fill, "rectangle.fill", L.t("mosaicFill")),
+        ]
+        for (m, sym, tip) in modes {
+            let b = ToolButton(.symbol(sym), tip: tip, size: unit)
+            b.onClick = { [weak self] in self?.setMosaicMode(m) }
+            modeButtons[m] = b; paletteRow.addSubview(b)
+        }
+        for _ in 0..<2 {
+            let sep = NSView(frame: NSRect(x: 0, y: 9, width: 1, height: unit - 14))
+            sep.wantsLayer = true; sep.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.15).cgColor
+            paletteSeps.append(sep); paletteRow.addSubview(sep)
+        }
         for (i, c) in Palette.colors.enumerated() {
             let b = ToolButton(.color(c), tip: nil, size: unit)
-            b.onClick = { [weak self] in self?.setColor(i); self?.onColor?(i) }
-            colorButtons.append(b); place(b, in: paletteRow)
+            b.onClick = { [weak self] in
+                guard let self else { return }
+                self.colorIndex = i
+                self.onColor?(i)
+                // with the mosaic tool a color means: cover with that color
+                if self.tool == .mosaic && self.mosaicMode != .fill { self.setMosaicMode(.fill) } else { self.refreshPalette() }
+            }
+            colorButtons.append(b); paletteRow.addSubview(b)
         }
-        paletteRow.frame = NSRect(x: 0, y: unit + 10, width: x + 4, height: unit + 4)
+        paletteRow.frame.origin = CGPoint(x: 0, y: unit + 10)
         paletteRow.isHidden = true
+        layoutPalette()
         setFrameSize(NSSize(width: mainRow.frame.width, height: mainRow.frame.height))
-        setColor(Prefs.shared.colorIndex)
-        setSize(Prefs.shared.sizeIndex)
+        setWidth(Prefs.shared.strokeWidth)
     }
+
+    /// Places the second row's buttons for the current tool.
+    private func layoutPalette() {
+        var x: CGFloat = 4
+        func put(_ v: NSView) { v.frame.origin = CGPoint(x: x, y: 2); v.isHidden = false; x += v.frame.width }
+        func sep(_ i: Int) { paletteSeps[i].frame.origin = CGPoint(x: x + 4, y: 9); paletteSeps[i].isHidden = false; x += 9 }
+        sizeButtons.forEach(put)
+        sep(0)
+        if tool == .mosaic {
+            for m in [MosaicMode.rect, .brush, .fill] { put(modeButtons[m]!) }
+            sep(1)
+        } else {
+            modeButtons.values.forEach { $0.isHidden = true }
+            paletteSeps[1].isHidden = true
+        }
+        colorButtons.forEach(put)
+        paletteRow.frame.size = NSSize(width: x + 4, height: unit + 4)
+        refreshPalette()
+    }
+
+    /// Selection marks: the chosen mosaic mode; a color only where it is used (not for mosaic squares).
+    private func refreshPalette() {
+        for (m, b) in modeButtons { b.selected = m == mosaicMode }
+        let colorUsed = tool != .mosaic || mosaicMode == .fill
+        for (k, b) in colorButtons.enumerated() { b.selected = colorUsed && k == colorIndex }
+    }
+
+    func setMosaicMode(_ m: MosaicMode) {
+        mosaicMode = m
+        Prefs.shared.mosaicMode = m
+        refreshPalette()
+        onMosaicMode?(m)
+    }
+
     required init?(coder: NSCoder) { fatalError() }
 
     override func resetCursorRects() { addCursorRect(bounds, cursor: .arrow) }
@@ -162,7 +219,9 @@ final class Toolbar: NSView {
         tool = t
         for (k, b) in toolButtons { b.selected = k == t }
         paletteRow.isHidden = t == nil
-        setFrameSize(NSSize(width: mainRow.frame.width, height: t == nil ? mainRow.frame.height : paletteRow.frame.maxY))
+        layoutPalette()
+        setFrameSize(NSSize(width: max(mainRow.frame.width, paletteRow.frame.width),
+                            height: t == nil ? mainRow.frame.height : paletteRow.frame.maxY))
         onTool?(t)
     }
 
@@ -177,7 +236,10 @@ final class Toolbar: NSView {
         }
     }
 
-    func setColor(_ i: Int) { for (k, b) in colorButtons.enumerated() { b.selected = k == i } }
-    func setSize(_ i: Int) { for (k, b) in sizeButtons.enumerated() { b.selected = k == i } }
+    func setColor(_ i: Int) { colorIndex = i; refreshPalette() }
+    /// Marks the size button matching the width, if one does (the wheel sets widths in between).
+    func setWidth(_ w: CGFloat) {
+        for (k, b) in sizeButtons.enumerated() { b.selected = abs(Palette.widths[k] - w) < 0.5 }
+    }
     func setEnabled(_ c: Command, _ on: Bool) { commandButtons[c]?.enabled = on }
 }

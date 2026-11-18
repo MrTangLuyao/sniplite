@@ -26,9 +26,14 @@ final class Prefs {
         get { d.object(forKey: "colorIndex") as? Int ?? 0 }
         set { d.set(newValue, forKey: "colorIndex") }
     }
-    var sizeIndex: Int {
-        get { d.object(forKey: "sizeIndex") as? Int ?? 1 }
-        set { d.set(newValue, forKey: "sizeIndex") }
+    /// The width of the drawing tools (also sets text size, number size and mosaic squares).
+    var strokeWidth: CGFloat {
+        get { CGFloat(d.object(forKey: "strokeWidth") as? Double ?? 4) }
+        set { d.set(Double(newValue), forKey: "strokeWidth") }
+    }
+    var mosaicMode: MosaicMode {
+        get { MosaicMode(rawValue: d.string(forKey: "mosaicMode") ?? "") ?? .rect }
+        set { d.set(newValue.rawValue, forKey: "mosaicMode") }
     }
 
     /// nil: no shortcut for that action.

@@ -31,7 +31,7 @@ enum Tool: Int, CaseIterable {
     }
     /// Tools drawn by dragging from one corner to the other.
     var isShape: Bool { self == .rect || self == .ellipse || self == .line || self == .arrow }
-    var isStroke: Bool { self == .pen || self == .marker || self == .mosaic }
+    var isStroke: Bool { self == .pen || self == .marker }
 }
 
 /// The colors and sizes of the toolbar (the same eight colors as the Windows version).
@@ -41,29 +41,41 @@ enum Palette {
         NSColor(srgbRed: CGFloat($0 >> 16 & 0xFF) / 255, green: CGFloat($0 >> 8 & 0xFF) / 255,
                 blue: CGFloat($0 & 0xFF) / 255, alpha: 1)
     }
+    /// The three size buttons; the wheel (or two fingers on a trackpad) sets any width in `widthRange`.
     static let widths: [CGFloat] = [2, 4, 8]
-    static let fontSizes: [CGFloat] = [14, 20, 30]
+    static let widthRange: ClosedRange<CGFloat> = 1...40
     static let accent = NSColor(srgbRed: 0x1A / 255, green: 0x8C / 255, blue: 1, alpha: 1)
 }
+
+/// How the mosaic tool hides things: pixelating a dragged rectangle (the default), pixelating
+/// along a brush stroke, or covering a rectangle with the chosen color.
+enum MosaicMode: String { case rect, brush, fill }
 
 struct Annotation {
     var tool: Tool
     var color: NSColor
-    var sizeIndex: Int
+    var width: CGFloat
+    var mosaicMode: MosaicMode = .rect
     var points: [CGPoint]          // shapes: [start, end]; strokes: the path; text / number: [origin]
     var text: String = ""
     var number: Int = 0
 
-    var width: CGFloat { Palette.widths[sizeIndex] }
-    var fontSize: CGFloat { Palette.fontSizes[sizeIndex] }
+    var fontSize: CGFloat { Self.fontSize(for: width) }
+    /// Width 2 / 4 / 8 -> about 14 / 20 / 30 pt, as the three sizes of the Windows version.
+    static func fontSize(for width: CGFloat) -> CGFloat { 9 + width * 2.6 }
+    /// The side of a mosaic square, in points.
+    static func mosaicBlock(for width: CGFloat) -> CGFloat { 4 + width * 1.5 }
+
+    /// Drawn as a path of points (rather than from one corner to the other).
+    var isStrokeLike: Bool { tool.isStroke || (tool == .mosaic && mosaicMode == .brush) }
 
     static func textAttributes(color: NSColor, size: CGFloat) -> [NSAttributedString.Key: Any] {
         [.font: NSFont.systemFont(ofSize: size, weight: .medium), .foregroundColor: color]
     }
 
     /// Draws into a context whose coordinates are the overlay's flipped points (y down).
-    /// `mosaic` is the blocky copy of the screen and `screenRect` where it goes.
-    func draw(in ctx: CGContext, mosaic: CGImage?, screenRect: CGRect) {
+    /// `mosaic` gives the blocky copy of the screen for a block size (points), `screenRect` where it goes.
+    func draw(in ctx: CGContext, mosaic: (CGFloat) -> CGImage?, screenRect: CGRect) {
         ctx.saveGState()
         defer { ctx.restoreGState() }
         ctx.setStrokeColor(color.cgColor)
@@ -91,13 +103,22 @@ struct Annotation {
             ctx.addPath(Self.smoothPath(points))
             ctx.strokePath()
         case .mosaic:
-            guard let mosaic else { return }
-            ctx.setLineWidth(width * 5)
-            ctx.addPath(Self.smoothPath(points))
-            ctx.replacePathWithStrokedPath()
-            ctx.clip()
-            ctx.interpolationQuality = .none
-            ctx.drawFlipped(mosaic, in: screenRect)
+            switch mosaicMode {
+            case .fill:
+                ctx.fill(CGRect(p0, p1))
+            case .rect, .brush:
+                guard let img = mosaic(Self.mosaicBlock(for: width)) else { return }
+                if mosaicMode == .rect {
+                    ctx.clip(to: CGRect(p0, p1))
+                } else {
+                    ctx.setLineWidth(max(10, width * 5))
+                    ctx.addPath(Self.smoothPath(points))
+                    ctx.replacePathWithStrokedPath()
+                    ctx.clip()
+                }
+                ctx.interpolationQuality = .none
+                ctx.drawFlipped(img, in: screenRect)
+            }
         case .text:
             let s = NSAttributedString(string: text, attributes: Self.textAttributes(color: color, size: fontSize))
             NSGraphicsContext.saveGraphicsState()
@@ -105,7 +126,7 @@ struct Annotation {
             s.draw(at: p0)
             NSGraphicsContext.restoreGraphicsState()
         case .number:
-            let r = 10 + width * 1.5
+            let r = 8 + width * 1.6
             ctx.fillEllipse(in: CGRect(x: p0.x - r, y: p0.y - r, width: r * 2, height: r * 2))
             let light = Palette.hex[Palette.colors.firstIndex(of: color) ?? 0] == 0xFFFFFF
                 || Palette.hex[Palette.colors.firstIndex(of: color) ?? 0] == 0xFDD835
