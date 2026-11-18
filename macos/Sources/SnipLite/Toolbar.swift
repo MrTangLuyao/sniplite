@@ -2,8 +2,10 @@ import AppKit
 
 /// A square toolbar button showing an SF Symbol (or a color / size swatch).
 final class ToolButton: NSView {
-    enum Look { case symbol(String), color(NSColor), size(CGFloat) }
-    let look: Look
+    enum Look { case symbol(String), color(NSColor), size(CGFloat), glyph(String, CGFloat), number(CGFloat) }
+    var look: Look { didSet { needsDisplay = true } }
+    /// Shown faded: it still works, but does not apply as things are (colors for a mosaic).
+    var dimmed = false { didSet { needsDisplay = true } }
     var selected = false { didSet { needsDisplay = true } }
     var enabled = true { didSet { needsDisplay = true } }
     var onClick: (() -> Void)?
@@ -33,6 +35,7 @@ final class ToolButton: NSView {
     override func resetCursorRects() { addCursorRect(bounds, cursor: .arrow) }
 
     override func draw(_ dirtyRect: NSRect) {
+        if dimmed { NSGraphicsContext.current?.cgContext.setAlpha(0.35) }
         let r = bounds.insetBy(dx: 2, dy: 2)
         if selected || (hover && enabled) {
             (selected ? Palette.accent.withAlphaComponent(0.18) : NSColor.black.withAlphaComponent(0.07)).setFill()
@@ -58,6 +61,19 @@ final class ToolButton: NSView {
                 let o = NSBezierPath(roundedRect: r.insetBy(dx: 2, dy: 2), xRadius: 5, yRadius: 5)
                 o.lineWidth = 2; o.stroke()
             }
+        case .glyph(let g, let size):
+            let str = NSAttributedString(string: g, attributes: [
+                .font: NSFont.systemFont(ofSize: size, weight: .semibold),
+                .foregroundColor: selected ? Palette.accent : NSColor(white: 0.3, alpha: 1)])
+            let sz = str.size()
+            str.draw(at: NSPoint(x: bounds.midX - sz.width / 2, y: bounds.midY - sz.height / 2))
+        case .number(let d):
+            (selected ? Palette.accent : NSColor(white: 0.3, alpha: 1)).setFill()
+            NSBezierPath(ovalIn: NSRect(x: bounds.midX - d / 2, y: bounds.midY - d / 2, width: d, height: d)).fill()
+            let str = NSAttributedString(string: "1", attributes: [
+                .font: NSFont.systemFont(ofSize: d * 0.62, weight: .bold), .foregroundColor: NSColor.white])
+            let sz = str.size()
+            str.draw(at: NSPoint(x: bounds.midX - sz.width / 2, y: bounds.midY - sz.height / 2))
         case .size(let w):
             let d = min(w * 2 + 2, r.width - 6)
             (selected ? Palette.accent : NSColor(white: 0.3, alpha: 1)).setFill()
@@ -75,6 +91,8 @@ final class Toolbar: NSView {
     var onColor: ((Int) -> Void)?
     var onSize: ((Int) -> Void)?
     var onMosaicMode: ((MosaicMode) -> Void)?
+    /// The toolbar changed size (the second row's buttons depend on the tool and mosaic mode).
+    var onResize: (() -> Void)?
 
     private var toolButtons: [Tool: ToolButton] = [:]
     private var commandButtons: [Command: ToolButton] = [:]
@@ -181,8 +199,23 @@ final class Toolbar: NSView {
         var x: CGFloat = 4
         func put(_ v: NSView) { v.frame.origin = CGPoint(x: x, y: 2); v.isHidden = false; x += v.frame.width }
         func sep(_ i: Int) { paletteSeps[i].frame.origin = CGPoint(x: x + 4, y: 9); paletteSeps[i].isHidden = false; x += 9 }
-        sizeButtons.forEach(put)
-        sep(0)
+        // sizes: what they look like follows the tool; none for a mosaic box or a color box
+        let sizesApply = tool != .mosaic || mosaicMode == .brush
+        if sizesApply {
+            for (k, b) in sizeButtons.enumerated() {
+                let w = Palette.widths[k]
+                switch tool {
+                case .text: b.look = .glyph("A", Annotation.fontSize(for: w) * 0.6)
+                case .number: b.look = .number(min(22, (8 + w * 1.6) * 0.95))
+                default: b.look = .size(w)
+                }
+            }
+            sizeButtons.forEach(put)
+            sep(0)
+        } else {
+            sizeButtons.forEach { $0.isHidden = true }
+            paletteSeps[0].isHidden = true
+        }
         if tool == .mosaic {
             for m in [MosaicMode.rect, .brush, .fill] { put(modeButtons[m]!) }
             sep(1)
@@ -199,14 +232,25 @@ final class Toolbar: NSView {
     private func refreshPalette() {
         for (m, b) in modeButtons { b.selected = m == mosaicMode }
         let colorUsed = tool != .mosaic || mosaicMode == .fill
-        for (k, b) in colorButtons.enumerated() { b.selected = colorUsed && k == colorIndex }
+        for (k, b) in colorButtons.enumerated() {
+            b.selected = colorUsed && k == colorIndex
+            b.dimmed = !colorUsed          // a mosaic has no color; clicking one switches to a color box
+            b.toolTip = colorUsed ? nil : L.t("useFill")
+        }
     }
 
-    func setMosaicMode(_ m: MosaicMode) {
+    func setMosaicMode(_ m: MosaicMode, notify: Bool = true) {
         mosaicMode = m
         Prefs.shared.mosaicMode = m
-        refreshPalette()
-        onMosaicMode?(m)
+        layoutPalette()
+        fitSize()
+        if notify { onMosaicMode?(m) }
+        onResize?()
+    }
+
+    private func fitSize() {
+        setFrameSize(NSSize(width: max(mainRow.frame.width, paletteRow.frame.width),
+                            height: tool == nil ? mainRow.frame.height : paletteRow.frame.maxY))
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -220,8 +264,7 @@ final class Toolbar: NSView {
         for (k, b) in toolButtons { b.selected = k == t }
         paletteRow.isHidden = t == nil
         layoutPalette()
-        setFrameSize(NSSize(width: max(mainRow.frame.width, paletteRow.frame.width),
-                            height: t == nil ? mainRow.frame.height : paletteRow.frame.maxY))
+        fitSize()
         onTool?(t)
     }
 

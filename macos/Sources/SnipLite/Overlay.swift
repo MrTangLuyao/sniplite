@@ -100,7 +100,11 @@ final class OverlayWindow: NSPanel {
 /// The drawing surface of an overlay: dimming, selection, annotations, magnifier, toolbar.
 final class OverlayView: NSView, NSTextViewDelegate {
     enum Phase { case select, edit, idle }
-    enum Drag { case none, newSelection, move(CGPoint, CGRect), resize(Int, CGRect), draw }
+    enum Drag {
+        case none, newSelection, move(CGPoint, CGRect), resize(Int, CGRect), draw
+        case moveAnnotation(Int, CGPoint, Annotation)     // index, where the drag began, as it was
+        case dragHandle(Int, Int, Annotation)             // index, handle, as it was
+    }
 
     static let edgeL = 1, edgeT = 2, edgeR = 4, edgeB = 8
 
@@ -118,7 +122,15 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     private(set) var selection: CGRect = .zero
     private var annotations: [Annotation] = []
-    private var redoStack: [Annotation] = []
+    /// Undo and redo keep whole states, so moving, reshaping, recoloring and resizing undo too.
+    private var undoStack: [[Annotation]] = []
+    private var redoStack: [[Annotation]] = []
+    private var pendingUndo: [Annotation]?        // taken on mouse down, kept only if something changes
+    private var lastScrollEdit = Date.distantPast
+    /// The annotation being edited (drawn last, or clicked): it shows handles, the wheel sizes it,
+    /// a color recolors it, Delete removes it.
+    private var selected: Int? { didSet { if selected != oldValue { needsDisplay = true } } }
+    private var hoverAnnotation = false
     private var current: Annotation?
     private var tool: Tool?
     private var colorIndex = Prefs.shared.colorIndex
@@ -151,9 +163,10 @@ final class OverlayView: NSView, NSTextViewDelegate {
         toolbar.isHidden = true
         addSubview(toolbar)
         toolbar.onTool = { [weak self] t in self?.setTool(t) }
-        toolbar.onColor = { [weak self] i in self?.colorIndex = i; Prefs.shared.colorIndex = i; self?.restyleText() }
+        toolbar.onColor = { [weak self] i in self?.pickColor(i) }
         toolbar.onSize = { [weak self] i in self?.setWidth(Palette.widths[i], preview: false) }
-        toolbar.onMosaicMode = { [weak self] m in self?.mosaicMode = m }
+        toolbar.onMosaicMode = { [weak self] m in self?.pickMosaicMode(m) }
+        toolbar.onResize = { [weak self] in self?.placeToolbar() }
         toolbar.onCommand = { [weak self] c in self?.command(c) }
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -170,7 +183,52 @@ final class OverlayView: NSView, NSTextViewDelegate {
         return convert(w.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
     }
 
+    // MARK: highlight animation
+
+    /// The highlight as drawn: it glides to the next window or element instead of jumping.
+    private var holeShown: CGRect?
+    private var holeFrom = CGRect.zero, holeTo = CGRect.zero
+    private var holeStart: CFTimeInterval = 0
+    private var holeLink: CADisplayLink?
+    private static let holeDuration: CFTimeInterval = 0.14
+
+    private func animateHole(to r: CGRect?) {
+        guard let r else { holeShown = nil; stopHoleAnimation(); return }
+        guard let cur = holeShown else { holeShown = r; return }     // the first one appears at once
+        if r == (holeLink != nil ? holeTo : cur) { return }
+        holeFrom = cur
+        holeTo = r
+        holeStart = CACurrentMediaTime()
+        if holeLink == nil {
+            // frames only while it moves: about 8 of them, then the link stops
+            let link = displayLink(target: self, selector: #selector(stepHole(_:)))
+            link.add(to: .main, forMode: .common)
+            holeLink = link
+        }
+    }
+
+    @objc private func stepHole(_ link: CADisplayLink) {
+        let t = min(1, (CACurrentMediaTime() - holeStart) / Self.holeDuration)
+        let e = 1 - pow(1 - t, 3)                                   // ease out
+        func mix(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * e }
+        holeShown = CGRect(x: mix(holeFrom.minX, holeTo.minX), y: mix(holeFrom.minY, holeTo.minY),
+                           width: mix(holeFrom.width, holeTo.width), height: mix(holeFrom.height, holeTo.height))
+        needsDisplay = true
+        if t >= 1 { holeShown = holeTo; stopHoleAnimation() }
+    }
+
+    private func stopHoleAnimation() {
+        holeLink?.invalidate()
+        holeLink = nil
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow == nil { stopHoleAnimation() }   // the link holds the view: let it go with the window
+        super.viewWillMove(toWindow: newWindow)
+    }
+
     func goIdle() {
+        stopHoleAnimation(); holeShown = nil
         commitText()
         phase = .idle; chain = []; toolbar.isHidden = true
         needsDisplay = true
@@ -209,13 +267,13 @@ final class OverlayView: NSView, NSTextViewDelegate {
             elements = []
         }
         if !list.contains(screenBounds) { list.append(screenBounds) }
-        if list != chain { chain = list; chainIndex = 0 }
+        if list != chain { chain = list; chainIndex = 0; animateHole(to: hover) }
     }
 
     func mouseAt(_ p: CGPoint) {
         mouse = p
-        if phase == .select { computeChain(p) }
-        needsDisplay = true
+        if phase == .select { computeChain(p); needsDisplay = true }   // the highlight and the magnifier follow
+        else if Date() < sizeHUDUntil { needsDisplay = true }           // the size preview follows
     }
 
     // MARK: mouse
@@ -238,11 +296,13 @@ final class OverlayView: NSView, NSTextViewDelegate {
         case .idle: NSCursor.arrow.set()
         case .edit:
             if toolbar.frame.contains(p) && !toolbar.isHidden { NSCursor.arrow.set(); return }
-            let e = edges(at: p)
+            let e = annotationHandle(at: p) == nil ? edges(at: p) : 0
             if e != 0 {
                 if e == Self.edgeL || e == Self.edgeR { NSCursor.resizeLeftRight.set() }
                 else if e == Self.edgeT || e == Self.edgeB { NSCursor.resizeUpDown.set() }
                 else { NSCursor.crosshair.set() }
+            } else if annotationHandle(at: p) != nil || annotationIndex(at: p) != nil {
+                NSCursor.openHand.set()                    // an end, a corner or the annotation: drag to move
             } else if let t = tool {
                 (t == .text ? NSCursor.iBeam : NSCursor.crosshair).set()
             } else if selection.contains(p) {
@@ -262,6 +322,20 @@ final class OverlayView: NSView, NSTextViewDelegate {
             drag = .newSelection
         case .edit:
             if textView != nil { commitText(); if tool == .text { drag = .none; return } }
+            pendingUndo = annotations
+            if let (i, h) = annotationHandle(at: p) {
+                drag = .dragHandle(i, h, annotations[i])
+                NSCursor.closedHand.set()
+                return
+            }
+            if let i = annotationIndex(at: p) {
+                if event.clickCount == 2 && annotations[i].tool == .text { editText(i); return }
+                select(i)
+                drag = .moveAnnotation(i, p, annotations[i])
+                NSCursor.closedHand.set()
+                return
+            }
+            selected = nil
             let e = edges(at: p)
             if e != 0 {
                 drag = .resize(e, selection); toolbar.isHidden = true
@@ -320,6 +394,21 @@ final class OverlayView: NSView, NSTextViewDelegate {
                 a.points[1] = shift ? constrain(a.points[0], q, a.tool) : q
             }
             current = a
+        case .moveAnnotation(let i, let start, let orig):
+            guard i < annotations.count else { break }
+            keepUndo()
+            var a = orig
+            a.offset(p.x - start.x, p.y - start.y)
+            annotations[i] = a
+        case .dragHandle(let i, let h, let orig):
+            guard i < annotations.count else { break }
+            keepUndo()
+            var a = orig
+            let q = clamp(p, to: selection)
+            let others = orig.handlePoints
+            if shift, others.count == 2 { a.moveHandle(h, to: constrain(others[1 - h], q, a.tool)) }
+            else { a.moveHandle(h, to: q) }
+            annotations[i] = a
         case .none: break
         }
         needsDisplay = true
@@ -342,8 +431,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
                 if ok { push(a) }
             }
             current = nil
-        case .none: break
+        case .moveAnnotation, .dragHandle, .none: break
         }
+        pendingUndo = nil
         updateCursor(convert(event.locationInWindow, from: nil))
         needsDisplay = true
     }
@@ -353,8 +443,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
         case .edit:
             // back to choosing an area; what was drawn is dropped
             commitText()
-            annotations.removeAll(); redoStack.removeAll(); current = nil
+            annotations.removeAll(); undoStack.removeAll(); redoStack.removeAll(); current = nil; selected = nil
             phase = .select; toolbar.isHidden = true; toolbar.select(nil)
+            holeShown = nil; chain = []
             mouseAt(convert(event.locationInWindow, from: nil))
         default:
             session?.finish()
@@ -367,11 +458,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        if phase == .edit, tool != nil { scrollWidth(event); return }
+        if phase == .edit, selected != nil || tool != nil { scrollWidth(event); return }
         guard phase == .select, !chain.isEmpty else { return }
         let dy = event.scrollingDeltaY
         guard abs(dy) > 0.5 else { return }
         if dy > 0 { chainIndex = min(chainIndex + 1, chain.count - 1) } else { chainIndex = max(chainIndex - 1, 0) }
+        animateHole(to: hover)
         needsDisplay = true
     }
 
@@ -391,12 +483,24 @@ final class OverlayView: NSView, NSTextViewDelegate {
             steps = dy > 0 ? 1 : -1
         }
         guard steps != 0 else { return }
-        var w = width
+        // the selected annotation, else the tool's next drawing
+        let target: Annotation? = selected.map { annotations[$0] }
+        if let a = target, !a.hasWidth { return }
+        if target == nil, let t = tool, t == .mosaic && mosaicMode != .brush { return }
+        let t = target?.tool ?? tool ?? .rect
+        var w = target?.width ?? width
         for _ in 0..<abs(steps) {
             let step: CGFloat = w >= 10 ? 2 : 1          // finer when thin
             w += steps > 0 ? step : -step
         }
-        setWidth(min(max(w.rounded(), Palette.widthRange.lowerBound), Palette.widthRange.upperBound), preview: true)
+        w = min(max(w.rounded(), Palette.widthRange.lowerBound), Annotation.maxWidth(t))
+        if let i = selected {
+            // one undo step per gesture: a pause of half a second starts a new one
+            if Date().timeIntervalSince(lastScrollEdit) > 0.5 { saveUndo() }
+            lastScrollEdit = Date()
+            annotations[i].width = w
+        }
+        setWidth(w, preview: true)
     }
 
     private func setWidth(_ w: CGFloat, preview: Bool) {
@@ -413,19 +517,31 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     /// The width preview: what the tool will draw, at the mouse, with its size in pixels.
     private func drawSizeHUD(_ ctx: CGContext) {
-        guard phase == .edit, let t = tool, Date() < sizeHUDUntil else { return }
-        let c = Palette.colors[colorIndex]
+        guard phase == .edit, Date() < sizeHUDUntil,
+              let t = selected.map({ annotations[$0].tool }) ?? tool else { return }
+        let c = selected.map { annotations[$0].color } ?? Palette.colors[colorIndex]
         let d: CGFloat
         switch t {
         case .text: d = Annotation.fontSize(for: width)
         case .number: d = (8 + width * 1.6) * 2
         case .marker: d = width * 4
-        case .mosaic: d = mosaicMode == .brush ? max(10, width * 5) : Annotation.mosaicBlock(for: width) * 2
+        case .mosaic: d = Annotation.brushWidth(width)
         default: d = width
         }
         let r = CGRect(x: mouse.x - d / 2, y: mouse.y - d / 2, width: d, height: d)
+        if t == .text {
+            // text: a sample at its size and color
+            let sample = NSAttributedString(string: "Aa", attributes: Annotation.textAttributes(color: c, size: d))
+            let sz = sample.size()
+            let box = CGRect(x: mouse.x - sz.width / 2 - 6, y: mouse.y - sz.height / 2 - 2, width: sz.width + 12, height: sz.height + 4)
+            NSColor.white.withAlphaComponent(0.85).setFill()
+            NSBezierPath(roundedRect: box, xRadius: 6, yRadius: 6).fill()
+            sample.draw(at: CGPoint(x: box.minX + 6, y: box.minY + 2))
+            drawHUDLabel("\(Int(d.rounded())) pt", below: box)
+            return
+        }
         ctx.saveGState()
-        if t == .mosaic && mosaicMode != .fill {
+        if t == .mosaic {
             ctx.setStrokeColor(NSColor.white.cgColor); ctx.setLineWidth(1.5)
             ctx.setShadow(offset: .zero, blur: 2, color: NSColor.black.withAlphaComponent(0.6).cgColor)
             ctx.stroke(r)
@@ -435,7 +551,10 @@ final class OverlayView: NSView, NSTextViewDelegate {
             ctx.fillEllipse(in: r)
         }
         ctx.restoreGState()
-        let label = t == .text ? "\(Int(Annotation.fontSize(for: width).rounded())) pt" : "\(Int(width)) px"
+        drawHUDLabel("\(Int(width)) px", below: r)
+    }
+
+    private func drawHUDLabel(_ label: String, below r: CGRect) {
         let str = NSAttributedString(string: label, attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold), .foregroundColor: NSColor.white])
         let sz = str.size()
@@ -452,8 +571,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
         let cmd = f.contains(.command), shift = f.contains(.shift)
         let chars = e.charactersIgnoringModifiers?.lowercased() ?? ""
         switch Int(e.keyCode) {
-        case 0x35: // Esc
+        case 0x35: // Esc: let go of the selected annotation first, then cancel
+            if selected != nil { selected = nil; return }
             session?.finish(); return
+        case 0x33, 0x75: // Delete, Forward Delete: remove the selected annotation
+            if let i = selected { saveUndo(); annotations.remove(at: i); selected = nil; needsDisplay = true }
+            return
         case 0x24, 0x4C: // Return, Enter
             if phase == .select, let h = hover { selection = h; enterEdit(after: false) }
             if phase == .edit { command(.ok) }
@@ -519,6 +642,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
     // MARK: editing
 
     private func enterEdit(after act: Bool = true) {
+        stopHoleAnimation()
         phase = .edit
         session?.editing(on: self)
         toolbar.isHidden = false
@@ -531,20 +655,134 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     private func setTool(_ t: Tool?) {
         commitText()
+        if let i = selected, annotations[i].tool != t { selected = nil }
         tool = t
         placeToolbar()
         updateCursor(mouse)
     }
 
+    /// Adds a new annotation and selects it, so the wheel or a color can still change it.
     private func push(_ a: Annotation) {
+        saveUndo()
         annotations.append(a)
+        selected = annotations.count - 1
+    }
+
+    private func saveUndo() {
+        undoStack.append(annotations)
+        if undoStack.count > 200 { undoStack.removeFirst() }
+        redoStack.removeAll()
+        refreshUndo()
+    }
+
+    /// The state from mouse down becomes an undo step at the first real change of a drag.
+    private func keepUndo() {
+        guard let s = pendingUndo else { return }
+        pendingUndo = nil
+        undoStack.append(s)
         redoStack.removeAll()
         refreshUndo()
     }
 
     private func refreshUndo() {
-        toolbar.setEnabled(.undo, !annotations.isEmpty)
+        toolbar.setEnabled(.undo, !undoStack.isEmpty)
         toolbar.setEnabled(.redo, !redoStack.isEmpty)
+    }
+
+    // MARK: editing annotations
+
+    /// The topmost annotation under `p`.
+    private func annotationIndex(at p: CGPoint) -> Int? {
+        guard phase == .edit, drag.isIdle else { return nil }
+        return annotations.indices.reversed().first { annotations[$0].hit(p) }
+    }
+
+    /// An end or a corner of the selected annotation under `p`.
+    private func annotationHandle(at p: CGPoint) -> (Int, Int)? {
+        guard phase == .edit, let i = selected, i < annotations.count else { return nil }
+        guard let h = annotations[i].handlePoints.firstIndex(where: { hypot($0.x - p.x, $0.y - p.y) <= 7 }) else { return nil }
+        return (i, h)
+    }
+
+    /// Selects annotation `i` and shows its settings: its tool, color, size and mosaic mode.
+    private func select(_ i: Int) {
+        let a = annotations[i]
+        if toolbar.tool != a.tool { toolbar.select(a.tool) }
+        selected = i
+        width = a.width
+        toolbar.setWidth(a.width)
+        if a.tool == .mosaic {
+            mosaicMode = a.mosaicMode
+            toolbar.setMosaicMode(a.mosaicMode, notify: false)
+        }
+        if a.hasColor, let c = Palette.colors.firstIndex(of: a.color) {
+            colorIndex = c
+            toolbar.setColor(c)
+        }
+    }
+
+    private func pickColor(_ i: Int) {
+        colorIndex = i
+        Prefs.shared.colorIndex = i
+        restyleText()
+        guard let k = selected else { return }
+        var a = annotations[k]
+        if a.tool == .mosaic {
+            guard a.mosaicMode != .brush else { return }      // a mosaic stroke has no box to fill
+            a.mosaicMode = .fill
+        }
+        saveUndo()
+        a.color = Palette.colors[i]
+        annotations[k] = a
+    }
+
+    private func pickMosaicMode(_ m: MosaicMode) {
+        mosaicMode = m
+        // a selected mosaic box switches between mosaic and color; a brush stroke stays one
+        guard let k = selected, annotations[k].tool == .mosaic,
+              annotations[k].mosaicMode != .brush, m != .brush, annotations[k].mosaicMode != m else { return }
+        saveUndo()
+        annotations[k].mosaicMode = m
+        if m == .fill { annotations[k].color = Palette.colors[colorIndex] }
+    }
+
+    /// Double-click on a text: edit it again, where it is, with its color and size.
+    private func editText(_ i: Int) {
+        let a = annotations[i]
+        saveUndo()
+        annotations.remove(at: i)
+        selected = nil
+        if let c = Palette.colors.firstIndex(of: a.color) { colorIndex = c; toolbar.setColor(c) }
+        width = a.width
+        toolbar.setWidth(a.width)
+        beginText(at: a.points[0], origin: a.points[0], text: a.text)
+    }
+
+    /// Handles and outline of the selected annotation.
+    private func drawSelectionMarks(_ ctx: CGContext) {
+        guard let i = selected, i < annotations.count, current == nil else { return }
+        let a = annotations[i]
+        let hs = a.handlePoints
+        ctx.saveGState()
+        if hs.isEmpty || a.tool == .rect || a.tool == .ellipse {
+            ctx.setStrokeColor(Palette.accent.withAlphaComponent(0.9).cgColor)
+            ctx.setLineWidth(1)
+            ctx.setLineDash(phase: 0, lengths: [4, 3])
+            let pad: CGFloat = a.tool == .rect || a.tool == .ellipse ? a.width / 2 + 3 : 4
+            ctx.stroke(a.bounds.insetBy(dx: -pad, dy: -pad))
+            ctx.setLineDash(phase: 0, lengths: [])
+        }
+        for h in hs {
+            let r = CGRect(x: h.x - 5, y: h.y - 5, width: 10, height: 10)
+            ctx.setFillColor(NSColor.white.cgColor)
+            ctx.setShadow(offset: .zero, blur: 2, color: NSColor.black.withAlphaComponent(0.4).cgColor)
+            ctx.fillEllipse(in: r)
+            ctx.setShadow(offset: .zero, blur: 0, color: nil)
+            ctx.setStrokeColor(Palette.accent.cgColor)
+            ctx.setLineWidth(1.5)
+            ctx.strokeEllipse(in: r.insetBy(dx: 0.75, dy: 0.75))
+        }
+        ctx.restoreGState()
     }
 
     private func placeToolbar() {
@@ -604,8 +842,10 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     // MARK: text
 
-    private func beginText(at p: CGPoint) {
-        let tv = NSTextView(frame: NSRect(x: p.x, y: p.y - Annotation.fontSize(for: width) * 0.6, width: 20, height: 20))
+    private func beginText(at p: CGPoint, origin: CGPoint? = nil, text: String = "") {
+        let o = origin ?? CGPoint(x: p.x, y: p.y - Annotation.fontSize(for: width) * 0.6)
+        let tv = NSTextView(frame: NSRect(x: o.x, y: o.y, width: 20, height: 20))
+        tv.string = text
         tv.drawsBackground = false
         tv.isRichText = false
         TextInput.quiet(tv)
@@ -661,10 +901,10 @@ final class OverlayView: NSView, NSTextViewDelegate {
         switch c {
         case .undo:
             commitText()
-            if let a = annotations.popLast() { redoStack.append(a) }
+            if let prev = undoStack.popLast() { redoStack.append(annotations); annotations = prev; selected = nil }
             refreshUndo(); needsDisplay = true
         case .redo:
-            if let a = redoStack.popLast() { annotations.append(a) }
+            if let next = redoStack.popLast() { undoStack.append(annotations); annotations = next; selected = nil }
             refreshUndo(); needsDisplay = true
         case .close:
             session?.finish()
@@ -728,7 +968,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         let hole: CGRect?
         switch phase {
         case .select:
-            if case .newSelection = drag, dragged { hole = selection } else { hole = hover }
+            if case .newSelection = drag, dragged { hole = selection } else { hole = holeShown ?? hover }
         case .edit: hole = selection
         case .idle: hole = nil
         }
@@ -748,6 +988,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
             for a in annotations { a.draw(in: ctx, mosaic: mosaicImage, screenRect: bounds) }
             current?.draw(in: ctx, mosaic: mosaicImage, screenRect: bounds)
             ctx.restoreGState()
+            drawSelectionMarks(ctx)
             drawSizeHUD(ctx)
         }
 
@@ -845,4 +1086,8 @@ extension NSColor {
         return String(format: "#%02X%02X%02X", Int((c.redComponent * 255).rounded()),
                       Int((c.greenComponent * 255).rounded()), Int((c.blueComponent * 255).rounded()))
     }
+}
+
+private extension OverlayView.Drag {
+    var isIdle: Bool { if case .none = self { return true }; return false }
 }

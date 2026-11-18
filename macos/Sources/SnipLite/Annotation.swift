@@ -63,8 +63,19 @@ struct Annotation {
     var fontSize: CGFloat { Self.fontSize(for: width) }
     /// Width 2 / 4 / 8 -> about 14 / 20 / 30 pt, as the three sizes of the Windows version.
     static func fontSize(for width: CGFloat) -> CGFloat { 9 + width * 2.6 }
-    /// The side of a mosaic square, in points.
-    static func mosaicBlock(for width: CGFloat) -> CGFloat { 4 + width * 1.5 }
+    /// Mosaic squares are not set by hand: big enough that text under them cannot be read,
+    /// from the size of the box, or of the brush.
+    static func mosaicBlock(box r: CGRect) -> CGFloat { min(20, max(8, min(r.width, r.height) / 5)) }
+    static func mosaicBlock(brush width: CGFloat) -> CGFloat { min(20, max(8, brushWidth(width) / 2.5)) }
+    static func brushWidth(_ width: CGFloat) -> CGFloat { max(10, width * 5) }
+
+    /// The largest width per tool: lines up to 40, text up to about 72 pt, numbers up to a 40 pt radius.
+    static func maxWidth(_ t: Tool) -> CGFloat { t == .text ? 24 : (t == .number ? 20 : 40) }
+
+    /// Whether the wheel and the size buttons change it: not a mosaic box or a color box.
+    var hasWidth: Bool { tool != .mosaic || mosaicMode == .brush }
+    /// Whether a color applies: not to mosaic, only to a color box.
+    var hasColor: Bool { tool != .mosaic || mosaicMode == .fill }
 
     /// Drawn as a path of points (rather than from one corner to the other).
     var isStrokeLike: Bool { tool.isStroke || (tool == .mosaic && mosaicMode == .brush) }
@@ -107,11 +118,12 @@ struct Annotation {
             case .fill:
                 ctx.fill(CGRect(p0, p1))
             case .rect, .brush:
-                guard let img = mosaic(Self.mosaicBlock(for: width)) else { return }
+                let block = mosaicMode == .rect ? Self.mosaicBlock(box: CGRect(p0, p1)) : Self.mosaicBlock(brush: width)
+                guard let img = mosaic(block) else { return }
                 if mosaicMode == .rect {
                     ctx.clip(to: CGRect(p0, p1))
                 } else {
-                    ctx.setLineWidth(max(10, width * 5))
+                    ctx.setLineWidth(Self.brushWidth(width))
                     ctx.addPath(Self.smoothPath(points))
                     ctx.replacePathWithStrokedPath()
                     ctx.clip()
@@ -186,5 +198,96 @@ extension CGContext {
         scaleBy(x: 1, y: -1)
         draw(img, in: r)
         restoreGState()
+    }
+}
+
+// MARK: - editing after drawing
+
+extension Annotation {
+    private var isBox: Bool {
+        tool == .rect || tool == .ellipse || (tool == .mosaic && mosaicMode != .brush)
+    }
+
+    /// Points that can be dragged to reshape it: the two ends of a line or an arrow, the four
+    /// corners of a box. Other kinds are only moved.
+    var handlePoints: [CGPoint] {
+        guard points.count >= 2 else { return [] }
+        if tool == .line || tool == .arrow { return [points[0], points[1]] }
+        if isBox {
+            let r = CGRect(points[0], points[1])
+            return [CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.maxX, y: r.minY),
+                    CGPoint(x: r.maxX, y: r.maxY), CGPoint(x: r.minX, y: r.maxY)]
+        }
+        return []
+    }
+
+    /// Moves handle `i` to `p`: an end, or a corner (the opposite corner stays).
+    mutating func moveHandle(_ i: Int, to p: CGPoint) {
+        if tool == .line || tool == .arrow { points[i] = p; return }
+        let h = handlePoints
+        guard h.count == 4 else { return }
+        points = [h[(i + 2) % 4], p]
+    }
+
+    mutating func offset(_ dx: CGFloat, _ dy: CGFloat) {
+        points = points.map { CGPoint(x: $0.x + dx, y: $0.y + dy) }
+    }
+
+    /// The area it covers (for the selection mark and hit testing).
+    var bounds: CGRect {
+        guard let p0 = points.first else { return .null }
+        switch tool {
+        case .text:
+            let sz = NSAttributedString(string: text, attributes: Self.textAttributes(color: color, size: fontSize)).size()
+            return CGRect(origin: p0, size: sz)
+        case .number:
+            let r = 8 + width * 1.6
+            return CGRect(x: p0.x - r, y: p0.y - r, width: r * 2, height: r * 2)
+        default:
+            if isBox || tool == .line || tool == .arrow { return CGRect(p0, points.last ?? p0) }
+            var r = CGRect(origin: p0, size: .zero)
+            for q in points { r = r.union(CGRect(origin: q, size: .zero)) }
+            let w = tool == .marker ? width * 4 : (tool == .mosaic ? Self.brushWidth(width) : width)
+            return r.insetBy(dx: -w / 2, dy: -w / 2)
+        }
+    }
+
+    /// Whether a click at `p` is on it: near the outline of a shape or the path of a stroke,
+    /// inside a mosaic or color box, a text or a number.
+    func hit(_ p: CGPoint) -> Bool {
+        guard let p0 = points.first else { return false }
+        let p1 = points.last ?? p0
+        switch tool {
+        case .text, .number:
+            return bounds.insetBy(dx: -3, dy: -3).contains(p)
+        case .line, .arrow:
+            return Self.distance(p, p0, p1) <= max(6, width / 2 + 4)
+        case .rect:
+            let r = CGRect(p0, p1), t = max(6, width / 2 + 4)
+            let inner = r.insetBy(dx: t, dy: t)
+            return r.insetBy(dx: -t, dy: -t).contains(p) && (inner.isNull || inner.isEmpty || !inner.contains(p))
+        case .ellipse:
+            let r = CGRect(p0, p1), t = max(6, width / 2 + 4)
+            let rx = max(r.width / 2, 1), ry = max(r.height / 2, 1)
+            let d = hypot((p.x - r.midX) / rx, (p.y - r.midY) / ry)
+            return abs(d - 1) * min(rx, ry) <= t
+        case .mosaic where mosaicMode != .brush:
+            return CGRect(p0, p1).insetBy(dx: -4, dy: -4).contains(p)
+        default:   // pen, marker, mosaic brush
+            let w = tool == .marker ? width * 4 : (tool == .mosaic ? Self.brushWidth(width) : width)
+            let t = max(6, w / 2 + 3)
+            if points.count == 1 { return hypot(p.x - p0.x, p.y - p0.y) <= t }
+            for i in 1..<points.count where Self.distance(p, points[i - 1], points[i]) <= t { return true }
+            return false
+        }
+    }
+
+    /// From a point to a segment.
+    static func distance(_ p: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        let dx = b.x - a.x, dy = b.y - a.y
+        let len2 = dx * dx + dy * dy
+        guard len2 > 0 else { return hypot(p.x - a.x, p.y - a.y) }
+        let t = max(0, min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2))
+        return hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
     }
 }

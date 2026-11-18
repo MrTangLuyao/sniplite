@@ -18,7 +18,9 @@ The Windows version (`../src`) is unchanged; this folder is a separate program.
 
 - **Capture**: press F1; the window or the part of a window under the mouse (a button, a field, a list, a pane) is found for you, and the wheel steps out to bigger parts, the window and the screen. Drag to select any area; a magnifier shows the pixels and their color.
 - **Draw**: rectangle, ellipse, line, arrow, pen, marker, text and numbers, in eight colors; three preset sizes, and the wheel (two fingers up / down on a trackpad) sets any width. Undo and redo.
-- **Hide**: mosaic over a dragged box (the default), a mosaic brush, or a box of solid color (pick a color).
+- **Hide**: mosaic over a dragged box (the default), a mosaic brush, or a box of solid color (pick a color); the mosaic squares are sized so text under them cannot be read.
+- **Edit afterwards**: click anything drawn to select it: drag it to move it, drag the ends of a line or arrow and the corners of a box, scroll to change its width or size, click a color to recolor it, Delete removes it, double-click a text to edit it. All of it undoes with ⌘Z.
+- **Smooth**: the highlight glides from one window or element to the next.
 - **Copy, save, pin**: Enter copies, ⌘S saves (PNG or JPEG), ⌘T pins the capture above other windows. Pins move, zoom with the wheel, change opacity with ⌥ + wheel, copy, save and read their text.
 - **Text recognition** (optional, off by default): read the text of a capture; tables keep their columns (tab-separated, or Markdown). It runs on this Mac with Apple's Vision, in a short-lived helper process, so its models do not stay in memory.
 - **Light**: about 15–25 MB of memory while idle.
@@ -61,7 +63,8 @@ The same as on Windows, with ⌘ in place of Ctrl. They can be changed in Settin
 | **⌘T** / middle click | Pin the capture |
 | **⌘O** / **⇧⌘C** | Read / copy the text of the selection |
 | **⌘Z** / **⇧⌘Z** | Undo / redo |
-| **Esc** | Cancel the capture |
+| **Esc** | Let go of the selected drawing; again: cancel the capture |
+| **Delete** | Remove the selected drawing |
 | **Right click** | Back to choosing an area; once more to cancel |
 | **Arrow keys**, **W A S D** | Move the cursor or the selection by one pixel; with Shift, by ten |
 | **C** (while choosing) | Copy the color under the cursor |
