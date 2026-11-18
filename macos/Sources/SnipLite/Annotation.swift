@@ -272,6 +272,41 @@ extension Annotation {
          CGPoint(x: r.maxX, y: r.maxY), CGPoint(x: r.minX, y: r.maxY)]
     }
 
+    /// A freehand stroke: corners just outside its box; dragging one scales the stroke.
+    var strokeHandles: [CGPoint] { isStrokeLike ? Self.corners(bounds.insetBy(dx: -Self.textPad, dy: -Self.textPad)) : [] }
+
+    /// Scales a freehand stroke by dragging corner `i` to `p` (the opposite corner stays); the
+    /// line keeps its width.
+    mutating func scaleStroke(corner i: Int, to p: CGPoint, from orig: Annotation) {
+        // scale the line's own box: the handles stand outside it by a margin that does not scale
+        var line = CGRect(origin: orig.points.first ?? .zero, size: .zero)
+        for q in orig.points { line = line.union(CGRect(origin: q, size: .zero)) }
+        let tight = Self.corners(line)
+        let pad = orig.strokeHandles.first.map { line.minX - $0.x } ?? 0
+        let right = i == 1 || i == 2, down = i == 2 || i == 3
+        let target = CGPoint(x: p.x - (right ? pad : -pad), y: p.y - (down ? pad : -pad))
+        let fixed = tight[(i + 2) % 4], moved = tight[i]
+        let sx = abs(moved.x - fixed.x) > 1 ? (target.x - fixed.x) / (moved.x - fixed.x) : 1
+        let sy = abs(moved.y - fixed.y) > 1 ? (target.y - fixed.y) / (moved.y - fixed.y) : 1
+        let kx = max(0.05, sx), ky = max(0.05, sy)                 // not turned inside out
+        points = orig.points.map { CGPoint(x: fixed.x + ($0.x - fixed.x) * kx, y: fixed.y + ($0.y - fixed.y) * ky) }
+    }
+
+    /// A number: corners just outside its circle; dragging one scales it.
+    var numberHandles: [CGPoint] { tool == .number ? Self.corners(bounds.insetBy(dx: -Self.textPad, dy: -Self.textPad)) : [] }
+
+    /// Scales a number by dragging corner `i` to `p`; the opposite corner stays where it is.
+    mutating func scaleNumber(corner i: Int, to p: CGPoint, from orig: Annotation) {
+        let hs = orig.numberHandles
+        guard hs.count == 4 else { return }
+        let fixed = hs[(i + 2) % 4]
+        let side = max(abs(p.x - fixed.x), abs(p.y - fixed.y)) - Self.textPad * 2
+        width = min(max((side / 2 - 6) / 1.2, Palette.widthRange.lowerBound), Self.maxWidth(.number))
+        let r = Self.numberRadius(width) + Self.textPad
+        let right = i == 1 || i == 2, down = i == 2 || i == 3
+        points = [CGPoint(x: fixed.x + (right ? r : -r), y: fixed.y + (down ? r : -r))]
+    }
+
     /// Scales a text by dragging corner `i` to `p`; the opposite corner stays where it is.
     mutating func scaleText(corner i: Int, to p: CGPoint, from orig: Annotation) {
         let hs = orig.textHandles

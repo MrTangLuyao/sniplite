@@ -516,7 +516,13 @@ final class OverlayView: NSView, NSTextViewDelegate {
             var a = orig
             let q = clamp(p, to: selection)
             let others = orig.handlePoints
-            if orig.tool == .text {
+            if orig.tool == .number {
+                a.scaleNumber(corner: h, to: q, from: orig)  // a corner of a number scales it
+                width = a.width
+                toolbar.setWidth(a.width)
+            } else if orig.isStrokeLike {
+                a.scaleStroke(corner: h, to: q, from: orig)  // a corner of a freehand stroke scales it
+            } else if orig.tool == .text {
                 a.scaleText(corner: h, to: q, from: orig)   // a corner of a text scales it
                 width = a.width
                 toolbar.setWidth(a.width)
@@ -897,9 +903,10 @@ final class OverlayView: NSView, NSTextViewDelegate {
     /// picked (to adjust them); others are drawn over, so an arrow can start on a box.
     private func annotationIndex(at p: CGPoint) -> Int? {
         guard phase == .edit, drag.isIdle else { return nil }
-        // with no tool in hand, a selected freehand stroke moves from anywhere in its box (its
-        // line alone is hard to catch); with the pen in hand the next stroke may start there
-        if tool == nil, let i = selected, i < annotations.count, annotations[i].isStrokeLike,
+        // a selected drawing moves from anywhere in its dashed box (a thin line or a border alone
+        // is hard to catch), a tool in hand or not; something new starts outside the box.
+        // Lines and arrows excepted: the box of a slanted line is mostly empty space.
+        if let i = selected, i < annotations.count, annotations[i].tool != .line, annotations[i].tool != .arrow,
            annotations[i].bounds.insetBy(dx: -Annotation.textPad, dy: -Annotation.textPad).contains(p) {
             return i
         }
@@ -914,7 +921,13 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     /// What can be dragged on a selected annotation: the ends or corners of a shape, the corners of a text.
-    private func grabPoints(_ a: Annotation) -> [CGPoint] { a.tool == .text ? a.textHandles : a.handlePoints }
+    private func grabPoints(_ a: Annotation) -> [CGPoint] {
+        switch a.tool {
+        case .text: return a.textHandles
+        case .number: return a.numberHandles
+        default: return a.isStrokeLike ? a.strokeHandles : a.handlePoints
+        }
+    }
 
     /// Selects annotation `i` and shows its settings: its tool, color, size and mosaic mode.
     private func select(_ i: Int) {
@@ -1027,7 +1040,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         let hs = grabPoints(a)
         ctx.saveGState()
         ctx.setAlpha(marksFaded ? 0.35 : 1)
-        if hs.isEmpty || a.tool == .rect || a.tool == .ellipse || a.tool == .text {
+        if hs.isEmpty || a.tool == .rect || a.tool == .ellipse || a.tool == .text || a.tool == .number || a.isStrokeLike {
             ctx.setStrokeColor(Palette.accent.withAlphaComponent(0.9).cgColor)
             ctx.setLineWidth(1)
             ctx.setLineDash(phase: 0, lengths: [4, 3])

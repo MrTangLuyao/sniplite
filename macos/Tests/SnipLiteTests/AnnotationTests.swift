@@ -129,3 +129,33 @@ struct OpacityTests {
         #expect(Palette.index(of: NSColor(srgbRed: 0.5, green: 0.5, blue: 0.5, alpha: 1)) == nil)
     }
 }
+
+/// Freehand strokes scale from a corner.
+struct StrokeTests {
+    @Test func scaleFromCorner() {
+        let orig = Annotation(tool: .pen, color: Palette.colors[0], width: 2,
+                              points: [CGPoint(x: 100, y: 100), CGPoint(x: 150, y: 120), CGPoint(x: 200, y: 160)])
+        let hs = orig.strokeHandles
+        #expect(hs.count == 4)
+        var a = orig
+        // the bottom right corner moved by the stroke's own size (100 x 60): the stroke doubles,
+        // the top left corner stays
+        let target = CGPoint(x: hs[2].x + 100, y: hs[2].y + 60)
+        a.scaleStroke(corner: 2, to: target, from: orig)
+        #expect(abs(a.strokeHandles[0].x - hs[0].x) < 1.5 && abs(a.strokeHandles[0].y - hs[0].y) < 1.5)
+        #expect(abs((a.points[2].x - a.points[0].x) - 200) < 0.5)
+        #expect(a.width == orig.width)
+    }
+}
+
+/// Numbers scale from a corner.
+struct NumberTests {
+    @Test func scaleFromCorner() {
+        let orig = Annotation(tool: .number, color: Palette.colors[0], width: 3, points: [CGPoint(x: 100, y: 100)], number: 1)
+        let hs = orig.numberHandles
+        var a = orig
+        a.scaleNumber(corner: 2, to: CGPoint(x: hs[2].x + 20, y: hs[2].y + 20), from: orig)
+        #expect(a.width > orig.width)
+        #expect(abs(a.numberHandles[0].x - hs[0].x) < 0.5 && abs(a.numberHandles[0].y - hs[0].y) < 0.5)
+    }
+}
