@@ -29,7 +29,7 @@
 - **Pins**: pin a screenshot on top of every other window, so it stays in view while you work
 - **Complete**: screenshots, pins, arrows, text, mosaic, spotlight, magnifier: it is all there
 - **Text recognition**: read the text in a capture, tables included; an optional module that runs entirely on your computer
-- **Long screenshots**: scroll a page and it is stitched together as you go
+- **Long screenshots**: the page is scrolled for you and stitched together as it goes
 - **Clean**: no ads, open source, no logs, no data collected
 - **Multilingual**: 8 languages, following Windows unless you pick one
 
@@ -58,7 +58,7 @@ There are two portable versions too, with nothing to install: `sniplite_<version
 | **Middle click** | Pin the capture to the screen |
 | **Ctrl+O** | Recognize the text of the selection |
 | **Ctrl+Shift+C** | Copy the text of the selection |
-| **Ctrl+L** | Long screenshot: scroll, and it is stitched |
+| **Ctrl+L** | Long screenshot: scrolls automatically, click the status text to pause |
 | **Esc** | Cancel the capture |
 | **Arrow keys**, **W A S D** | Move the cursor or the selection by one pixel; with Shift, by ten |
 | **Wheel** | Capturing: pick a bigger or smaller window; on a pin: zoom |
@@ -93,7 +93,7 @@ Select an area and click the text button (Ctrl+O): the text appears in a panel b
 
 **How do I take a long screenshot?**
 
-Select the area, click the long screenshot button (Ctrl+L) and scroll the page yourself. sniplite stitches what scrolls by, and a strip beside the area shows the result so far. Enter copies it and Esc cancels; you can also save it, pin it or read its text.
+Select the area and press Ctrl+L: sniplite scrolls the page for you and stitches it as it goes. Click the status text on the bar to pause or resume, or scroll the page yourself. A strip beside the area shows the result so far. Enter copies it and Esc cancels; you can also save it, pin it or read its text.
 
 **Where are my captures saved?**
 
