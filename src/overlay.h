@@ -13,13 +13,17 @@ typedef struct {
 
 bool ov_init(HINSTANCE inst, HWND daemon);
 bool ov_begin(void);      /* start an interactive capture; false if busy or failed */
+bool ov_begin_pick(void); /* the color picker: the same overlay, no selection */
+bool ov_begin_ruler(void); /* the screen ruler: the same overlay, no selection */
 bool ov_active(void);
 void ov_pin_hotkey(void); /* pin hotkey pressed while capturing */
+void ruler_copy(void);    /* the ruler's readout as text, without leaving it */
 void ov_cancel(void);
 bool ov_last_timing(OvTiming *t); /* false before the first capture */
 /* main.c: the user leaves (Esc, a close button). A capture that holds something may ask first. */
 void ov_leave(void);        /* the capture itself: asks when a selection is made */
 bool leave_ok(HWND owner);  /* the question alone, above owner; true: leave */
+void color_hex_set(int on); /* main.c: keep the picker's HEX / RGB choice */
 /* main.c: a capture was copied or pinned and is off the screen. While the settings say "also save",
  * its picture goes into a file too. */
 void also_save(const uint32_t *px, int w, int h);

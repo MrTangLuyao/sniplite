@@ -115,6 +115,7 @@
         .balign 4
 .Lf_half:       .long 0x3F000000                /* 0.5f */
 .Lf_1_5:        .long 0x3FC00000                /* 1.5f */
+.Lf_8:          .long 0x41000000                /* 8.0f */
 .Lf_rad:        .long 0x400CCCCD, 0x40666666, 0x40ACCCCD        /* 2.2f, 3.6f, 5.4f */
         .balign 2
 /* L"" */
@@ -1240,6 +1241,148 @@ FUNC place_label
         ret
 ENDF
 
+/* void place_ruler_label(Visual *v): "w × h  l px  a°" beside the ruler's B end */
+FUNC place_ruler_label
+        PUSHREG rbx
+        PUSHREG rsi
+        PUSHREG rdi
+        PUSHREG r12
+        ALLOC 56                                /* [rsp + 32]: monitor */
+        ENDPROLOG
+        mov rbx, rcx
+        cmp byte ptr Ov(OV_RULER_ON), 0
+        je .Lprl_clear
+        lea rcx, [rbx + VIS_LABEL_TEXT]
+        mov edx, 40
+        lea r8, Ov(OV_RULER_AX)
+        call ruler_label
+        mov edi, eax                            /* length */
+        test eax, eax
+        jle .Lprl_clear
+        mov rcx, qword ptr Ov(OV_FONT_UI)
+        lea rdx, [rbx + VIS_LABEL_TEXT]
+        mov r8d, edi
+        call text_size
+        mov esi, eax                            /* width */
+        mov r12d, dword ptr [rip + .Ls22]       /* height */
+        lea rcx, [rsp + 32]
+        mov edx, dword ptr Ov(OV_RULER_BX)
+        mov r8d, dword ptr Ov(OV_RULER_BY)
+        call mon_rect_at
+        mov eax, dword ptr Ov(OV_RULER_BX)      /* x = B.x + S(12) */
+        add eax, dword ptr [rip + .Ls12]
+        lea ecx, [rax + rsi]
+        cmp ecx, dword ptr [rsp + 32 + RC_R]
+        jle 1f
+        mov eax, dword ptr Ov(OV_RULER_BX)      /* no room right: left of B */
+        sub eax, dword ptr [rip + .Ls12]
+        sub eax, esi
+1:      mov r8d, dword ptr [rsp + 32 + RC_L]
+        mov r9d, dword ptr [rsp + 32 + RC_R]
+        sub r9d, esi
+        cmp r9d, r8d
+        jge 2f
+        mov r9d, r8d
+2:      cmp eax, r8d
+        cmovl eax, r8d
+        cmp eax, r9d
+        cmovg eax, r9d
+        mov edx, dword ptr Ov(OV_RULER_BY)      /* y = B.y - h - S(12) */
+        sub edx, r12d
+        sub edx, dword ptr [rip + .Ls12]
+        cmp edx, dword ptr [rsp + 32 + RC_T]
+        jge 3f
+        mov edx, dword ptr Ov(OV_RULER_BY)      /* no room above: below B */
+        add edx, dword ptr [rip + .Ls12]
+3:      mov r8d, dword ptr [rsp + 32 + RC_T]
+        mov r9d, dword ptr [rsp + 32 + RC_B]
+        sub r9d, r12d
+        cmp r9d, r8d
+        jge 4f
+        mov r9d, r8d
+4:      cmp edx, r8d
+        cmovl edx, r8d
+        cmp edx, r9d
+        cmovg edx, r9d
+        mov dword ptr [rbx + VIS_LABEL + RC_L], eax
+        mov dword ptr [rbx + VIS_LABEL + RC_T], edx
+        add eax, esi
+        mov dword ptr [rbx + VIS_LABEL + RC_R], eax
+        add edx, r12d
+        mov dword ptr [rbx + VIS_LABEL + RC_B], edx
+        jmp .Lprl_ret
+.Lprl_clear:
+        xorps xmm0, xmm0
+        movups xmmword ptr [rbx + VIS_LABEL], xmm0
+        mov word ptr [rbx + VIS_LABEL_TEXT], 0
+.Lprl_ret:
+        add rsp, 56
+        pop r12
+        pop rdi
+        pop rsi
+        pop rbx
+        ret
+ENDF
+
+/* void ruler_bounds(Visual *v): where the ruler line and its guides change */
+FUNC ruler_bounds
+        ENDPROLOG
+        mov r11, rcx
+        cmp byte ptr Ov(OV_RULER_ON), 0
+        je .Lrb_zero
+        movss xmm0, dword ptr Ov(OV_S)
+        mulss xmm0, dword ptr [rip + .Lf_8]
+        cvttss2si r10d, xmm0
+        test r10d, r10d
+        jg 1f
+        mov r10d, 8
+1:      mov eax, dword ptr Ov(OV_RULER_AX)
+        mov edx, dword ptr Ov(OV_RULER_BX)
+        mov r8d, eax
+        cmp r8d, edx
+        cmovg r8d, edx                          /* left */
+        mov r9d, eax
+        cmp r9d, edx
+        cmovl r9d, edx                          /* right */
+        sub r8d, r10d
+        add r9d, r10d
+        inc r9d
+        mov eax, dword ptr Ov(OV_RULER_AY)
+        mov edx, dword ptr Ov(OV_RULER_BY)
+        mov ecx, eax
+        cmp ecx, edx
+        cmovg ecx, edx                          /* top */
+        cmp eax, edx
+        cmovl eax, edx                          /* bottom */
+        sub ecx, r10d
+        add eax, r10d
+        inc eax
+        xor r10d, r10d
+        cmp r8d, r10d
+        cmovl r8d, r10d
+        cmp ecx, r10d
+        cmovl ecx, r10d
+        mov edx, dword ptr Ov(OV_SHOT + SHOT_VW)
+        cmp r9d, edx
+        cmovg r9d, edx
+        mov edx, dword ptr Ov(OV_SHOT + SHOT_VH)
+        cmp eax, edx
+        cmovg eax, edx
+        cmp r9d, r8d
+        jle .Lrb_zero
+        cmp eax, ecx
+        jle .Lrb_zero
+        mov dword ptr [r11 + VIS_ACT + RC_L], r8d
+        mov dword ptr [r11 + VIS_ACT + RC_T], ecx
+        mov dword ptr [r11 + VIS_ACT + RC_R], r9d
+        mov dword ptr [r11 + VIS_ACT + RC_B], eax
+        ret
+.Lrb_zero:
+        xorps xmm0, xmm0
+        movups xmmword ptr [r11 + VIS_ACT], xmm0
+        ret
+ENDF
+
 /* int mag_cell(void): MAXI(3, S(5)) */
 FUNC mag_cell
         ENDPROLOG
@@ -1605,6 +1748,10 @@ FUNC compute_visual
         mov dword ptr [rsp + CV_CL + RC_B], eax
         cmp dword ptr Ov(OV_PHASE), PH_SELECT
         jne .Lcv_edit
+        cmp byte ptr Ov(OV_RULER), 0
+        jne .Lcv_ruler
+        cmp byte ptr Ov(OV_PICKER), 0
+        jne .Lcv_picker
         cmp byte ptr Ov(OV_RUBBER), 0
         je 2f
         mov eax, dword ptr Ov(OV_DOWN + PT_X)   /* rect_corners(O.down, O.cur) */
@@ -1639,6 +1786,24 @@ FUNC compute_visual
         je .Lcv_ret
         mov rcx, rbx
         call place_magnifier
+        jmp .Lcv_ret
+.Lcv_picker:                            /* the whole screen stays bright: the color is the subject */
+        RCOPY([rbx+VIS_BRIGHT], [rsp+CV_CL])
+        cmp byte ptr Ov(OV_PIXELS), 0
+        je .Lcv_ret
+        mov rcx, rbx
+        call place_magnifier
+        jmp .Lcv_ret
+.Lcv_ruler:                             /* the whole screen stays bright: the line is the subject */
+        RCOPY([rbx+VIS_BRIGHT], [rsp+CV_CL])
+        cmp byte ptr Ov(OV_PIXELS), 0
+        je .Lcv_ret
+        mov rcx, rbx
+        call place_ruler_label
+        mov rcx, rbx
+        call place_magnifier
+        mov rcx, rbx
+        call ruler_bounds
         jmp .Lcv_ret
 .Lcv_edit:
         RCOPY([rbx+VIS_BRIGHT], Ov(OV_SEL))
@@ -3581,6 +3746,8 @@ FUNC draw_frame
         ENDPROLOG
         mov rbx, rcx
         mov rsi, rdx
+        cmp byte ptr Ov(OV_PICKER), 0  /* the picker has no selection frame */
+        jne .Ldf_ret
         JEMPTY(rsi + VIS_BRIGHT, .Ldf_ret)
         ST_ENSURE
         mov edi, dword ptr [rip + .Lborder]
@@ -4871,7 +5038,20 @@ SFUNC paint_rect
         jne 2f
         lea rcx, [rsp + PB_S]
         call draw_pick
-2:      test r14d, D_LABEL
+2:      cmp byte ptr Ov(OV_RULER_ON), 0
+        je .Lpb_noruler
+        cmp byte ptr Ov(OV_RULER), 0
+        je .Lpb_noruler
+        cmp byte ptr Ov(OV_DC), 0              /* the ruler is always the GDI surface */
+        jne .Lpb_noruler
+        cmp dword ptr Ov(OV_PHASE), PH_SELECT
+        jne .Lpb_noruler
+        lea rcx, [rsp + PB_S]
+        lea rdx, Ov(OV_RULER_AX)
+        movss xmm2, dword ptr Ov(OV_S)
+        call ruler_draw
+.Lpb_noruler:
+        test r14d, D_LABEL
         jz 3f
         lea rcx, [rsp + PB_S]
         lea rdx, [rsp + PB_B]

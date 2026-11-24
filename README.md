@@ -28,8 +28,9 @@
 - **Light**: about 320 KB, nothing else to install; the capture and drawing core is written in assembly
 - **Pins**: pin a screenshot on top of every other window, so it stays in view while you work
 - **Complete**: screenshots, pins, arrows, text, mosaic, spotlight, magnifier: it is all there
+- **Measure**: a screen ruler measures the distance, size and angle between two points; Shift snaps to 0°/45°/90°, Alt measures from the centre, Enter copies the readout; the edge ruler keeps ticks along the top and left edges, with a thin crosshair that follows the mouse, a coordinate box when it stops, and a pixel loupe
 - **Text recognition**: read the text in a capture, tables included; an optional module that runs entirely on your computer
-- **Long screenshots**: scroll a page and it is stitched together as you go
+- **Long screenshots**: the page is scrolled for you and stitched together as it goes
 - **Clean**: no ads, open source, no logs, no data collected
 - **Multilingual**: 8 languages, following Windows unless you pick one
 
@@ -48,6 +49,9 @@ There are two portable versions too, with nothing to install: `sniplite_<version
 | --- | --- |
 | **F1** | Capture |
 | **Shift+F1** | Quick capture: the screen under the mouse straight into a file (the folder is set in Settings) |
+| **F2** | Color picker: click to copy the color and keep picking; Shift switches HEX / RGB; Esc or right click closes |
+| **R** (in the picker or the ruler) | Switch between the color picker and the screen ruler |
+| **C** (while capturing) | Copy the color under the cursor |
 | **F3** | Pin the copied image or text to the screen |
 | **Shift+F3** | Hide / show all pins |
 | **F4** | Capture and read the text (with the text recognition module) |
@@ -58,7 +62,7 @@ There are two portable versions too, with nothing to install: `sniplite_<version
 | **Middle click** | Pin the capture to the screen |
 | **Ctrl+O** | Recognize the text of the selection |
 | **Ctrl+Shift+C** | Copy the text of the selection |
-| **Ctrl+L** | Long screenshot: scroll, and it is stitched |
+| **Ctrl+L** | Long screenshot: scrolls automatically, click the status text to pause |
 | **Esc** | Cancel the capture |
 | **Arrow keys**, **W A S D** | Move the cursor or the selection by one pixel; with Shift, by ten |
 | **Wheel** | Capturing: pick a bigger or smaller window; on a pin: zoom |
@@ -93,7 +97,15 @@ Select an area and click the text button (Ctrl+O): the text appears in a panel b
 
 **How do I take a long screenshot?**
 
-Select the area, click the long screenshot button (Ctrl+L) and scroll the page yourself. sniplite stitches what scrolls by, and a strip beside the area shows the result so far. Enter copies it and Esc cancels; you can also save it, pin it or read its text.
+Select the area and press Ctrl+L: sniplite scrolls the page for you and stitches it as it goes. Click the status text on the bar to pause or resume, or scroll the page yourself. A strip beside the area shows the result so far. Enter copies it and Esc cancels; you can also save it, pin it or read its text.
+
+**How do I pick a color?**
+
+Press F2 (or run `sniplite pick`): the color picker opens over the screen with the magnifier. Click to copy the color and keep picking; Shift switches between `#RRGGBB` and `R, G, B`; Esc or a right click closes it. While capturing normally, C copies the color under the cursor too.
+
+**How do I measure something on screen?**
+
+Click the sniplite icon in the tray and choose **Screen ruler**, or run `sniplite ruler`. Drag from one point to the other: the readout shows width × height, the distance in pixels and the angle. Hold Shift to snap to 0°, 45° or 90°; hold Alt to measure outward from where you pressed, both ways. The arrow keys nudge the end by one pixel (ten with Shift). Enter or C copies the readout, R switches to the color picker, and Esc closes it. For a ruler that stays on screen, run `sniplite ruler --edge` (or choose **Edge ruler** in the tray menu): ticks run along the top and left of the monitor under the mouse, follow its DPI, take no focus or clicks, and stay out of screenshots. A thin crosshair follows the mouse and hides when it leaves that monitor; when the mouse stops, a small box shows its coordinates and a pixel loupe with a grid and the center pixel marked appears below it. Switch the crosshair on or off on its own from the tray menu. Set the crosshair and box color with `cross_color=RRGGBB` under `[sniplite]` in `sniplite.ini` (default `00D6F5`), then restart sniplite. Run `sniplite ruler --edge --hide`, or choose **Hide the edge ruler**, to close it.
 
 **Where are my captures saved?**
 

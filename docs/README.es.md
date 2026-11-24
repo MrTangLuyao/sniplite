@@ -28,6 +28,7 @@
 - **Ligero**: unos 320 KB, sin nada más que instalar; el núcleo de captura y dibujo está escrito en ensamblador
 - **Fijar**: fija una captura por encima de todas las ventanas para tenerla a la vista mientras trabajas
 - **Completo**: capturas, imágenes fijadas, flechas, texto, mosaico, foco, lupa: no falta nada
+- **Medir**: una regla de pantalla mide la distancia, el tamaño y el ángulo entre dos puntos; Mayús ajusta a 0°/45°/90°, Alt mide desde el centro e Intro copia la lectura; la regla de borde mantiene marcas en el borde superior e izquierdo, con una cruz fina que sigue el ratón, un cuadro de coordenadas y una lupa de píxeles al detenerse
 - **Reconocimiento de texto**: lee el texto de una captura, tablas incluidas; un módulo opcional que funciona por completo en tu equipo
 - **Capturas con desplazamiento**: desplaza la página y se va uniendo sola
 - **Limpio**: sin anuncios, de código abierto, sin archivos de registro, sin recopilar datos
@@ -48,6 +49,9 @@ También hay dos versiones portables, sin instalación: `sniplite_<versión>_por
 | --- | --- |
 | **F1** | Capturar |
 | **Shift+F1** | Captura rápida: la pantalla donde está el ratón, directamente a un archivo (la carpeta se elige en los ajustes) |
+| **F2** | Selector de color: haz clic para copiar el color y seguir eligiendo; Mayús alterna HEX / RGB; Esc o clic derecho cierra |
+| **R** (en el cuentagotas o la regla) | Cambiar entre el cuentagotas y la regla de pantalla |
+| **C** (durante una captura) | Copiar el color bajo el cursor |
 | **F3** | Fijar en pantalla la imagen o el texto copiado |
 | **Shift+F3** | Ocultar / mostrar todas las imágenes fijadas |
 | **F4** | Capturar y leer el texto (con el módulo de reconocimiento de texto) |
@@ -90,6 +94,10 @@ Las partes que deben ser rápidas (captura, composición, dibujo y la pantalla d
 **¿Cómo saco el texto de una captura?**
 
 Selecciona una zona y pulsa el botón de texto (Ctrl+O): el texto aparece en un panel junto a la selección, donde puedes seleccionarlo, editarlo y copiarlo. Una tabla conserva sus columnas y se pega en una hoja de cálculo celda por celda, o como Markdown si lo prefieres. Ctrl+Shift+C copia el texto directamente. Hace falta el módulo de reconocimiento de texto (12 MB; los modelos PaddleOCR PP-OCRv6 con ONNX Runtime, todo en tu equipo): instálalo en la pestaña OCR de los ajustes, márcalo en el instalador o usa la versión portable con OCR. Mientras no esté instalado, los botones de texto no se muestran. F4 y Shift+F4 inician una captura que lee o copia el texto al momento.
+
+**¿Cómo cojo un color?**
+
+Pulsa F2 (o ejecuta `sniplite pick`) y aparece un selector de color con lupa sobre la pantalla. Haz clic para copiar el color y seguir eligiendo; Mayús alterna entre `#RRGGBB` y `R, G, B`; Esc o el clic derecho lo cierran. Durante una captura normal, C también copia el color bajo el cursor.
 
 **¿Cómo hago una captura larga?**
 

@@ -117,7 +117,7 @@
 #define HK_CAPTURE 1
 #define HK_PIN 3
 #define HK_TOGGLE 4
-#define HK_COUNT 7
+#define HK_COUNT 8
 
 /* ---- shared structures ------------------------------------------------------------ */
 

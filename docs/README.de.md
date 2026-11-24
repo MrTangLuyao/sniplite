@@ -28,6 +28,7 @@
 - **Schlank**: etwa 320 KB, nichts weiter zu installieren; der Kern für Aufnahme und Zeichnen ist in Assembler geschrieben
 - **Pins**: einen Screenshot über allen Fenstern anheften, damit er beim Arbeiten im Blick bleibt
 - **Komplett**: Screenshots, Pins, Pfeile, Text, Verpixeln, Spotlight, Lupe, alles dabei
+- **Messen**: Ein Bildschirmlinieal misst Abstand, Größe und Winkel zwischen zwei Punkten; Umschalt rastet auf 0°/45°/90° ein, Alt misst von der Mitte aus, Enter kopiert den Messwert; das Randlineal zeigt dauerhaft Skalen am oberen und linken Bildschirmrand, ein dünnes Fadenkreuz folgt der Maus und zeigt beim Anhalten die Koordinaten samt Pixel-Lupe
 - **Texterkennung**: liest den Text einer Aufnahme, auch Tabellen; ein optionales Modul, das vollständig auf dem eigenen Computer läuft
 - **Scrollaufnahmen**: Seite scrollen, sie wird laufend zusammengesetzt
 - **Sauber**: keine Werbung, Open Source, keine Protokolle, keine Datensammlung
@@ -48,6 +49,9 @@ Dazu gibt es zwei portable Versionen ohne Installation: `sniplite_<Version>_port
 | --- | --- |
 | **F1** | Aufnehmen |
 | **Shift+F1** | Schnellaufnahme: der Bildschirm unter der Maus direkt in eine Datei (Ordner in den Einstellungen) |
+| **F2** | Farbpipette: Klicken kopiert die Farbe und Sie können weiter aufnehmen; Umschalt wechselt HEX / RGB; Esc oder Rechtsklick schließt |
+| **R** (in der Pipette oder dem Lineal) | Zwischen Farbpipette und Bildschirmlinieal wechseln |
+| **C** (beim Aufnehmen) | Die Farbe unter dem Cursor kopieren |
 | **F3** | Kopiertes Bild oder kopierten Text anheften |
 | **Shift+F3** | Alle Pins aus- / einblenden |
 | **F4** | Aufnehmen und Text erkennen (mit dem Texterkennungsmodul) |
@@ -90,6 +94,10 @@ Die Teile, die schnell sein müssen (Aufnahme, Komposition, Zeichnen und Aufnahm
 **Wie bekomme ich den Text aus einem Screenshot?**
 
 Einen Bereich auswählen und auf die Text-Schaltfläche klicken (Ctrl+O): Der Text erscheint in einem Feld neben der Auswahl und lässt sich markieren, bearbeiten und kopieren. Eine Tabelle behält ihre Spalten und landet in einer Tabellenkalkulation Zelle für Zelle, auf Wunsch auch als Markdown. Ctrl+Shift+C kopiert den Text sofort. Dafür braucht es das Texterkennungsmodul (12 MB; PaddleOCR-Modelle PP-OCRv6 mit ONNX Runtime, vollständig auf dem eigenen Computer): auf der Seite OCR der Einstellungen installieren, im Installer ankreuzen oder die portable Version mit OCR nehmen. Solange es fehlt, werden die Text-Schaltflächen nicht angezeigt. F4 und Shift+F4 starten eine Aufnahme, die den Text sofort erkennt oder kopiert.
+
+**Wie nehme ich eine Farbe auf?**
+
+Mit F2 (oder `sniplite pick`) erscheint eine Farbpipette mit Lupe auf dem Bildschirm. Klicken kopiert die Farbe und Sie können weiter aufnehmen; Umschalt wechselt zwischen `#RRGGBB` und `R, G, B`; Esc oder ein Rechtsklick schließt sie. Bei einer normalen Aufnahme kopiert C ebenfalls die Farbe unter dem Cursor.
 
 **Wie mache ich eine Scrollaufnahme?**
 

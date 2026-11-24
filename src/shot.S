@@ -1791,6 +1791,156 @@ FUNC shot_free
         ret
 ENDF
 
+/* The picker's tile: 33 x 33 pixels around the cursor, enough for the magnifier's
+ * 25 x 19 samples with room to spare. */
+#define PICK_W 33
+#define PICK_H 33
+
+/* bool shot_pick_init(Shot *sh): the picker's small capture. The shot keeps the
+ * virtual-screen geometry (coordinates, the magnifier and the window stay in client
+ * coordinates) but only one small tile, filled by shot_pick_grab. */
+FUNC shot_pick_init
+        PUSHREG rbx
+        PUSHREG rdi
+        ALLOC 40
+        ENDPROLOG
+        mov rbx, rcx
+        mov rdi, rbx
+        xor eax, eax
+        mov ecx, SHOT_BYTES
+        rep stosb
+        mov ecx, K_SM_XVIRTUALSCREEN
+        API GetSystemMetrics
+        mov dword ptr [rbx + SHOT_VX], eax
+        mov ecx, K_SM_YVIRTUALSCREEN
+        API GetSystemMetrics
+        mov dword ptr [rbx + SHOT_VY], eax
+        mov ecx, K_SM_CXVIRTUALSCREEN
+        API GetSystemMetrics
+        mov dword ptr [rbx + SHOT_VW], eax
+        mov ecx, K_SM_CYVIRTUALSCREEN
+        API GetSystemMetrics
+        mov dword ptr [rbx + SHOT_VH], eax
+        cmp eax, PICK_H
+        jl .Lspi_false
+        cmp dword ptr [rbx + SHOT_VW], PICK_W
+        jl .Lspi_false
+        mov dword ptr [rbx + SHOT_NTILE], 1
+        mov byte ptr [rbx + SHOT_GAPS], 1       /* only the tile has pixels */
+        lea rcx, [rbx + SHOT_TILE + TILE_GDI]
+        mov edx, PICK_W
+        mov r8d, PICK_H
+        call img_create
+        test al, al
+        jz .Lspi_false
+        mov rax, qword ptr [rbx + SHOT_TILE + TILE_GDI + IMG_PX]
+        mov qword ptr [rbx + SHOT_TILE + TILE_BITS], rax
+        mov dword ptr [rbx + SHOT_TILE + TILE_PITCH], PICK_W * 4
+        mov dword ptr [rbx + SHOT_TILE + TILE_SCALE], 0x3F800000
+        mov eax, 1
+        jmp .Lspi_ret
+.Lspi_false:
+        xor eax, eax
+.Lspi_ret:
+        add rsp, 40
+        pop rdi
+        pop rbx
+        ret
+ENDF
+
+/* bool shot_pick_grab(Shot *sh, int x, int y): BitBlt the tile around (x, y), in
+ * client coordinates. The overlay is WDA_EXCLUDEFROMCAPTURE, so the magnifier
+ * itself is never in the pixels. */
+FUNC shot_pick_grab
+        PUSHREG rbx
+        PUSHREG rsi
+        PUSHREG rdi
+        ALLOC 128
+        ENDPROLOG
+        mov rbx, rcx
+        cmp dword ptr [rbx + SHOT_NTILE], 1
+        jl .Lspg_false
+        cmp qword ptr [rbx + SHOT_TILE + TILE_BITS], 0
+        je .Lspg_false
+        mov r10d, dword ptr [rbx + SHOT_VW]
+        sub r10d, PICK_W
+        js .Lspg_false
+        mov r11d, dword ptr [rbx + SHOT_VH]
+        sub r11d, PICK_H
+        js .Lspg_false
+        /* x0 = CLAMP(x - PICK_W / 2, 0, vw - PICK_W), y0 likewise */
+        mov eax, edx
+        sub eax, PICK_W / 2
+        xor ecx, ecx
+        cmp eax, ecx
+        cmovl eax, ecx
+        cmp eax, r10d
+        cmovg eax, r10d
+        mov dword ptr [rbx + SHOT_TILE + TILE_RC + RC_L], eax
+        add eax, PICK_W
+        mov dword ptr [rbx + SHOT_TILE + TILE_RC + RC_R], eax
+        mov eax, r8d
+        sub eax, PICK_H / 2
+        xor ecx, ecx
+        cmp eax, ecx
+        cmovl eax, ecx
+        cmp eax, r11d
+        cmovg eax, r11d
+        mov dword ptr [rbx + SHOT_TILE + TILE_RC + RC_T], eax
+        add eax, PICK_H
+        mov dword ptr [rbx + SHOT_TILE + TILE_RC + RC_B], eax
+        /* the monitor under the cursor: its scale, for the magnifier's metrics */
+        xor ecx, ecx
+        mov eax, edx
+        add eax, dword ptr [rbx + SHOT_VX]
+        mov ecx, eax
+        mov eax, r8d
+        add eax, dword ptr [rbx + SHOT_VY]
+        mov edx, eax
+        shl rdx, 32
+        or rcx, rdx
+        call dpi_scale_at
+        movss dword ptr [rbx + SHOT_TILE + TILE_SCALE], xmm0
+        xor ecx, ecx
+        API GetDC
+        mov rdi, rax
+        test rax, rax
+        jz .Lspg_false
+        mov rcx, qword ptr [rbx + SHOT_TILE + TILE_GDI + IMG_DC]
+        xor edx, edx
+        xor r8d, r8d
+        mov r9d, PICK_W
+        mov qword ptr [rsp + 32], PICK_H
+        mov qword ptr [rsp + 40], rdi
+        mov eax, dword ptr [rbx + SHOT_TILE + TILE_RC + RC_L]
+        add eax, dword ptr [rbx + SHOT_VX]
+        cdqe
+        mov qword ptr [rsp + 48], rax
+        mov eax, dword ptr [rbx + SHOT_TILE + TILE_RC + RC_T]
+        add eax, dword ptr [rbx + SHOT_VY]
+        cdqe
+        mov qword ptr [rsp + 56], rax
+        mov qword ptr [rsp + 64], K_SRCCOPY
+        API BitBlt
+        mov esi, eax
+        API GdiFlush
+        xor ecx, ecx
+        mov rdx, rdi
+        API ReleaseDC
+        test esi, esi
+        jz .Lspg_false
+        mov eax, 1
+        jmp .Lspg_ret
+.Lspg_false:
+        xor eax, eax
+.Lspg_ret:
+        add rsp, 128
+        pop rdi
+        pop rsi
+        pop rbx
+        ret
+ENDF
+
 /* ---- reading the pixels ---------------------------------------------------------------- */
 
 /* uint32_t shot_pixel(const Shot *sh, int x, int y): 0 outside monitors */

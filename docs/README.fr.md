@@ -28,6 +28,7 @@
 - **Léger** : environ 320 Ko, rien d'autre à installer ; le cœur de la capture et du dessin est écrit en assembleur
 - **Épingles** : épinglez une capture au-dessus de toutes les fenêtres pour la garder sous les yeux pendant que vous travaillez
 - **Complet** : captures, épingles, flèches, texte, mosaïque, projecteur, loupe : tout y est
+- **Mesurer** : une règle d'écran mesure la distance, la taille et l'angle entre deux points ; Maj accroche à 0°/45°/90°, Alt mesure depuis le centre et Entrée copie le relevé ; la règle de bord garde des graduations en haut et à gauche de l'écran, avec un fin réticule qui suit la souris, un cadre de coordonnées et une loupe de pixels à l'arrêt
 - **Reconnaissance de texte** : lit le texte d'une capture, tableaux compris ; un module facultatif qui fonctionne entièrement sur votre ordinateur
 - **Captures défilantes** : faites défiler une page, elle est assemblée au fur et à mesure
 - **Propre** : sans publicité, open source, sans journaux, sans collecte de données
@@ -48,6 +49,9 @@ Il existe aussi deux versions portables, sans installation : `sniplite_<version>
 | --- | --- |
 | **F1** | Capturer |
 | **Shift+F1** | Capture rapide : l'écran où se trouve la souris, directement dans un fichier (dossier à choisir dans les préférences) |
+| **F2** | Pipette : cliquez pour copier la couleur et continuer ; Maj bascule HEX / RVB ; Échap ou clic droit ferme |
+| **R** (dans la pipette ou la règle) | Passer de la pipette à la règle d'écran, et inversement |
+| **C** (pendant une capture) | Copier la couleur sous le curseur |
 | **F3** | Épingler à l'écran l'image ou le texte copié |
 | **Shift+F3** | Masquer / afficher toutes les épingles |
 | **F4** | Capturer et lire le texte (avec le module de reconnaissance de texte) |
@@ -90,6 +94,10 @@ Les parties qui doivent aller vite (capture, composition, dessin et écran de ca
 **Comment récupérer le texte d'une capture ?**
 
 Sélectionnez une zone et cliquez sur le bouton de texte (Ctrl+O) : le texte apparaît dans un panneau à côté de la sélection, où vous pouvez le sélectionner, le modifier et le copier. Un tableau garde ses colonnes et se colle dans un tableur cellule par cellule, ou en Markdown si vous préférez. Ctrl+Shift+C copie le texte directement. Il faut le module de reconnaissance de texte (12 Mo ; les modèles PaddleOCR PP-OCRv6 avec ONNX Runtime, entièrement sur votre ordinateur) : installez-le depuis l'onglet OCR des préférences, cochez-le dans l'installeur, ou prenez la version portable avec OCR. Tant qu'il n'est pas installé, les boutons de texte ne sont pas affichés. F4 et Shift+F4 lancent une capture qui lit ou copie le texte aussitôt.
+
+**Comment prélever une couleur ?**
+
+Appuyez sur F2 (ou lancez `sniplite pick`) : une pipette avec loupe apparaît sur l'écran. Cliquez pour copier la couleur et continuer ; Maj bascule entre `#RRGGBB` et `R, G, B` ; Échap ou un clic droit ferme la pipette. Pendant une capture normale, C copie aussi la couleur sous le curseur.
 
 **Comment faire une capture défilante ?**
 

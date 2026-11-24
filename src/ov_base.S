@@ -371,6 +371,19 @@ FUNC mon_rect_at
         ALLOC 32
         ENDPROLOG
         mov rbx, rcx
+        cmp byte ptr o(OV_PICK_SMALL), 0
+        je .Lmr_tile
+        mov eax, dword ptr o(OV_PICK_MON + RC_R)
+        cmp eax, dword ptr o(OV_PICK_MON + RC_L)
+        jle .Lmr_tile
+        lea rdx, o(OV_PICK_MON)          /* the picker's tile is not a monitor */
+        movdqu xmm0, xmmword ptr [rdx]
+        movdqu xmmword ptr [rbx], xmm0
+        mov rax, rbx
+        add rsp, 32
+        pop rbx
+        ret
+.Lmr_tile:
         lea rcx, o(OV_SHOT)
         call shot_tile_at
         cdqe

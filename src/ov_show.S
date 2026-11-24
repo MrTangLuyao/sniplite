@@ -481,7 +481,10 @@ FUNC show_overlay
          * million pixels uploaded). Shown again from hidden (ebx 1): the layer holds
          * the old picture, so the full repaint stays. */
         test ebx, ebx
-        jnz 1f
+        jz .Lso_validate
+        cmp byte ptr OV(OV_PICK_SMALL), 0
+        je 1f
+.Lso_validate:
         mov rcx, qword ptr OV(OV_HWND)
         xor edx, edx
         API ValidateRect
@@ -555,6 +558,21 @@ FUNC ov_cancel
         ENDPROLOG
         cmp byte ptr OV(OV_ACTIVE), 0
         je .Lca_ret
+        mov rcx, qword ptr OV(OV_HWND_GDI)
+        xor edx, edx
+        API SetWindowDisplayAffinity  /* WDA_NONE: a normal capture may show the overlay */
+        mov rcx, qword ptr OV(OV_HWND_DC)
+        test rcx, rcx
+        jz .Lca_wda
+        xor edx, edx
+        API SetWindowDisplayAffinity
+.Lca_wda:
+        mov byte ptr OV(OV_PICKER), 0
+        mov byte ptr OV(OV_RULER), 0
+        mov byte ptr OV(OV_RULER_ON), 0
+        mov dword ptr OV(OV_RULER_DRAG), 0
+        mov byte ptr OV(OV_PICK_SKIP), 0
+        mov byte ptr OV(OV_PICK_SMALL), 0
         SNAP_END
         cmp byte ptr [rip + ocr_panel_on], 0
         je .Lca_nopanel
@@ -673,16 +691,18 @@ FUNC frame_cb
         ret
 ENDF
 
-/* bool ov_begin(void): start an interactive capture; false if busy or failed.
+/* bool ov_begin_ex(int mode): start an interactive capture; false if busy or failed.
  * The overlay is shown during the capture without appearing in it: with
  * composition transparent (nothing committed yet), and its appearance is what
  * makes DWM present the frame; with GDI cloaked (cloaked windows are not
- * composed). The window enumeration runs on a thread meanwhile. */
+ * composed). The window enumeration runs on a thread meanwhile. mode 1 is the
+ * picker, mode 2 the screen ruler; both stay open without a selection or editing.
+ * The ruler always uses GDI: its line and guides need the whole picture. */
 #define BG_CLOAK 56
 #define BG_SHOW 64                      /* ShotShow */
 #define BG_T0 96
 #define BG_PT 104
-FUNC ov_begin
+FUNC ov_begin_ex
         PUSHREG rbx
         PUSHREG rsi
         PUSHREG rdi
@@ -695,6 +715,18 @@ FUNC ov_begin
         xor eax, eax
         cmp byte ptr OV(OV_ACTIVE), 0
         jne .Lbg_ret
+        mov byte ptr OV(OV_RULER), 0
+        mov byte ptr OV(OV_PICKER), 0
+        cmp ecx, 1
+        jb .Lbg_flags
+        cmp ecx, 2
+        je .Lbg_ruler_mode
+        mov byte ptr OV(OV_PICKER), 1
+        jmp .Lbg_flags
+.Lbg_ruler_mode:
+        mov byte ptr OV(OV_RULER), 1
+.Lbg_flags:
+        mov byte ptr OV(OV_PICK_SKIP), 0
         call now_ms
         movsd qword ptr [rsp + BG_T0], xmm0
         mov ecx, W_SM_XVIRTUALSCREEN
@@ -712,6 +744,8 @@ FUNC ov_begin
         /* composition when a GPU is there: the frame goes straight to the screen and
          * is read back only after the overlay is visible; otherwise GDI painting */
         xor edi, edi                    /* O.dc */
+        cmp byte ptr OV(OV_RULER), 0    /* the ruler needs the whole picture in one surface */
+        jne .Lbg_mode
         mov rcx, qword ptr OV(OV_HWND_DC)
         test rcx, rcx
         jz .Lbg_mode
@@ -720,7 +754,13 @@ FUNC ov_begin
         jz .Lbg_mode
         mov ecx, r14d
         mov edx, r15d
+        cmp byte ptr OV(OV_PICKER), 0
+        je .Lbg_pr
+        call pr_pick_begin
+        jmp .Lbg_pred
+.Lbg_pr:
         call pr_begin
+.Lbg_pred:
         movzx edi, al
 .Lbg_mode:
         mov byte ptr OV(OV_DC), dil
@@ -729,10 +769,44 @@ FUNC ov_begin
         cmovnz rax, qword ptr OV(OV_HWND_DC)
         mov qword ptr OV(OV_HWND), rax
         mov byte ptr OV(OV_PIXELS), 0
+        mov byte ptr OV(OV_PICK_SMALL), 0
+        mov qword ptr OV(OV_PICK_MON), 0
+        mov qword ptr OV(OV_PICK_MON + 8), 0
         xorps xmm0, xmm0
         movups xmmword ptr OV(OV_TILE_GPU), xmm0
         mov qword ptr OV(OV_WIN), 0
         mov dword ptr OV(OV_NWIN), 0
+        /* the picker does not grab the whole screen: one small BitBlt tile follows
+         * the cursor. Its overlay is hidden from capture, so the tile is the desktop. */
+        cmp byte ptr OV(OV_PICKER), 0
+        je .Lbg_full
+        test edi, edi
+        jz .Lbg_full
+        mov rcx, qword ptr OV(OV_HWND)
+        mov edx, 0x11                   /* WDA_EXCLUDEFROMCAPTURE */
+        API SetWindowDisplayAffinity
+        test eax, eax
+        jz .Lbg_pickfail
+        lea rcx, OV(OV_SHOT)
+        call shot_pick_init
+        test al, al
+        jnz .Lbg_picksmall
+        /* the small-tile path could not start: restore the normal UI layers before
+         * falling back to the full-screen grab, or the overlay stays invisible */
+.Lbg_pickfail:
+        mov ecx, r14d
+        mov edx, r15d
+        call pr_begin
+        test al, al
+        jz .Lbg_fail
+        movzx edi, al
+        jmp .Lbg_full
+.Lbg_picksmall:
+        mov byte ptr OV(OV_PICK_SMALL), 1
+        mov esi, 1
+        xor ebx, ebx
+        jmp .Lbg_check
+.Lbg_full:
         xor ecx, ecx
         xor edx, edx
         lea r8, [rip + collect_windows]
@@ -821,6 +895,14 @@ FUNC ov_begin
         lea rcx, OV(OV_SHOT)
         call shot_free
 .Lbg_fail:
+        mov byte ptr OV(OV_PICKER), 0
+        mov byte ptr OV(OV_RULER), 0
+        mov byte ptr OV(OV_RULER_ON), 0
+        mov dword ptr OV(OV_RULER_DRAG), 0
+        mov byte ptr OV(OV_PICK_SMALL), 0
+        mov rcx, qword ptr OV(OV_HWND)
+        xor edx, edx
+        API SetWindowDisplayAffinity
         mov rcx, qword ptr OV(OV_WIN)
         call mem_free
         mov qword ptr OV(OV_WIN), 0
@@ -865,23 +947,62 @@ FUNC ov_begin
         mov eax, dword ptr [rsp + BG_PT + PT_Y]
         sub eax, dword ptr OV(OV_SHOT + SHOT_VY)
         mov dword ptr OV(OV_CUR + PT_Y), eax
+        cmp byte ptr OV(OV_RULER), 0
+        je .Lbg_scale
+        mov eax, dword ptr OV(OV_CUR + PT_X)
+        mov dword ptr OV(OV_RULER_AX), eax
+        mov dword ptr OV(OV_RULER_BX), eax
+        mov dword ptr OV(OV_RULER_CX), eax
+        mov dword ptr OV(OV_RULER_PX), eax
+        mov eax, dword ptr OV(OV_CUR + PT_Y)
+        mov dword ptr OV(OV_RULER_AY), eax
+        mov dword ptr OV(OV_RULER_BY), eax
+        mov dword ptr OV(OV_RULER_CY), eax
+        mov dword ptr OV(OV_RULER_PY), eax
+        mov dword ptr OV(OV_RULER_DRAG), 0
+        mov byte ptr OV(OV_RULER_ON), 0
+.Lbg_scale:
+        cmp byte ptr OV(OV_PICK_SMALL), 0
+        je .Lbg_scale2
+        call pick_track
+        mov byte ptr OV(OV_PIXELS), 1
+.Lbg_scale2:
         call update_scale
+        cmp byte ptr OV(OV_PICKER), 0
+        jne 4f
+        cmp byte ptr OV(OV_RULER), 0
+        jne 4f
         call update_chain
+4:
         call show_overlay
         movsd xmm0, qword ptr OV(OV_T_VISIBLE)
         subsd xmm0, qword ptr [rsp + BG_T0]
         movsd qword ptr OV(OV_T + OVT_TOTAL), xmm0
         cmp byte ptr OV(OV_DETECT), DETECT_ELEMENTS
-        jne 4f
+        jne 5f
+        cmp byte ptr OV(OV_PICKER), 0
+        jne 5f
+        cmp byte ptr OV(OV_RULER), 0
+        jne 5f
         call snap_begin                 /* its thread starts now, not on the way to visible */
-4:
+5:
         cmp byte ptr OV(OV_PIXELS), 0
         jne .Lbg_true
         /* visible already; now wait for the pixels (magnifier, output) */
         lea rcx, OV(OV_SHOT)
         call shot_map
         mov byte ptr OV(OV_PIXELS), 1
-        INV_VIS VIS_LABEL               /* its translucent background can show the screenshot now */
+        cmp byte ptr OV(OV_RULER), 0
+        je 8f
+        INV_VIS VIS_MAG
+        INV_VIS VIS_LABEL
+        jmp 7f
+8:      cmp byte ptr OV(OV_PICKER), 0
+        je 6f
+        INV_VIS VIS_MAG                 /* the magnifier can show the screenshot now */
+        jmp 7f
+6:      INV_VIS VIS_LABEL               /* its translucent background can show the screenshot now */
+7:
         call refresh
 .Lbg_true:
         mov eax, 1
@@ -895,6 +1016,27 @@ FUNC ov_begin
         pop rsi
         pop rbx
         ret
+ENDF
+
+/* bool ov_begin(void): a capture for a selection. */
+FUNC ov_begin
+        ENDPROLOG
+        xor ecx, ecx
+        jmp ov_begin_ex
+ENDF
+
+/* bool ov_begin_pick(void): the color picker. */
+FUNC ov_begin_pick
+        ENDPROLOG
+        mov ecx, 1
+        jmp ov_begin_ex
+ENDF
+
+/* bool ov_begin_ruler(void): the screen ruler. */
+FUNC ov_begin_ruler
+        ENDPROLOG
+        mov ecx, 2
+        jmp ov_begin_ex
 ENDF
 
 /* void ov_gpu_changed(void): the GPU state changed; build the composition for the
@@ -1161,9 +1303,84 @@ FUNC ov_pin_hotkey
         ENDPROLOG
         cmp byte ptr OV(OV_ACTIVE), 0
         je .Lph_ret
+        cmp byte ptr OV(OV_RULER), 0    /* the ruler has no picture to pin: take the readout */
+        jne ruler_copy
+        cmp byte ptr OV(OV_PICKER), 0  /* the picker has nothing to pin: take the color */
+        jne copy_color
         mov ecx, ACT_PIN
         jmp finish
 .Lph_ret:
+        ret
+ENDF
+
+/* bool pick_track(void): the small picker's tile follows the cursor. False with the
+ * full-screen GDI capture, which already has every pixel. */
+FUNC pick_track
+        PUSHREG rbx
+        ALLOC 80                        /* [rsp + 32]: MONITORINFO */
+        ENDPROLOG
+        cmp byte ptr OV(OV_PICK_SMALL), 0
+        je .Lpt_none
+        /* the cached monitor rect, unless the cursor left it */
+        mov eax, dword ptr OV(OV_CUR + PT_X)
+        mov ecx, dword ptr OV(OV_CUR + PT_Y)
+        cmp eax, dword ptr OV(OV_PICK_MON + RC_L)
+        jl .Lpt_query
+        cmp eax, dword ptr OV(OV_PICK_MON + RC_R)
+        jge .Lpt_query
+        cmp ecx, dword ptr OV(OV_PICK_MON + RC_T)
+        jl .Lpt_query
+        cmp ecx, dword ptr OV(OV_PICK_MON + RC_B)
+        jge .Lpt_query
+        jmp .Lpt_grab
+.Lpt_query:
+        /* MonitorFromPoint((cur.x + vx, cur.y + vy), MONITOR_DEFAULTTONEAREST) */
+        xor ecx, ecx
+        mov eax, dword ptr OV(OV_CUR + PT_X)
+        add eax, dword ptr OV(OV_SHOT + SHOT_VX)
+        mov ecx, eax
+        mov eax, dword ptr OV(OV_CUR + PT_Y)
+        add eax, dword ptr OV(OV_SHOT + SHOT_VY)
+        mov edx, eax
+        shl rdx, 32
+        or rcx, rdx
+        mov edx, 2                      /* MONITOR_DEFAULTTONEAREST */
+        API MonitorFromPoint
+        mov rbx, rax
+        mov qword ptr [rsp + 32], 0
+        mov qword ptr [rsp + 40], 0
+        mov qword ptr [rsp + 48], 0
+        mov qword ptr [rsp + 56], 0
+        mov qword ptr [rsp + 64], 0
+        mov dword ptr [rsp + 32], 40    /* sizeof MONITORINFO */
+        mov rcx, rbx
+        lea rdx, [rsp + 32]
+        API GetMonitorInfoW
+        test eax, eax
+        jz .Lpt_grab
+        mov eax, dword ptr [rsp + 36]   /* rcMonitor.left */
+        sub eax, dword ptr OV(OV_SHOT + SHOT_VX)
+        mov dword ptr OV(OV_PICK_MON + RC_L), eax
+        mov eax, dword ptr [rsp + 40]
+        sub eax, dword ptr OV(OV_SHOT + SHOT_VY)
+        mov dword ptr OV(OV_PICK_MON + RC_T), eax
+        mov eax, dword ptr [rsp + 44]
+        sub eax, dword ptr OV(OV_SHOT + SHOT_VX)
+        mov dword ptr OV(OV_PICK_MON + RC_R), eax
+        mov eax, dword ptr [rsp + 48]
+        sub eax, dword ptr OV(OV_SHOT + SHOT_VY)
+        mov dword ptr OV(OV_PICK_MON + RC_B), eax
+.Lpt_grab:
+        lea rcx, OV(OV_SHOT)
+        mov edx, dword ptr OV(OV_CUR + PT_X)
+        mov r8d, dword ptr OV(OV_CUR + PT_Y)
+        call shot_pick_grab
+        jmp .Lpt_ret
+.Lpt_none:
+        xor eax, eax
+.Lpt_ret:
+        add rsp, 80
+        pop rbx
         ret
 ENDF
 
@@ -1172,6 +1389,7 @@ ENDF
 FUNC copy_color
         ALLOC 120
         ENDPROLOG
+        call pick_track
         lea rcx, OV(OV_SHOT)
         mov edx, dword ptr OV(OV_CUR + PT_X)
         mov r8d, dword ptr OV(OV_CUR + PT_Y)
@@ -1195,6 +1413,8 @@ FUNC copy_color
         movzx r9d, r9b                  /* g */
         API wsprintfW
 .Lcc_put:
+        cmp byte ptr OV(OV_PICKER), 0
+        jne .Lcc_pick
         mov rcx, qword ptr OV(OV_HWND)  /* hide_overlay() */
         xor edx, edx
         API ShowWindow
@@ -1203,6 +1423,35 @@ FUNC copy_color
         call clip_put_text
         add rsp, 120
         jmp ov_cancel
+.Lcc_pick:                              /* the picker stays open: pick again and again */
+        mov rcx, qword ptr OV(OV_DAEMON)
+        lea rdx, [rsp + CC_TEXT]
+        call clip_put_text
+        xor ecx, ecx                    /* MB_OK */
+        API MessageBeep
+        add rsp, 120
+        jmp refresh
+ENDF
+
+/* void ruler_copy(void): the measurement as text; the ruler stays open. */
+#define RL_TEXT 48                      /* WCHAR[40] */
+FUNC ruler_copy
+        ALLOC 136
+        ENDPROLOG
+        cmp byte ptr OV(OV_RULER_ON), 0
+        je .Lrulerc_ret
+        lea rcx, [rsp + RL_TEXT]
+        mov edx, 40
+        lea r8, OV(OV_RULER_AX)
+        call ruler_label
+        mov rcx, qword ptr OV(OV_DAEMON)
+        lea rdx, [rsp + RL_TEXT]
+        call clip_put_text
+        xor ecx, ecx                    /* MB_OK */
+        API MessageBeep
+.Lrulerc_ret:
+        add rsp, 136
+        ret
 ENDF
 
 /* ---- state transitions --------------------------------------------------------------- */
@@ -1673,6 +1922,8 @@ FUNC cursor_for
         ALLOC 32
         ENDPROLOG
         mov rbx, rcx
+        cmp byte ptr OV(OV_PICKER), 0
+        jne .Lcf_cross
         cmp dword ptr OV(OV_PHASE), PH_EDIT
         jne .Lcf_cross
         mov eax, dword ptr OV(OV_DRAG)

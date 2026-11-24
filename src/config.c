@@ -102,17 +102,20 @@ void config_defaults(Config *c)
     hotkey_parse(L"Shift+F3", &c->mod[HK_TOGGLE], &c->vk[HK_TOGGLE]);
     hotkey_parse(L"F4", &c->mod[HK_OCR], &c->vk[HK_OCR]);
     hotkey_parse(L"Shift+F4", &c->mod[HK_OCRCOPY], &c->vk[HK_OCRCOPY]);
+    hotkey_parse(L"F2", &c->mod[HK_PICK], &c->vk[HK_PICK]);
     c->tray = true;
     c->pin_top = true;
     c->pin_text = true;
     c->auto_update = true;
     c->exit_ask = true;
+    c->color_hex = true;
+    c->cross_color = 0x00D6F5;
 }
 
 void config_path(WCHAR *out, int cap) { ini_path(out, cap); }
 
 static const WCHAR *kHkKeys[HK_COUNT] = {NULL,           L"hotkey",     L"quick_hotkey",   L"pin_hotkey",
-                                         L"toggle_hotkey", L"ocr_hotkey", L"ocr_copy_hotkey"};
+                                         L"toggle_hotkey", L"ocr_hotkey", L"ocr_copy_hotkey", L"pick_hotkey"};
 static const WCHAR *kThemes[] = {L"auto", L"light", L"dark"}; /* by THEME_* */
 static const WCHAR *kDetects[] = {L"controls", L"windows", L"elements"}; /* by DETECT_* */
 /* the file names: two or more of y M d H m s in a row stand for that part of the time */
@@ -196,6 +199,39 @@ static int ini_pick(const WCHAR *path, const WCHAR *key, const WCHAR *const *k, 
     return 0;
 }
 
+static int hex_value(WCHAR c)
+{
+    if (c >= L'0' && c <= L'9')
+        return c - L'0';
+    if (c >= L'a' && c <= L'f')
+        return c - L'a' + 10;
+    if (c >= L'A' && c <= L'F')
+        return c - L'A' + 10;
+    return -1;
+}
+
+/* RRGGBB, with an optional # or 0x in front. Anything else keeps the default. */
+static uint32_t color_value(const WCHAR *s, uint32_t dflt)
+{
+    while (*s == L' ' || *s == L'\t')
+        s++;
+    if (*s == L'#')
+        s++;
+    else if (s[0] == L'0' && (s[1] == L'x' || s[1] == L'X'))
+        s += 2;
+    uint32_t v = 0;
+    int n = 0;
+    for (; n < 6 && s[n]; n++) {
+        int d = hex_value(s[n]);
+        if (d < 0)
+            return dflt;
+        v = (v << 4) | (uint32_t)d;
+    }
+    if (n != 6 || (s[6] && s[6] != L' ' && s[6] != L'\t'))
+        return dflt;
+    return v;
+}
+
 bool config_load(Config *c)
 {
     config_defaults(c);
@@ -220,6 +256,9 @@ bool config_load(Config *c)
     c->auto_update = GetPrivateProfileIntW(L"sniplite", L"auto_update", 1, path) != 0;
     c->exit_ask = GetPrivateProfileIntW(L"sniplite", L"exit_ask", 1, path) != 0;
     c->also_save = GetPrivateProfileIntW(L"sniplite", L"also_save", 0, path) != 0;
+    c->color_hex = GetPrivateProfileIntW(L"sniplite", L"color_hex", 1, path) != 0;
+    GetPrivateProfileStringW(L"sniplite", L"cross_color", L"00D6F5", v, COUNTOF(v), path);
+    c->cross_color = color_value(v, 0x00D6F5);
     c->block_fullscreen = GetPrivateProfileIntW(L"sniplite", L"block_fullscreen", 0, path) != 0;
     c->theme = ini_pick(path, L"theme", kThemes, COUNTOF(kThemes));
     c->detect = ini_pick(path, L"detect", kDetects, COUNTOF(kDetects));
@@ -253,8 +292,13 @@ bool config_save(const Config *c)
     str_addf(&s, L"block_fullscreen=%d\r\nblock_apps=%s\r\n", c->block_fullscreen ? 1 : 0, c->block_apps);
     str_addf(&s, L"capture=%s\r\ntray=%d\r\nauto_update=%d\r\npin_top=%d\r\npin_text=%d\r\n", c->gdi ? L"gdi" : L"dxgi",
              c->tray ? 1 : 0, c->auto_update ? 1 : 0, c->pin_top ? 1 : 0, c->pin_text ? 1 : 0);
-    str_addf(&s, L"exit_ask=%d\r\ntheme=%s\r\ndetect=%s\r\nalso_save=%d\r\nfile_name=%s\r\nsave_dir=", c->exit_ask ? 1 : 0,
-             kThemes[c->theme], kDetects[c->detect], c->also_save ? 1 : 0, kNames[c->name]);
+    WCHAR cross[16];
+    wsprintfW(cross, L"%06X", (unsigned)c->cross_color);
+    str_addf(&s,
+             L"exit_ask=%d\r\ntheme=%s\r\ndetect=%s\r\nalso_save=%d\r\ncolor_hex=%d\r\ncross_color=%s\r\n"
+             L"file_name=%s\r\nsave_dir=",
+             c->exit_ask ? 1 : 0, kThemes[c->theme], kDetects[c->detect], c->also_save ? 1 : 0,
+             c->color_hex ? 1 : 0, cross, kNames[c->name]);
     str_add(&s, c->save_dir); /* by itself: str_addf stops at 1024 characters */
     str_add(&s, L"\r\nlast_dir=");
     str_add(&s, c->last_dir);

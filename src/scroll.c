@@ -45,6 +45,9 @@
 #define TICK_MS 30
 #define TICK_QUIET_MS 120     /* while nothing changes */
 #define TIMER_GRAB 1
+#define TIMER_AUTO 2
+#define AUTO_STEP_MS 1100     /* a wheel step, then time for the page to settle */
+#define AUTO_SETTLE_MS 800
 #define HK_CANCEL 1
 #define HK_DONE 2
 
@@ -55,6 +58,7 @@ typedef struct {
 } Slot;
 
 enum { BT_OCR, BT_OCRCOPY, BT_PIN, BT_SAVE, BT_CLOSE, BT_OK, BT_COUNT }; /* the bar's buttons, left to right */
+#define BT_AUTO 100      /* the status side of the bar: click to pause or resume */
 static const int kIcon[BT_COUNT] = {IC_OCR, IC_OCRCOPY, IC_PIN, IC_SAVE, IC_CLOSE, IC_OK};
 
 extern uint8_t O[]; /* the capture's state (ov_layout.inc) */
@@ -83,6 +87,14 @@ static struct {
     int tw, trows, tcap;
     Img barimg;
     int hover, down;  /* the bar's button under the mouse, pressed; -1 none */
+    bool auto_on, auto_paused, auto_done, auto_manual; /* the page is scrolled for the user */
+    int auto_rows;    /* rows when the last wheel step was sent */
+    int auto_delta;   /* rows the last wheel step moved the page */
+    int auto_miss;    /* steps that brought nothing new */
+    bool auto_sent;
+    bool cursor_saved; /* the wheel needs the cursor over the page: it was moved once */
+    POINT cursor_at;
+    uint64_t settle;  /* no grab before this tick: the page is still moving */
 } L;
 static unsigned begun; /* long screenshots so far: one that waited for a dialog can tell whether it is still the one */
 
@@ -155,16 +167,37 @@ static bool place(int *at)
             }
         }
     }
-    int best = -1, most = 0, next = 0, need = MAXI(16, h / 8);
-    for (int i = 0; i < nbin; i++)
+    int min_move = L.auto_on && L.auto_delta ? MAXI(8, L.auto_delta / 3) : 0;
+    int best = -1, most = 0, next = 0, fbest = -1, fmost = 0, fnext = 0, need = MAXI(16, h / 8);
+    for (int i = 0; i < nbin; i++) {
         if (L.vote[i] > most) {
-            most = L.vote[i];
+            next = most;
             best = i;
-        }
-    for (int i = 0; i < nbin; i++)
-        if (i != best && L.vote[i] > next)
+            most = L.vote[i];
+        } else if (L.vote[i] > next) {
             next = L.vote[i];
-    if (most >= need && most >= 2 * next) {
+        }
+        int ati = base + i;
+        if (L.auto_on && ati > L.pos && ati - L.pos >= min_move) {
+            if (L.vote[i] > fmost) {
+                fnext = fmost;
+                fbest = i;
+                fmost = L.vote[i];
+            } else if (L.vote[i] > fnext) {
+                fnext = L.vote[i];
+            }
+        }
+    }
+    if (L.auto_on) {
+        best = fbest, most = fmost, next = fnext;
+    }
+    bool clear = most >= need && most >= 2 * next;
+    /* A page that repeats (the same bands, the same table rows) can leave a second
+     * position close behind. Going down, the page can only have moved forward: take
+     * the best one there. */
+    if (L.auto_on && most >= MAXI(16, need / 2) && most > next && best >= 0 && base + best > L.pos)
+        clear = true;
+    if (clear) {
         *at = base + best;
         return true;
     }
@@ -244,6 +277,14 @@ static void bar_text(WCHAR *t, int cap, uint32_t *color)
         *color = ui_pal[P_WARN];
     } else if (L.full) {
         lstrcpynW(t, T(LONG_FULL), cap);
+    } else if (L.auto_on) {
+        lstrcpynW(t, T(LONG_AUTO), cap);
+    } else if (L.auto_done) {
+        lstrcpynW(t, T(LONG_AUTO_END), cap);
+    } else if (L.auto_manual) {
+        lstrcpynW(t, T(LONG_AUTO_MANUAL), cap);
+    } else if (L.auto_paused) {
+        lstrcpynW(t, T(LONG_AUTO_PAUSED), cap);
     } else if (L.rows <= L.h) {
         lstrcpynW(t, T(LONG_HINT), cap);
     } else {
@@ -261,6 +302,13 @@ static RECT bar_button(int i)
     return r;
 }
 
+/* the side of the bar that says what the long picture is doing: click it to pause */
+static RECT bar_text_rect(void)
+{
+    RECT r = {px(4), 0, bar_button(bar_first()).left - px(4), L.barimg.h};
+    return r;
+}
+
 /* the bar, into its picture: what the picture is now, and the buttons */
 static void bar_draw(void)
 {
@@ -268,6 +316,8 @@ static void bar_draw(void)
     Surf s = surf_img(&L.barimg, 0, 0);
     d_fill(&s, rc, ui_pal[P_BG]);
     d_frame(&s, rc, 1, ui_pal[P_EDGE]);
+    if (L.hover == BT_AUTO)
+        d_fill(&s, rect_inflate(bar_text_rect(), -px(2)), ui_pal[L.down == BT_AUTO ? P_DOWN : P_HOVER]);
     for (int i = bar_first(); i < BT_COUNT; i++) {
         RECT b = bar_button(i);
         if (i == L.hover || (i == BT_OCR && L.reading))
@@ -282,7 +332,9 @@ static void bar_draw(void)
     HGDIOBJ old = SelectObject(L.barimg.dc, f);
     SetBkMode(L.barimg.dc, TRANSPARENT);
     SetTextColor(L.barimg.dc, RGB(color >> 16, color >> 8 & 255, color & 255));
-    RECT tr = {px(10), 0, bar_button(bar_first()).left - px(6), rc.bottom};
+    RECT tr = bar_text_rect();
+    tr.left += px(6);
+    tr.right -= px(2);
     DrawTextW(L.barimg.dc, t, -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
     SelectObject(L.barimg.dc, old);
     DeleteObject(f);
@@ -354,6 +406,8 @@ static bool stitch_frame(void)
                 L.rows = keep;
                 L.trows = MINI(L.trows, keep * L.tw / L.w);
             }
+            if (L.auto_on && at > L.pos)
+                L.auto_delta = at - L.pos;
             L.pos = at;
             if (at + L.h - foot > L.rows && L.rows - at >= 0)
                 append(L.rows - at, at + L.h - foot - L.rows);
@@ -416,6 +470,8 @@ static void reading_end(void)
 {
     L.reading = false;
     hotkeys(true);
+    if (L.auto_on)
+        SetTimer(L.bar, TIMER_AUTO, AUTO_STEP_MS, NULL);
     SetTimer(L.bar, TIMER_GRAB, TICK_MS, NULL);
     InvalidateRect(L.bar, NULL, FALSE);
 }
@@ -431,15 +487,18 @@ static void tick(void)
             return;
         reading_end();
     }
+    if (L.settle && GetTickCount64() < L.settle)
+        return; /* the page is still easing into its new place */
+    L.settle = 0;
     bool was_first = L.first, was_lost = L.lost;
     int rows = L.rows, pos = L.pos;
     grab();
     if (!stitch_frame()) {
-        if (++L.quiet == 12)
+        if (++L.quiet == 12 && !L.auto_on)
             SetTimer(L.bar, TIMER_GRAB, TICK_QUIET_MS, NULL);
         return;
     }
-    if (L.quiet >= 12 || was_first)
+    if (L.quiet >= 12 || was_first || L.auto_on)
         SetTimer(L.bar, TIMER_GRAB, TICK_MS, NULL);
     L.quiet = 0;
     thumb_update();
@@ -457,7 +516,110 @@ static int bar_hit(LPARAM lp)
         if (PtInRect(&b, p))
             return i;
     }
+    RECT t = bar_text_rect();
+    if (PtInRect(&t, p))
+        return BT_AUTO;
     return -1;
+}
+
+/* ---- automatic scrolling ---- */
+
+static void auto_stop(bool done, bool manual)
+{
+    if (L.cursor_saved) {
+        POINT c, p = {L.rc.left + L.w / 2, L.rc.top + L.h / 2};
+        GetCursorPos(&c);
+        if (c.x == p.x && c.y == p.y) /* the user did not move it meanwhile */
+            SetCursorPos(L.cursor_at.x, L.cursor_at.y);
+        L.cursor_saved = false;
+    }
+    L.auto_on = false;
+    L.auto_done = done;
+    L.auto_manual = manual;
+    L.auto_paused = !done && !manual;
+    if (L.bar) {
+        KillTimer(L.bar, TIMER_AUTO);
+        SetTimer(L.bar, TIMER_GRAB, TICK_QUIET_MS, NULL);
+        InvalidateRect(L.bar, NULL, FALSE);
+    }
+}
+
+static void auto_toggle(void)
+{
+    L.auto_on = !L.auto_on;
+    L.auto_paused = !L.auto_on;
+    if (L.auto_on) {
+        L.auto_done = L.auto_manual = false;
+        L.auto_miss = 0;
+        L.auto_delta = 0;
+        L.auto_sent = false;
+        L.auto_rows = L.rows;
+        SetTimer(L.bar, TIMER_AUTO, 250, NULL);
+        SetTimer(L.bar, TIMER_GRAB, TICK_MS, NULL);
+    } else {
+        KillTimer(L.bar, TIMER_AUTO);
+    }
+    InvalidateRect(L.bar, NULL, FALSE);
+}
+
+/* A wheel step for the page under the region. A real wheel goes to the window under the
+ * cursor; when the cursor is not over the page it is moved to the middle of the region
+ * once and kept there, and put back when the scrolling stops. It never moves per step,
+ * so the pointer does not jitter. */
+static void auto_wheel(void)
+{
+    /* Small steps: two frames need enough rows in common to find where the page went. */
+    int notches = CLAMPI(L.h / 300, 2, 4);
+    POINT c;
+    GetCursorPos(&c);
+    HWND under = WindowFromPoint(c);
+    DWORD pid = 0;
+    if (under)
+        GetWindowThreadProcessId(under, &pid);
+    if (!under || pid == GetCurrentProcessId() || !PtInRect(&L.rc, c)) {
+        if (!L.cursor_saved) {
+            L.cursor_saved = true;
+            L.cursor_at = c;
+        }
+        c.x = L.rc.left + L.w / 2;
+        c.y = L.rc.top + L.h / 2;
+        SetCursorPos(c.x, c.y);
+    }
+    INPUT in = {0};
+    in.type = INPUT_MOUSE;
+    in.mi.dwFlags = MOUSEEVENTF_WHEEL;
+    in.mi.mouseData = (DWORD)(-WHEEL_DELTA * notches);
+    SendInput(1, &in, sizeof in);
+}
+
+static void auto_step(void)
+{
+    if (!L.on || !L.auto_on || L.reading || L.full)
+        return;
+    if (L.first) { /* the first frame has not been read yet */
+        SetTimer(L.bar, TIMER_AUTO, 250, NULL);
+        return;
+    }
+    if (L.lost) { /* the frame no longer fits: let the user bring it back by hand */
+        auto_stop(false, false);
+        return;
+    }
+    if (L.auto_sent) {
+        if (L.rows == L.auto_rows) {
+            if (++L.auto_miss >= 3) {
+                auto_stop(L.rows > L.h, L.rows <= L.h);
+                return;
+            }
+        } else {
+            L.auto_miss = 0;
+        }
+    }
+    L.auto_rows = L.rows;
+    L.auto_sent = true;
+    auto_wheel();
+    L.settle = GetTickCount64() + AUTO_SETTLE_MS;
+    SetTimer(L.bar, TIMER_AUTO, AUTO_STEP_MS, NULL);
+    SetTimer(L.bar, TIMER_GRAB, TICK_MS, NULL);
 }
 
 static LRESULT CALLBACK long_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
@@ -483,7 +645,12 @@ static LRESULT CALLBACK long_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         return DefWindowProcW(h, m, wp, lp);
     switch (m) {
     case WM_PAINT: bar_paint(h); return 0;
-    case WM_TIMER: tick(); return 0;
+    case WM_TIMER:
+        if (wp == TIMER_AUTO)
+            auto_step();
+        else
+            tick();
+        return 0;
     case WM_HOTKEY: long_done(wp == HK_DONE ? BT_OK : BT_CLOSE); return 0;
     case WM_MOUSEMOVE: {
         int at = bar_hit(lp);
@@ -543,9 +710,16 @@ static void long_end(void)
 {
     if (!L.on)
         return;
+    if (L.cursor_saved) {
+        POINT c, p = {L.rc.left + L.w / 2, L.rc.top + L.h / 2};
+        GetCursorPos(&c);
+        if (c.x == p.x && c.y == p.y)
+            SetCursorPos(L.cursor_at.x, L.cursor_at.y);
+    }
     L.on = false;
     if (L.bar) {
         KillTimer(L.bar, TIMER_GRAB);
+        KillTimer(L.bar, TIMER_AUTO);
         hotkeys(false);
     }
     if (L.reading)
@@ -570,6 +744,8 @@ static void long_text(bool panel)
         reading_end();
         return;
     }
+    bool auto_was = L.auto_on;
+    KillTimer(L.bar, TIMER_AUTO); /* the text panel owns the picture while it is open */
     int rows = L.rows;
     RECT beside = L.rc, view;
     if (L.view && GetWindowRect(L.view, &view))
@@ -579,6 +755,8 @@ static void long_text(bool panel)
     L.rows = rows;
     L.trows = MINI(L.trows, rows * L.tw / L.w);
     if (!sent && ocr_there) { /* the module is there, the picture could not be handed over: it stays */
+        if (auto_was)
+            SetTimer(L.bar, TIMER_AUTO, AUTO_STEP_MS, NULL);
         MessageBeep(MB_ICONWARNING);
         return;
     }
@@ -597,6 +775,10 @@ void long_cancel(void) { long_end(); }
 /* a button of the bar, Enter (like its check mark) or Esc (like its cross) */
 static void long_done(int button)
 {
+    if (button == BT_AUTO) {
+        auto_toggle();
+        return;
+    }
     if (button == BT_CLOSE && !L.first && L.rows) { /* a picture would be lost: the user may be asked first */
         bool keys = !L.reading;
         if (keys)
@@ -623,7 +805,10 @@ static void long_done(int button)
         L.reading = false;
         hotkeys(true); /* as long_end and the save dialog expect them */
     }
+    L.auto_on = false;
+    L.auto_paused = true;
     KillTimer(L.bar, TIMER_GRAB);
+    KillTimer(L.bar, TIMER_AUTO);
     int rows = L.rows;
     stitch_finish();
     HWND daemon = *(HWND *)(O + OV_DAEMON);
@@ -696,6 +881,13 @@ void long_begin(void)
     L.rc = rc, L.s = dpi_scale_at(mid);
     L.hover = L.down = -1;
     L.on = true;
+    L.auto_on = true;
+    L.auto_paused = L.auto_done = L.auto_manual = false;
+    L.auto_rows = 0;
+    L.auto_delta = 0;
+    L.auto_miss = 0;
+    L.auto_sent = false;
+    L.settle = 0;
     if (!stitch_start(w, h)) {
         long_end();
         return;
@@ -750,4 +942,5 @@ void long_begin(void)
         if (wnd[i])
             ShowWindow(wnd[i], SW_SHOWNOACTIVATE);
     SetTimer(L.bar, TIMER_GRAB, 150, NULL); /* the first frame: once the capture window is off the screen */
+    SetTimer(L.bar, TIMER_AUTO, 800, NULL); /* then the page is scrolled without touching the cursor */
 }
