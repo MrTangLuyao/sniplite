@@ -983,6 +983,15 @@ X(OCR_TABLE, "表格", "表格", "Table", "表", "표", "Tableau", "Tabelle", "T
 X(LONG_HINT, "滚动页面，自动拼接", "捲動頁面，自動拼接", "Scroll the page: it is stitched as you go", "ページをスクロールすると自動でつなぎます",
   "페이지를 스크롤하면 자동으로 이어 붙입니다", "Faites défiler la page : elle est assemblée au fur et à mesure",
   "Seite scrollen: sie wird laufend zusammengesetzt", "Desplaza la página: se va uniendo sola")
+X(LONG_AUTO, "自动滚动中（点击暂停）", "自動捲動中（點擊暫停）", "Auto-scrolling (click to pause)", "自動スクロール中（クリックで一時停止）",
+  "자동 스크롤 중(클릭하여 일시정지)", "Défilement auto (cliquer pour suspendre)", "Automatisches Scrollen (Klick pausiert)",
+  "Desplazamiento automático (clic para pausar)")
+X(LONG_AUTO_PAUSED, "自动滚动已暂停（点击继续）", "自動捲動已暫停（點擊繼續）", "Paused (click to resume)", "一時停止中（クリックで再開）",
+  "일시정지됨(클릭하여 재개)", "En pause (cliquer pour reprendre)", "Pausiert (Klick setzt fort)", "En pausa (clic para continuar)")
+X(LONG_AUTO_END, "已到底", "已到底", "Bottom reached", "最後まで到達", "끝까지 도달", "Bas de page atteint", "Ende erreicht",
+  "Final de la página")
+X(LONG_AUTO_MANUAL, "请手动滚动", "請手動捲動", "Scroll manually", "手動でスクロールしてください", "직접 스크롤해 주세요",
+  "Faites défiler manuellement", "Bitte manuell scrollen", "Desplaza manualmente")
 X(LONG_LOST, "滚得太快了，往回滚一点", "捲得太快了，往回捲一點", "Too fast: scroll back a little", "速すぎます。少し戻してください", "너무 빠릅니다. 조금 되돌려 주세요",
   "Trop vite : revenez un peu en arrière", "Zu schnell: ein Stück zurückscrollen",
   "Demasiado rápido: vuelve un poco atrás")
