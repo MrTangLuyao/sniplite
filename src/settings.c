@@ -730,6 +730,7 @@ typedef struct {
 static const Shortcut kShortcuts[] = {
     {0, S_SC_START, NULL, 0, HK_CAPTURE},
     {0, S_SC_QUICK, NULL, 0, HK_QUICK},
+    {0, S_SC_PICKER, NULL, 0, HK_PICK},
     {0, S_SC_WINDOW, NULL, S_K_CLICK, 0},
     {0, S_SC_COPY, NULL, S_K_ENTER_DBL, 0},
     {0, S_SC_SAVE, L"Ctrl+S", 0, 0},
@@ -1118,7 +1119,7 @@ static void page_command(HWND page, int id, int code, HWND ctl)
         }
         return;
     }
-    if (id >= IDC_HK_FIELD1 && id <= IDC_HK_FIELD6) {
+    if (id >= IDC_HK_FIELD1 && id <= IDC_HK_FIELD7) {
         int hk = id - IDC_HK_FIELD1 + 1;
         if (code == HKN_BEGIN) {
             daemon_cmd(L"_hotkeys", L"off"); /* let our own hotkeys reach the field */
@@ -1130,7 +1131,7 @@ static void page_command(HWND page, int id, int code, HWND ctl)
         }
         return;
     }
-    if (id >= IDC_HK_CLEAR1 && id <= IDC_HK_CLEAR6) {
+    if (id >= IDC_HK_CLEAR1 && id <= IDC_HK_CLEAR7) {
         int hk = id - IDC_HK_CLEAR1 + 1;
         S.cfg.mod[hk] = S.cfg.vk[hk] = 0;
         show_hotkeys();
@@ -1292,9 +1293,9 @@ static INT_PTR CALLBACK page_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
     case WM_DRAWITEM: {
         const DRAWITEMSTRUCT *di = (const DRAWITEMSTRUCT *)lp;
         int id = (int)di->CtlID, kind = RI_NONE;
-        if (id >= IDC_HK_CLEAR1 && id <= IDC_HK_CLEAR6)
+        if (id >= IDC_HK_CLEAR1 && id <= IDC_HK_CLEAR7)
             kind = RI_CLEAR;
-        else if (id >= IDC_HK_STATE1 && id <= IDC_HK_STATE6) {
+        else if (id >= IDC_HK_STATE1 && id <= IDC_HK_STATE7) {
             int hk = id - IDC_HK_STATE1 + 1;
             kind = !S.cfg.vk[hk] || S.state[hk] == 2 ? RI_NONE : S.state[hk] ? RI_OK : RI_FAIL;
         } else if (id == IDC_HELPBTN)
@@ -1359,6 +1360,7 @@ static const struct {
     {PG_HOTKEYS, IDC_HK_LABEL4, S_H_TOGGLE},
     {PG_HOTKEYS, IDC_HK_LABEL5, S_H_OCR},
     {PG_HOTKEYS, IDC_HK_LABEL6, S_H_OCRCOPY},
+    {PG_HOTKEYS, IDC_HK_LABEL7, S_H_PICK},
     {PG_HOTKEYS, IDC_HINT, S_H_HINT},
     {PG_HOTKEYS, IDC_HK_FULLSCREEN, S_H_FULLSCREEN},
     {PG_HOTKEYS, IDC_HK_APPS_LABEL, S_H_APPS},

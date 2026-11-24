@@ -555,6 +555,31 @@ FUNC pr_begin
         ret
 ENDF
 
+/* bool pr_pick_begin(int vw, int vh): pr_begin for the color picker. Its UI and top
+ * layers hold nothing (no selection, no annotations), so hide them: only the panels
+ * can show, and the screen behind stays the live desktop. */
+FUNC pr_pick_begin
+        ALLOC 40
+        ENDPROLOG
+        call pr_begin
+        test al, al
+        jz .Lppb_ret
+        mov rcx, qword ptr [rip + g_pr + P_UIV]
+        test rcx, rcx
+        jz 1f
+        xor edx, edx
+        COM VI_SET_CONTENT
+1:      mov rcx, qword ptr [rip + g_pr + P_TOPV]
+        test rcx, rcx
+        jz 2f
+        xor edx, edx
+        COM VI_SET_CONTENT
+2:      mov eax, 1
+.Lppb_ret:
+        add rsp, 40
+        ret
+ENDF
+
 /* void pr_end(void): drop this capture's surfaces, hide every part */
 FUNC pr_end
         PUSHREG rbx

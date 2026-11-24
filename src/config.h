@@ -3,7 +3,7 @@
 #include "common.h"
 
 /* the last two are for text: taken from the system only while the text recognition module is there */
-enum { HK_CAPTURE = 1, HK_QUICK, HK_PIN, HK_TOGGLE, HK_OCR, HK_OCRCOPY, HK_COUNT };
+enum { HK_CAPTURE = 1, HK_QUICK, HK_PIN, HK_TOGGLE, HK_OCR, HK_OCRCOPY, HK_PICK, HK_COUNT };
 enum { THEME_AUTO, THEME_LIGHT, THEME_DARK }; /* the capture's bars: as Windows is set, or always one */
 enum { NAME_COUNT = 7, NAME_CAP = 32 };       /* the file names to choose from; room for the longest, with its 0 */
 
@@ -16,6 +16,7 @@ typedef struct {
     bool auto_update;                 /* look for a newer release after start-up, then daily */
     bool exit_ask;                    /* ask before a capture with a selection is left (Esc, the close button) */
     bool also_save;                   /* a capture that is copied or pinned goes into a file as well */
+    bool color_hex;                    /* a picked color is copied as #RRGGBB (else R, G, B) */
     bool block_fullscreen;            /* no hotkeys while the window in front fills its screen */
     int theme;                        /* THEME_* */
     int detect;                       /* DETECT_* (ov_layout.inc) */
