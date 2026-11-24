@@ -102,17 +102,19 @@ void config_defaults(Config *c)
     hotkey_parse(L"Shift+F3", &c->mod[HK_TOGGLE], &c->vk[HK_TOGGLE]);
     hotkey_parse(L"F4", &c->mod[HK_OCR], &c->vk[HK_OCR]);
     hotkey_parse(L"Shift+F4", &c->mod[HK_OCRCOPY], &c->vk[HK_OCRCOPY]);
+    hotkey_parse(L"F2", &c->mod[HK_PICK], &c->vk[HK_PICK]);
     c->tray = true;
     c->pin_top = true;
     c->pin_text = true;
     c->auto_update = true;
     c->exit_ask = true;
+    c->color_hex = true;
 }
 
 void config_path(WCHAR *out, int cap) { ini_path(out, cap); }
 
 static const WCHAR *kHkKeys[HK_COUNT] = {NULL,           L"hotkey",     L"quick_hotkey",   L"pin_hotkey",
-                                         L"toggle_hotkey", L"ocr_hotkey", L"ocr_copy_hotkey"};
+                                         L"toggle_hotkey", L"ocr_hotkey", L"ocr_copy_hotkey", L"pick_hotkey"};
 static const WCHAR *kThemes[] = {L"auto", L"light", L"dark"}; /* by THEME_* */
 static const WCHAR *kDetects[] = {L"controls", L"windows", L"elements"}; /* by DETECT_* */
 /* the file names: two or more of y M d H m s in a row stand for that part of the time */
@@ -220,6 +222,7 @@ bool config_load(Config *c)
     c->auto_update = GetPrivateProfileIntW(L"sniplite", L"auto_update", 1, path) != 0;
     c->exit_ask = GetPrivateProfileIntW(L"sniplite", L"exit_ask", 1, path) != 0;
     c->also_save = GetPrivateProfileIntW(L"sniplite", L"also_save", 0, path) != 0;
+    c->color_hex = GetPrivateProfileIntW(L"sniplite", L"color_hex", 1, path) != 0;
     c->block_fullscreen = GetPrivateProfileIntW(L"sniplite", L"block_fullscreen", 0, path) != 0;
     c->theme = ini_pick(path, L"theme", kThemes, COUNTOF(kThemes));
     c->detect = ini_pick(path, L"detect", kDetects, COUNTOF(kDetects));
@@ -253,8 +256,9 @@ bool config_save(const Config *c)
     str_addf(&s, L"block_fullscreen=%d\r\nblock_apps=%s\r\n", c->block_fullscreen ? 1 : 0, c->block_apps);
     str_addf(&s, L"capture=%s\r\ntray=%d\r\nauto_update=%d\r\npin_top=%d\r\npin_text=%d\r\n", c->gdi ? L"gdi" : L"dxgi",
              c->tray ? 1 : 0, c->auto_update ? 1 : 0, c->pin_top ? 1 : 0, c->pin_text ? 1 : 0);
-    str_addf(&s, L"exit_ask=%d\r\ntheme=%s\r\ndetect=%s\r\nalso_save=%d\r\nfile_name=%s\r\nsave_dir=", c->exit_ask ? 1 : 0,
-             kThemes[c->theme], kDetects[c->detect], c->also_save ? 1 : 0, kNames[c->name]);
+    str_addf(&s, L"exit_ask=%d\r\ntheme=%s\r\ndetect=%s\r\nalso_save=%d\r\ncolor_hex=%d\r\nfile_name=%s\r\nsave_dir=",
+             c->exit_ask ? 1 : 0, kThemes[c->theme], kDetects[c->detect], c->also_save ? 1 : 0,
+             c->color_hex ? 1 : 0, kNames[c->name]);
     str_add(&s, c->save_dir); /* by itself: str_addf stops at 1024 characters */
     str_add(&s, L"\r\nlast_dir=");
     str_add(&s, c->last_dir);

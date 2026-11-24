@@ -169,6 +169,8 @@ FUNC on_mouse_move
         mov rbx, rax
         cmp dword ptr [rip + O + OV_PHASE], PH_SELECT
         jne .Lmm_edit
+        cmp byte ptr [rip + O + OV_PICKER], 0
+        jne .Lmm_picker
         cmp byte ptr [rip + O + OV_LDOWN], 0
         je .Lmm_scale
         cmp byte ptr [rip + O + OV_RUBBER], 0
@@ -202,6 +204,11 @@ FUNC on_mouse_move
         je 2f
 1:      call update_scale
 2:      call update_chain
+        jmp .Lmm_refresh
+
+.Lmm_picker:                            /* the picker needs the DPI scale only */
+        call pick_track
+        call update_scale
         jmp .Lmm_refresh
 
 .Lmm_edit:
@@ -407,9 +414,16 @@ FUNC on_lbutton_down
         API SetCapture
         cmp dword ptr [rip + O + OV_PHASE], PH_SELECT
         jne .Lld_edit
+        cmp byte ptr [rip + O + OV_PICKER], 0
+        jne .Lld_pick
         mov byte ptr [rip + O + OV_LDOWN], 1
         mov qword ptr [rip + O + OV_DOWN], rbx
         mov byte ptr [rip + O + OV_RUBBER], 0
+        jmp .Lld_refresh
+.Lld_pick:                              /* the color is taken on release */
+        call pick_track
+        mov byte ptr [rip + O + OV_LDOWN], 1
+        mov byte ptr [rip + O + OV_PICK_SKIP], 0
         jmp .Lld_refresh
 .Lld_edit:
         mov rcx, rbx
@@ -529,6 +543,8 @@ FUNC on_lbutton_up
         ENDPROLOG
         mov rbx, rcx
         call release_capture
+        cmp byte ptr [rip + O + OV_PICKER], 0
+        jne .Llu_pick
         cmp dword ptr [rip + O + OV_PHASE], PH_SELECT
         jne .Llu_edit
         cmp byte ptr [rip + O + OV_LDOWN], 0
@@ -599,6 +615,19 @@ FUNC on_lbutton_up
         add rsp, 48
         pop rbx
         jmp refresh
+.Llu_pick:
+        call pick_track
+        mov byte ptr [rip + O + OV_LDOWN], 0
+        cmp byte ptr [rip + O + OV_PICK_SKIP], 0
+        je .Llu_pick_copy
+        mov byte ptr [rip + O + OV_PICK_SKIP], 0
+        add rsp, 48
+        pop rbx
+        ret
+.Llu_pick_copy:
+        add rsp, 48
+        pop rbx
+        jmp copy_color
 ENDF
 
 /* void on_dblclick(POINT p): a text annotation opens for editing; elsewhere in the
@@ -609,6 +638,8 @@ FUNC on_dblclick
         ALLOC 32
         ENDPROLOG
         mov rbx, rcx
+        cmp byte ptr [rip + O + OV_PICKER], 0  /* the first click copied: the second copies nothing */
+        jne .Ldc_pick
         cmp dword ptr [rip + O + OV_PHASE], PH_EDIT
         jne .Ldc_down
         cmp dword ptr [rip + O + OV_DRAG], DR_NONE
@@ -657,6 +688,8 @@ FUNC on_dblclick
         add rsp, 32
         pop rbx
         jmp on_lbutton_down
+.Ldc_pick:                              /* the first click already copied: skip the second */
+        mov byte ptr [rip + O + OV_PICK_SKIP], 1
 .Ldc_ret:
         add rsp, 32
         pop rbx
@@ -667,6 +700,8 @@ ENDF
 FUNC on_rbutton_up
         ALLOC 40
         ENDPROLOG
+        cmp byte ptr [rip + O + OV_PICKER], 0
+        jne .Lru_cancel
         cmp dword ptr [rip + O + OV_PHASE], PH_SELECT
         jne .Lru_edit
         cmp byte ptr [rip + O + OV_LDOWN], 0
@@ -705,6 +740,8 @@ FUNC on_wheel
         PUSHREG rdi
         ALLOC 32
         ENDPROLOG
+        cmp byte ptr [rip + O + OV_PICKER], 0  /* no window chain to step through */
+        jne .Lwh_ret
         xor ebx, ebx                    /* d = delta > 0 ? 1 : -1 */
         test ecx, ecx
         setg bl
@@ -976,6 +1013,8 @@ FUNC on_key
         xor r12d, r12d
         test ax, ax
         sets r12b
+        cmp byte ptr [rip + O + OV_PICKER], 0
+        jne .Lky_picker
         cmp byte ptr [rip + O + OV_TE_ON], 0
         je .Lky_keys
         cmp ebx, W_VK_ESCAPE            /* typing: Esc ends the text, Ctrl+V pastes */
@@ -1129,6 +1168,26 @@ FUNC on_key
         jc .Lky_ret
         xor byte ptr [rip + O + OV_HEX], 1
         jmp .Lky_refresh
+
+.Lky_picker:                            /* the picker: leave, copy, or RGB / hex */
+        cmp ebx, W_VK_ESCAPE
+        je .Lky_cancel
+        cmp ebx, K_C
+        je .Lky_pick_copy
+        cmp ebx, W_VK_RETURN
+        je .Lky_pick_copy
+        cmp ebx, W_VK_SHIFT
+        jne .Lky_ret
+        bt rsi, 30                      /* first press only, not auto-repeat */
+        jc .Lky_ret
+        xor byte ptr [rip + O + OV_HEX], 1
+        movzx ecx, byte ptr [rip + O + OV_HEX]
+        call color_hex_set              /* main.c: keep the choice for the next time */
+        jmp .Lky_refresh
+.Lky_pick_copy:
+        bt rsi, 30                      /* first press only, not auto-repeat */
+        jc .Lky_ret
+        jmp .Lky_color
 .Lky_undo:
         test r12d, r12d                 /* Ctrl+Shift+Z redoes */
         jnz .Lky_redo

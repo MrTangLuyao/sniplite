@@ -42,6 +42,13 @@ typedef struct {
 typedef void (*ShotFrameFn)(void *ctx, int tile, void *dev, void *tex);
 bool shot_take_gpu(Shot *sh, const ShotShow *show, ShotFrameFn frame, void *ctx);
 void shot_map(Shot *sh); /* afterwards every tile has bits, or none (black) */
+
+/* The picker's small capture: one tile the size of a capture region, filled by
+ * BitBlt around the cursor. shot_pick_init sets the virtual-screen geometry;
+ * shot_pick_grab moves the tile and grabs again. */
+bool shot_pick_init(Shot *sh);
+bool shot_pick_grab(Shot *sh, int x, int y);
+
 bool shot_gpu(void **dev, void **ctx); /* the first GPU's device (presentation), if any */
 void shot_on_ready(void (*cb)(void));   /* called when the GPU state was rebuilt or dropped */
 

@@ -76,7 +76,7 @@ static void hotkey_apply(int id, UINT mod, UINT vk)
     hotkey_format(mod, vk, k->text);
     /* the two for text only while there is a module to read it: without one they would take keys for nothing.
      * None while they step aside for the program in front: its own keys reach it. */
-    bool wanted = vk && (id < HK_OCR || ocr_there);
+    bool wanted = vk && ((id != HK_OCR && id != HK_OCRCOPY) || ocr_there);
     k->ok = !wanted || D.aside || RegisterHotKey(D.hwnd, id, mod | MOD_NOREPEAT, vk);
 }
 
@@ -286,7 +286,7 @@ static bool resolve_path(const WCHAR *cwd, const WCHAR *file, WCHAR *out, int ca
 /* the options that set a hotkey, by HK_*, and the NULL that ends a list for args_valid */
 static const WCHAR *kHkOpts[HK_COUNT + 1] = {NULL,           L"--hotkey",        L"--quick-hotkey",
                                              L"--pin-hotkey", L"--toggle-hotkey", L"--ocr-hotkey",
-                                             L"--ocr-copy-hotkey"};
+                                             L"--ocr-copy-hotkey", L"--pick-hotkey"};
 
 static bool start_opts_parse(int argc, WCHAR **argv, StartOpts *so, Str *err)
 {
@@ -356,7 +356,8 @@ static void status_text(Str *out)
 
 static void status_json(Str *out)
 {
-    static const WCHAR *keys[HK_COUNT] = {NULL, L"capture", L"quick", L"pin", L"toggle_pins", L"ocr", L"ocr_copy"};
+    static const WCHAR *keys[HK_COUNT] = {NULL, L"capture", L"quick", L"pin", L"toggle_pins", L"ocr", L"ocr_copy",
+                                           L"picker"};
     str_addf(out, L"{\"running\":true,\"version\":\"%s\",\"pid\":%lu,\"backend\":\"%s\",\"capturing\":%s,\"pins\":%d,",
              SNIPLITE_VERSION, GetCurrentProcessId(), shot_backend(), ov_active() ? L"true" : L"false", pin_count());
     str_add(out, L"\"hotkeys\":{");
@@ -475,6 +476,7 @@ static void theme_apply(void)
 static void apply_config(const Config *c, bool force_keys)
 {
     O[OV_DETECT] = (uint8_t)c->detect;
+    O[OV_HEX] = c->color_hex ? 1 : 0;
     for (int id = 1; id < HK_COUNT; id++)
         if (force_keys || c->mod[id] != D.hk[id].mod || c->vk[id] != D.hk[id].vk || !D.hk[id].ok)
             hotkey_apply(id, c->mod[id], c->vk[id]);
@@ -500,6 +502,54 @@ static void apply_config(const Config *c, bool force_keys)
     tray_refresh_tip();
     theme_apply();
     watch_apply();
+}
+
+/* The capture toggles HEX / RGB with Shift: remember the choice. The overlay's window
+ * thread only hands the settings to a writer thread: a disk write never stalls it. */
+static HANDLE g_save_event;
+static Config *volatile g_save_job;
+
+static DWORD WINAPI save_thread(void *unused)
+{
+    (void)unused;
+    for (;;) {
+        WaitForSingleObject(g_save_event, INFINITE);
+        Config *job = InterlockedExchangePointer((void *volatile *)&g_save_job, NULL);
+        if (job) {
+            config_save(job);
+            mem_free(job);
+        }
+    }
+    return 0;
+}
+
+void color_hex_set(int on)
+{
+    on = !!on;
+    if (D.cfg.color_hex == on)
+        return;
+    D.cfg.color_hex = on;
+    Config *job = mem_alloc(sizeof *job);
+    if (!job)
+        return;
+    *job = D.cfg;
+    Config *old = InterlockedExchangePointer((void *volatile *)&g_save_job, job);
+    if (old)
+        mem_free(old);
+    if (!g_save_event) {
+        g_save_event = CreateEventW(NULL, FALSE, FALSE, NULL);
+        HANDLE th = g_save_event ? CreateThread(NULL, 0, save_thread, NULL, 0, NULL) : NULL;
+        if (th)
+            CloseHandle(th);
+        else {
+            CloseHandle(g_save_event);
+            g_save_event = NULL;
+            InterlockedExchangePointer((void *volatile *)&g_save_job, NULL);
+            mem_free(job);
+            return;
+        }
+    }
+    SetEvent(g_save_event);
 }
 
 /* A newer release was found by `--update-check`: say so once, in a balloon. */
@@ -805,6 +855,21 @@ static int cmd_run(int argc, WCHAR **argv, const WCHAR *cwd, Str *out)
         return cmd_capture(argc, argv, cwd, json, out);
     if (arg_eq(c, L"pin"))
         return cmd_pin(argc, argv, cwd, json, out);
+    if (arg_eq(c, L"pick")) { /* the color picker: the capture overlay without a selection */
+        static const WCHAR *flags[] = {L"--json", NULL};
+        static const WCHAR *opts[] = {NULL};
+        if (!args_valid(argc, argv, flags, opts, 0, out))
+            return EXIT_USAGE;
+        if (ov_active()) {
+            str_add(out, T(CAPTURING));
+            return EXIT_FAIL;
+        }
+        if (!ov_begin_pick()) {
+            str_add(out, T(CAP_CANNOT));
+            return EXIT_FAIL;
+        }
+        return EXIT_OK;
+    }
     if (arg_eq(c, L"ocr")) { /* a capture for its text: shown beside the selection, or with --copy copied at once */
         ocr_capture(opt_has(argc, argv, L"--copy"));
         return EXIT_OK;
@@ -827,7 +892,8 @@ static int cmd_run(int argc, WCHAR **argv, const WCHAR *cwd, Str *out)
         if (arg_eq(c, L"_reload"))
             reload();
         for (int id = 1; id < HK_COUNT; id++) /* 1 registered or stepping aside, 0 failed, 2 none */
-            str_addf(out, L"%d ", !D.hk[id].vk || (id >= HK_OCR && !ocr_there) ? 2 : D.hk[id].ok ? 1 : 0);
+            str_addf(out, L"%d ", !D.hk[id].vk || ((id == HK_OCR || id == HK_OCRCOPY) && !ocr_there) ? 2
+                                   : D.hk[id].ok ? 1 : 0);
         return EXIT_OK;
     }
     if (arg_eq(c, L"_update")) { /* from `--update-check` */
@@ -1203,7 +1269,7 @@ void ov_leave(void)
 
 /* ---- the tray menu ------------------------------------------------------------------------- */
 
-enum { TM_CAPTURE = 1, TM_PIN, TM_TOGGLE, TM_CLOSE_PINS, TM_SETTINGS, TM_HELP, TM_UPDATE, TM_ABOUT, TM_EXIT };
+enum { TM_CAPTURE = 1, TM_PIN, TM_PICK, TM_TOGGLE, TM_CLOSE_PINS, TM_SETTINGS, TM_HELP, TM_UPDATE, TM_ABOUT, TM_EXIT };
 
 static void menu_item(HMENU m, UINT id, const WCHAR *text, int hk, bool enabled)
 {
@@ -1221,6 +1287,7 @@ static void tray_menu(POINT at)
     bool pins = pin_count() > 0;
     menu_item(m, TM_CAPTURE, T(M_CAPTURE), HK_CAPTURE, true);
     menu_item(m, TM_PIN, T(M_PIN), HK_PIN, true);
+    menu_item(m, TM_PICK, T(SC_PICKER), HK_PICK, true);
     AppendMenuW(m, MF_SEPARATOR, 0, NULL);
     menu_item(m, TM_TOGGLE, pins && !pin_any_visible() ? T(M_SHOW_PINS) : T(M_HIDE_PINS), HK_TOGGLE, pins);
     menu_item(m, TM_CLOSE_PINS, T(M_CLOSE_PINS), 0, pins);
@@ -1244,6 +1311,10 @@ static void tray_menu(POINT at)
         break;
     case TM_PIN:
         pin_clipboard();
+        break;
+    case TM_PICK:
+        if (!ov_active())
+            ov_begin_pick();
         break;
     case TM_TOGGLE:
         pin_toggle_all();
@@ -1336,6 +1407,9 @@ static LRESULT CALLBACK daemon_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
                 pin_clipboard();
         } else if (wp == HK_TOGGLE) {
             pin_toggle_all();
+        } else if (wp == HK_PICK) {
+            if (!ov_active())
+                ov_begin_pick();
         } else if (wp == HK_OCR || wp == HK_OCRCOPY) {
             ocr_capture(wp == HK_OCRCOPY);
         }

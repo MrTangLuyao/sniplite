@@ -1605,6 +1605,8 @@ FUNC compute_visual
         mov dword ptr [rsp + CV_CL + RC_B], eax
         cmp dword ptr Ov(OV_PHASE), PH_SELECT
         jne .Lcv_edit
+        cmp byte ptr Ov(OV_PICKER), 0
+        jne .Lcv_picker
         cmp byte ptr Ov(OV_RUBBER), 0
         je 2f
         mov eax, dword ptr Ov(OV_DOWN + PT_X)   /* rect_corners(O.down, O.cur) */
@@ -1636,6 +1638,13 @@ FUNC compute_visual
 3:      mov rcx, rbx
         call place_label
         cmp byte ptr Ov(OV_PIXELS), 0           /* it shows pixels: not before they are in memory */
+        je .Lcv_ret
+        mov rcx, rbx
+        call place_magnifier
+        jmp .Lcv_ret
+.Lcv_picker:                            /* the whole screen stays bright: the color is the subject */
+        RCOPY([rbx+VIS_BRIGHT], [rsp+CV_CL])
+        cmp byte ptr Ov(OV_PIXELS), 0
         je .Lcv_ret
         mov rcx, rbx
         call place_magnifier
@@ -3581,6 +3590,8 @@ FUNC draw_frame
         ENDPROLOG
         mov rbx, rcx
         mov rsi, rdx
+        cmp byte ptr Ov(OV_PICKER), 0  /* the picker has no selection frame */
+        jne .Ldf_ret
         JEMPTY(rsi + VIS_BRIGHT, .Ldf_ret)
         ST_ENSURE
         mov edi, dword ptr [rip + .Lborder]

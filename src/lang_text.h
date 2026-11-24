@@ -15,6 +15,7 @@ X(HELP,
   "  sniplite capture --full --out a.png        整个屏幕存成文件\n"
   "  sniplite capture --rect 0,0,800,600        截这块区域到剪贴板\n"
   "  sniplite pin [图片]          贴到屏幕，不给图片就贴剪贴板\n"
+  "  sniplite pick                打开取色器，单击复制颜色（可连续取色）\n"
   "  sniplite ocr                 框选一块区域识别文字，加 --copy 直接复制\n"
   "  sniplite settings            打开首选项\n"
   "  sniplite update              检查更新，加 --install 直接装上新版本\n"
@@ -36,6 +37,7 @@ X(HELP,
   "  sniplite capture --full --out a.png        整個螢幕存成檔案\n"
   "  sniplite capture --rect 0,0,800,600        截這塊區域到剪貼簿\n"
   "  sniplite pin [圖片]          貼到螢幕，不給圖片就貼剪貼簿\n"
+  "  sniplite pick                開啟取色器，按一下複製顏色（可連續取色）\n"
   "  sniplite ocr                 框選一塊區域辨識文字，加 --copy 直接複製\n"
   "  sniplite settings            開啟偏好設定\n"
   "  sniplite update              檢查更新，加 --install 直接裝上新版本\n"
@@ -57,6 +59,7 @@ X(HELP,
   "  sniplite capture --full --out a.png        save the whole screen to a file\n"
   "  sniplite capture --rect 0,0,800,600        copy that area to the clipboard\n"
   "  sniplite pin [image]         pin an image, or the clipboard without one\n"
+  "  sniplite pick                open the color picker; click to copy (stays open)\n"
   "  sniplite ocr                 select an area and read its text; --copy copies it at once\n"
   "  sniplite settings            open Settings\n"
   "  sniplite update              check for updates; --install installs the new version\n"
@@ -78,6 +81,7 @@ X(HELP,
   "  sniplite capture --full --out a.png        画面全体をファイルに保存\n"
   "  sniplite capture --rect 0,0,800,600        この範囲をクリップボードにコピー\n"
   "  sniplite pin [画像]          画像をピン留め（省略時はクリップボード）\n"
+  "  sniplite pick                カラーピッカーを開き、クリックで色をコピー（連続可）\n"
   "  sniplite ocr                 範囲を選んで文字を読み取る。--copy でそのままコピー\n"
   "  sniplite settings            設定を開く\n"
   "  sniplite update              更新を確認（--install で新バージョンをインストール）\n"
@@ -99,6 +103,7 @@ X(HELP,
   "  sniplite capture --full --out a.png        전체 화면을 파일로 저장\n"
   "  sniplite capture --rect 0,0,800,600        이 영역을 클립보드에 복사\n"
   "  sniplite pin [이미지]        화면에 고정 (이미지가 없으면 클립보드)\n"
+  "  sniplite pick                색상 추출기를 열고 클릭해 색 복사 (연속 가능)\n"
   "  sniplite ocr                 영역을 선택해 텍스트 인식, --copy 는 바로 복사\n"
   "  sniplite settings            설정 열기\n"
   "  sniplite update              업데이트 확인 (--install로 새 버전 설치)\n"
@@ -120,6 +125,7 @@ X(HELP,
   "  sniplite capture --full --out a.png        enregistrer tout l'écran dans un fichier\n"
   "  sniplite capture --rect 0,0,800,600        copier cette zone dans le presse-papiers\n"
   "  sniplite pin [image]         épingler une image, sinon le presse-papiers\n"
+  "  sniplite pick                ouvrir la pipette ; un clic copie la couleur (reste ouvert)\n"
   "  sniplite ocr                 sélectionner une zone et lire son texte ; --copy le copie aussitôt\n"
   "  sniplite settings            ouvrir les préférences\n"
   "  sniplite update              chercher une mise à jour ; --install l'installe\n"
@@ -141,6 +147,7 @@ X(HELP,
   "  sniplite capture --full --out a.png        ganzen Bildschirm in eine Datei speichern\n"
   "  sniplite capture --rect 0,0,800,600        diesen Bereich in die Zwischenablage kopieren\n"
   "  sniplite pin [Bild]          Bild anheften, ohne Bild die Zwischenablage\n"
+  "  sniplite pick                Farbwähler öffnen; Klick kopiert die Farbe (bleibt offen)\n"
   "  sniplite ocr                 Bereich wählen und Text erkennen; --copy kopiert ihn sofort\n"
   "  sniplite settings            Einstellungen öffnen\n"
   "  sniplite update              nach Updates suchen; --install installiert die neue Version\n"
@@ -162,6 +169,7 @@ X(HELP,
   "  sniplite capture --full --out a.png        guardar toda la pantalla en un archivo\n"
   "  sniplite capture --rect 0,0,800,600        copiar esa zona al portapapeles\n"
   "  sniplite pin [imagen]        fijar una imagen o, sin ella, el portapapeles\n"
+  "  sniplite pick                abrir el cuentagotas; un clic copia el color (sigue abierto)\n"
   "  sniplite ocr                 seleccionar una zona y leer su texto; --copy lo copia al momento\n"
   "  sniplite settings            abrir los ajustes\n"
   "  sniplite update              buscar actualizaciones; --install instala la nueva versión\n"
@@ -343,6 +351,9 @@ X(ST_HK_TOGGLE,
 X(ST_HK_OCR, "识别文字热键", "辨識文字快速鍵", "Read text key", "文字認識キー", "인식 단축키", "Touche texte", "Texttaste", "Atajo texto")
 X(ST_HK_OCRCOPY, "复制文字热键", "複製文字快速鍵", "Copy text key", "文字コピーキー", "복사 단축키", "Touche copie", "Kopiertaste",
   "Atajo copiar")
+X(ST_HK_PICK,
+  "取色器热键", "取色器快速鍵", "Picker key", "カラーピッカーキー", "색상 추출 단축키", "Touche pipette",
+  "Farbwähler-Taste", "Atajo cuentagotas")
 X(ST_RUNNING,
   "sniplite %s 正在后台运行（PID %lu）\n", "sniplite %s 正在背景執行（PID %lu）\n",
   "sniplite %s is running (PID %lu)\n", "sniplite %s 実行中（PID %lu）\n", "sniplite %s 실행 중 (PID %lu)\n",
@@ -642,6 +653,8 @@ X(H_TOGGLE,
 X(H_OCR, "识别文字:", "辨識文字:", "Read text:", "文字認識:", "텍스트 인식:", "Lire le texte :", "Text erkennen:", "Leer texto:")
 X(H_OCRCOPY, "复制文字:", "複製文字:", "Copy text:", "文字コピー:", "텍스트 복사:", "Copier le texte :", "Text kopieren:",
   "Copiar texto:")
+X(H_PICK, "取色器:", "取色器:", "Color picker:", "カラーピッカー:", "색상 추출:", "Pipette :", "Farbwähler:",
+  "Cuentagotas:")
 X(H_HINT,
   "单击输入框后按下新的快捷键，Backspace 清除。", "點一下輸入框後按下新的快速鍵，Backspace 清除。",
   "Click a field, then press the new keys. Backspace clears it.",
@@ -740,6 +753,8 @@ X(SC_NUDGE10, "挪十个像素", "移動十個像素", "Move by ten pixels", "10
   "Déplacer de dix pixels", "Um 10 Pixel verschieben", "Mover diez píxeles")
 X(SC_COLOR, "取颜色", "取色", "Pick a color", "色を取得", "색상 추출", "Prélever une couleur", "Farbe kopieren",
   "Copiar el color")
+X(SC_PICKER, "打开取色器", "開啟取色器", "Open the color picker", "カラーピッカーを開く", "색상 추출 열기",
+  "Ouvrir la pipette", "Farbwähler öffnen", "Abrir el cuentagotas")
 X(K_CLICK, "单击", "點一下", "Click", "クリック", "클릭", "Clic", "Klick", "Clic")
 X(K_ENTER_DBL,
   "Enter 或 双击", "Enter 或 點兩下", "Enter or double-click", "Enter またはダブルクリック", "Enter 또는 더블클릭",

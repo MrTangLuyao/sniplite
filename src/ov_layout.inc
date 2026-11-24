@@ -218,6 +218,9 @@
 #define OV_HOVER                     2232
 #define OV_TIP                       2236
 #define OV_HEX                       2240
+#define OV_PICKER                    2241 /* PH_SELECT: the color picker, not a selection */
+#define OV_PICK_SKIP                 2242 /* the picker's second click of a double click */
+#define OV_PICK_SMALL                2243 /* the picker samples a small BitBlt tile */
 #define OV_S                         2244
 #define OV_FONT_S                    2248
 #define OV_FONT_UI                   2256
@@ -240,7 +243,8 @@
 #define OV_C_NS                      2728
 #define OV_C_NWSE                    2736
 #define OV_C_NESW                    2744
-#define OV_BYTES                     2752
+#define OV_PICK_MON                  2752 /* the picker's monitor, client coordinates */
+#define OV_BYTES                     2768
 
 /* element sizes */
 #define OV_FONTS_BYTES               16
