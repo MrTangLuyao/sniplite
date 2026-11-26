@@ -15,6 +15,9 @@ X(HELP,
   "  sniplite capture --full --out a.png        整个屏幕存成文件\n"
   "  sniplite capture --rect 0,0,800,600        截这块区域到剪贴板\n"
   "  sniplite pin [图片]          贴到屏幕，不给图片就贴剪贴板\n"
+  "  sniplite pick                打开取色器，单击复制颜色（可连续取色）\n"
+  "  sniplite ruler               打开屏幕标尺，拖两点量距离、尺寸和角度\n"
+  "  sniplite ruler --edge        显示边缘刻度尺，加 --hide 隐藏\n"
   "  sniplite ocr                 框选一块区域识别文字，加 --copy 直接复制\n"
   "  sniplite settings            打开首选项\n"
   "  sniplite update              检查更新，加 --install 直接装上新版本\n"
@@ -23,7 +26,7 @@ X(HELP,
   "\n"
   "小提示：\n"
   "  capture 还能加 --clip（复制）、--pin（贴图），可以一起用\n"
-  "  start 可以临时换热键：--hotkey Ctrl+Alt+A（另有 --pin-hotkey、--toggle-hotkey）\n"
+  "  start 可以临时换热键：--hotkey Ctrl+Alt+A（另有 --pin-hotkey、--toggle-hotkey、--record-hotkey）\n"
   "  start --gdi 用省内存的截屏方式，--dxgi 换回最快的\n"
   "  任何命令加 --json，输出给程序读\n"
   "\n"
@@ -36,6 +39,9 @@ X(HELP,
   "  sniplite capture --full --out a.png        整個螢幕存成檔案\n"
   "  sniplite capture --rect 0,0,800,600        截這塊區域到剪貼簿\n"
   "  sniplite pin [圖片]          貼到螢幕，不給圖片就貼剪貼簿\n"
+  "  sniplite pick                開啟取色器，按一下複製顏色（可連續取色）\n"
+  "  sniplite ruler               開啟螢幕標尺，拖兩點量距離、尺寸和角度\n"
+  "  sniplite ruler --edge        顯示邊緣刻度尺，加 --hide 隱藏\n"
   "  sniplite ocr                 框選一塊區域辨識文字，加 --copy 直接複製\n"
   "  sniplite settings            開啟偏好設定\n"
   "  sniplite update              檢查更新，加 --install 直接裝上新版本\n"
@@ -44,7 +50,7 @@ X(HELP,
   "\n"
   "小提示：\n"
   "  capture 還能加 --clip（複製）、--pin（貼圖），可以一起用\n"
-  "  start 可以臨時換快速鍵：--hotkey Ctrl+Alt+A（另有 --pin-hotkey、--toggle-hotkey）\n"
+  "  start 可以臨時換快速鍵：--hotkey Ctrl+Alt+A（另有 --pin-hotkey、--toggle-hotkey、--record-hotkey）\n"
   "  start --gdi 用省記憶體的截圖方式，--dxgi 換回最快的\n"
   "  任何指令加 --json，輸出給程式讀\n"
   "\n"
@@ -57,6 +63,9 @@ X(HELP,
   "  sniplite capture --full --out a.png        save the whole screen to a file\n"
   "  sniplite capture --rect 0,0,800,600        copy that area to the clipboard\n"
   "  sniplite pin [image]         pin an image, or the clipboard without one\n"
+  "  sniplite pick                open the color picker; click to copy (stays open)\n"
+  "  sniplite ruler               open the screen ruler; drag between two points to measure\n"
+  "  sniplite ruler --edge        show the edge ruler; add --hide to hide it\n"
   "  sniplite ocr                 select an area and read its text; --copy copies it at once\n"
   "  sniplite settings            open Settings\n"
   "  sniplite update              check for updates; --install installs the new version\n"
@@ -65,7 +74,7 @@ X(HELP,
   "\n"
   "Tips:\n"
   "  capture also takes --clip (copy) and --pin (pin), together if you like\n"
-  "  start can set hotkeys for this run: --hotkey Ctrl+Alt+A (also --pin-hotkey, --toggle-hotkey)\n"
+  "  start can set hotkeys for this run: --hotkey Ctrl+Alt+A (also --pin-hotkey, --toggle-hotkey, --record-hotkey)\n"
   "  start --gdi uses the low-memory capture mode, --dxgi goes back to the fastest\n"
   "  add --json to any command for output a program can read\n"
   "\n"
@@ -78,6 +87,9 @@ X(HELP,
   "  sniplite capture --full --out a.png        画面全体をファイルに保存\n"
   "  sniplite capture --rect 0,0,800,600        この範囲をクリップボードにコピー\n"
   "  sniplite pin [画像]          画像をピン留め（省略時はクリップボード）\n"
+  "  sniplite pick                カラーピッカーを開き、クリックで色をコピー（連続可）\n"
+  "  sniplite ruler               画面定規を開く。2 点をドラッグして距離・サイズ・角度を測定\n"
+  "  sniplite ruler --edge        画面端の定規を表示、--hide で隠す\n"
   "  sniplite ocr                 範囲を選んで文字を読み取る。--copy でそのままコピー\n"
   "  sniplite settings            設定を開く\n"
   "  sniplite update              更新を確認（--install で新バージョンをインストール）\n"
@@ -86,7 +98,7 @@ X(HELP,
   "\n"
   "ヒント：\n"
   "  capture には --clip（コピー）と --pin（ピン留め）も付けられます（併用可）\n"
-  "  start でホットキーを一時変更：--hotkey Ctrl+Alt+A（--pin-hotkey、--toggle-hotkey も）\n"
+  "  start でホットキーを一時変更：--hotkey Ctrl+Alt+A（--pin-hotkey、--toggle-hotkey、--record-hotkey も）\n"
   "  start --gdi は省メモリ方式、--dxgi で最速の方式に戻します\n"
   "  どのコマンドも --json でプログラム向けの出力になります\n"
   "\n"
@@ -99,6 +111,9 @@ X(HELP,
   "  sniplite capture --full --out a.png        전체 화면을 파일로 저장\n"
   "  sniplite capture --rect 0,0,800,600        이 영역을 클립보드에 복사\n"
   "  sniplite pin [이미지]        화면에 고정 (이미지가 없으면 클립보드)\n"
+  "  sniplite pick                색상 추출기를 열고 클릭해 색 복사 (연속 가능)\n"
+  "  sniplite ruler               화면 자를 엽니다. 두 점을 끌어 거리, 크기, 각도를 측정\n"
+  "  sniplite ruler --edge        가장자리 자 표시, --hide로 숨기기\n"
   "  sniplite ocr                 영역을 선택해 텍스트 인식, --copy 는 바로 복사\n"
   "  sniplite settings            설정 열기\n"
   "  sniplite update              업데이트 확인 (--install로 새 버전 설치)\n"
@@ -107,7 +122,7 @@ X(HELP,
   "\n"
   "팁:\n"
   "  capture에 --clip(복사), --pin(고정)을 함께 쓸 수 있습니다\n"
-  "  start로 단축키를 임시 변경: --hotkey Ctrl+Alt+A (--pin-hotkey, --toggle-hotkey도 가능)\n"
+  "  start로 단축키를 임시 변경: --hotkey Ctrl+Alt+A (--pin-hotkey, --toggle-hotkey, --record-hotkey도 가능)\n"
   "  start --gdi는 메모리 절약 방식을 쓰고, --dxgi는 가장 빠른 방식으로 되돌립니다\n"
   "  어떤 명령이든 --json을 붙이면 프로그램용 출력이 됩니다\n"
   "\n"
@@ -120,6 +135,9 @@ X(HELP,
   "  sniplite capture --full --out a.png        enregistrer tout l'écran dans un fichier\n"
   "  sniplite capture --rect 0,0,800,600        copier cette zone dans le presse-papiers\n"
   "  sniplite pin [image]         épingler une image, sinon le presse-papiers\n"
+  "  sniplite pick                ouvrir la pipette ; un clic copie la couleur (reste ouvert)\n"
+  "  sniplite ruler               ouvrir la règle d'écran ; glissez entre deux points pour mesurer\n"
+  "  sniplite ruler --edge        afficher la règle de bord ; --hide pour la masquer\n"
   "  sniplite ocr                 sélectionner une zone et lire son texte ; --copy le copie aussitôt\n"
   "  sniplite settings            ouvrir les préférences\n"
   "  sniplite update              chercher une mise à jour ; --install l'installe\n"
@@ -128,7 +146,7 @@ X(HELP,
   "\n"
   "Astuces :\n"
   "  capture accepte aussi --clip (copier) et --pin (épingler), ensemble si besoin\n"
-  "  start peut changer les raccourcis pour cette fois : --hotkey Ctrl+Alt+A (aussi --pin-hotkey, --toggle-hotkey)\n"
+  "  start peut changer les raccourcis pour cette fois : --hotkey Ctrl+Alt+A (aussi --pin-hotkey, --toggle-hotkey, --record-hotkey)\n"
   "  start --gdi choisit la capture économe en mémoire, --dxgi revient à la plus rapide\n"
   "  ajoutez --json à une commande pour une sortie lisible par un programme\n"
   "\n"
@@ -141,6 +159,9 @@ X(HELP,
   "  sniplite capture --full --out a.png        ganzen Bildschirm in eine Datei speichern\n"
   "  sniplite capture --rect 0,0,800,600        diesen Bereich in die Zwischenablage kopieren\n"
   "  sniplite pin [Bild]          Bild anheften, ohne Bild die Zwischenablage\n"
+  "  sniplite pick                Farbwähler öffnen; Klick kopiert die Farbe (bleibt offen)\n"
+  "  sniplite ruler               Bildschirmlinieal öffnen; zwischen zwei Punkten ziehen zum Messen\n"
+  "  sniplite ruler --edge        das Randlineal anzeigen; --hide blendet es aus\n"
   "  sniplite ocr                 Bereich wählen und Text erkennen; --copy kopiert ihn sofort\n"
   "  sniplite settings            Einstellungen öffnen\n"
   "  sniplite update              nach Updates suchen; --install installiert die neue Version\n"
@@ -149,7 +170,7 @@ X(HELP,
   "\n"
   "Tipps:\n"
   "  capture kennt auch --clip (kopieren) und --pin (anheften), auch zusammen\n"
-  "  start kann Tastenkürzel für diesen Lauf setzen: --hotkey Ctrl+Alt+A (auch --pin-hotkey, --toggle-hotkey)\n"
+  "  start kann Tastenkürzel für diesen Lauf setzen: --hotkey Ctrl+Alt+A (auch --pin-hotkey, --toggle-hotkey, --record-hotkey)\n"
   "  start --gdi nimmt den sparsamen Aufnahmemodus, --dxgi wieder den schnellsten\n"
   "  mit --json liefert jeder Befehl eine Ausgabe für Programme\n"
   "\n"
@@ -162,6 +183,9 @@ X(HELP,
   "  sniplite capture --full --out a.png        guardar toda la pantalla en un archivo\n"
   "  sniplite capture --rect 0,0,800,600        copiar esa zona al portapapeles\n"
   "  sniplite pin [imagen]        fijar una imagen o, sin ella, el portapapeles\n"
+  "  sniplite pick                abrir el cuentagotas; un clic copia el color (sigue abierto)\n"
+  "  sniplite ruler               abrir la regla de pantalla; arrastra entre dos puntos para medir\n"
+  "  sniplite ruler --edge        mostrar la regla de borde; --hide la oculta\n"
   "  sniplite ocr                 seleccionar una zona y leer su texto; --copy lo copia al momento\n"
   "  sniplite settings            abrir los ajustes\n"
   "  sniplite update              buscar actualizaciones; --install instala la nueva versión\n"
@@ -170,7 +194,7 @@ X(HELP,
   "\n"
   "Consejos:\n"
   "  capture también admite --clip (copiar) y --pin (fijar), juntos si quieres\n"
-  "  start puede cambiar los atajos para esta vez: --hotkey Ctrl+Alt+A (también --pin-hotkey, --toggle-hotkey)\n"
+  "  start puede cambiar los atajos para esta vez: --hotkey Ctrl+Alt+A (también --pin-hotkey, --toggle-hotkey, --record-hotkey)\n"
   "  start --gdi usa el modo ligero, --dxgi vuelve al rápido\n"
   "  añade --json a cualquier comando para una salida legible por programas\n"
   "\n"
@@ -343,6 +367,12 @@ X(ST_HK_TOGGLE,
 X(ST_HK_OCR, "识别文字热键", "辨識文字快速鍵", "Read text key", "文字認識キー", "인식 단축키", "Touche texte", "Texttaste", "Atajo texto")
 X(ST_HK_OCRCOPY, "复制文字热键", "複製文字快速鍵", "Copy text key", "文字コピーキー", "복사 단축키", "Touche copie", "Kopiertaste",
   "Atajo copiar")
+X(ST_HK_PICK,
+  "取色器热键", "取色器快速鍵", "Picker key", "カラーピッカーキー", "색상 추출 단축키", "Touche pipette",
+  "Farbwähler-Taste", "Atajo cuentagotas")
+X(ST_HK_RECORD,
+  "录屏热键", "螢幕錄影快速鍵", "Recording key", "録画キー", "녹화 단축키", "Touche enregistrement",
+  "Bildschirmaufnahme-Taste", "Atajo grabar")
 X(ST_RUNNING,
   "sniplite %s 正在后台运行（PID %lu）\n", "sniplite %s 正在背景執行（PID %lu）\n",
   "sniplite %s is running (PID %lu)\n", "sniplite %s 実行中（PID %lu）\n", "sniplite %s 실행 중 (PID %lu)\n",
@@ -618,6 +648,13 @@ X(C_EXIT_ASK,
 X(C_SAVE_DIR,
   "默认保存位置", "預設儲存位置", "Default save location", "既定の保存先", "기본 저장 위치",
   "Dossier d'enregistrement par défaut", "Standardspeicherort", "Carpeta de guardado predeterminada")
+X(C_REC_DIR,
+  "录屏保存位置", "錄影儲存位置", "Recording save location", "録画の保存先", "녹화 저장 위치",
+  "Dossier des enregistrements", "Speicherort für Aufnahmen", "Carpeta de grabaciones")
+X(C_REC_SAME,
+  "（同默认保存位置）", "（同預設儲存位置）", "(same as the default)", "（既定の保存先と同じ）",
+  "(기본 저장 위치와 같음)", "(comme le dossier par défaut)", "(wie der Standardspeicherort)",
+  "(igual que la carpeta predeterminada)")
 X(C_CHANGE, "更改…", "變更…", "Change…", "変更…", "변경…", "Changer…", "Ändern…", "Cambiar…")
 X(C_NAME, "文件名格式:", "檔案名稱格式:", "File name format:", "ファイル名の形式:", "파일 이름 형식:", "Format du nom :",
   "Dateinamenformat:", "Formato del nombre:")
@@ -642,6 +679,10 @@ X(H_TOGGLE,
 X(H_OCR, "识别文字:", "辨識文字:", "Read text:", "文字認識:", "텍스트 인식:", "Lire le texte :", "Text erkennen:", "Leer texto:")
 X(H_OCRCOPY, "复制文字:", "複製文字:", "Copy text:", "文字コピー:", "텍스트 복사:", "Copier le texte :", "Text kopieren:",
   "Copiar texto:")
+X(H_PICK, "取色器:", "取色器:", "Color picker:", "カラーピッカー:", "색상 추출:", "Pipette :", "Farbwähler:",
+  "Cuentagotas:")
+X(H_RECORD, "录屏:", "螢幕錄影:", "Screen recording:", "画面録画:", "화면 녹화:", "Enregistrement d'écran :",
+  "Bildschirmaufnahme:", "Grabar pantalla:")
 X(H_HINT,
   "单击输入框后按下新的快捷键，Backspace 清除。", "點一下輸入框後按下新的快速鍵，Backspace 清除。",
   "Click a field, then press the new keys. Backspace clears it.",
@@ -723,6 +764,8 @@ X(SC_OCR, "识别文字", "辨識文字", "Recognize text", "文字を読み取�
   "Reconocer texto")
 X(SC_LONG, "长截图", "長截圖", "Scrolling capture", "スクロールキャプチャ", "스크롤 캡처", "Capture défilante", "Scrollaufnahme",
   "Captura con desplazamiento")
+X(SC_REC, "录屏", "螢幕錄影", "Screen recording", "画面録画", "화면 녹화", "Enregistrement d'écran",
+  "Bildschirmaufnahme", "Grabar pantalla")
 X(SC_CANCEL, "退出", "取消", "Cancel", "キャンセル", "취소", "Quitter", "Abbrechen", "Cancelar")
 X(SC_UNDO, "撤销", "復原", "Undo", "元に戻す", "실행 취소", "Annuler", "Rückgängig", "Deshacer")
 X(SC_PIN_CLIP,
@@ -740,6 +783,15 @@ X(SC_NUDGE10, "挪十个像素", "移動十個像素", "Move by ten pixels", "10
   "Déplacer de dix pixels", "Um 10 Pixel verschieben", "Mover diez píxeles")
 X(SC_COLOR, "取颜色", "取色", "Pick a color", "色を取得", "색상 추출", "Prélever une couleur", "Farbe kopieren",
   "Copiar el color")
+X(SC_PICKER, "打开取色器", "開啟取色器", "Open the color picker", "カラーピッカーを開く", "색상 추출 열기",
+  "Ouvrir la pipette", "Farbwähler öffnen", "Abrir el cuentagotas")
+X(SC_RULER, "屏幕标尺", "螢幕標尺", "Screen ruler", "画面定規", "화면 자", "Règle d'écran",
+  "Bildschirmlinieal", "Regla de pantalla")
+X(SC_EDGE_RULER, "边缘刻度尺", "邊緣刻度尺", "Edge ruler", "画面端の定規", "가장자리 자",
+  "Règle de bord", "Randlineal", "Regla de borde")
+X(SC_EDGE_RULER_HIDE, "隐藏边缘刻度尺", "隱藏邊緣刻度尺", "Hide the edge ruler", "画面端の定規を隠す",
+  "가장자리 자 숨기기", "Masquer la règle de bord", "Randlineal ausblenden", "Ocultar la regla de borde")
+X(SC_EDGE_CROSS, "十字线", "十字線", "Crosshair", "十字線", "십자선", "Réticule", "Fadenkreuz", "Retícula")
 X(K_CLICK, "单击", "點一下", "Click", "クリック", "클릭", "Clic", "Klick", "Clic")
 X(K_ENTER_DBL,
   "Enter 或 双击", "Enter 或 點兩下", "Enter or double-click", "Enter またはダブルクリック", "Enter 또는 더블클릭",
@@ -908,6 +960,8 @@ X(TIP_FRONT, "置于顶层", "移到最上層", "Bring to front", "最前面へ�
   "In den Vordergrund", "Traer al frente")
 X(TIP_BACK, "置于底层", "移到最下層", "Send to back", "最背面へ移動", "맨 뒤로 보내기", "Mettre à l'arrière-plan",
   "In den Hintergrund", "Enviar al fondo")
+X(TIP_REC, "录屏  Ctrl+R", "螢幕錄影  Ctrl+R", "Record  Ctrl+R", "画面録画  Ctrl+R", "화면 녹화  Ctrl+R",
+  "Enregistrer l'écran  Ctrl+R", "Bildschirm aufnehmen  Ctrl+R", "Grabar pantalla  Ctrl+R")
 /* the three sizes */
 X(TIP_SIZE0, "细  (滚轮调节)", "細  (滾輪調整)", "Thin  (wheel to change)", "細い  (ホイールで調整)",
   "가늘게  (휠로 조절)", "Fin  (molette pour changer)", "Dünn  (Mausrad zum Ändern)", "Fino  (rueda para cambiar)")
@@ -935,6 +989,16 @@ X(OV_SAVE_FAILED,
   "保存に失敗しました。パスと権限を確認してください。", "저장 실패. 경로와 권한을 확인하세요.",
   "Échec de l'enregistrement. Vérifiez le chemin et les droits.",
   "Speichern fehlgeschlagen. Pfad und Rechte prüfen.", "Error al guardar. Revisa la ruta y los permisos.")
+X(REC_SAVED, "录屏已保存", "螢幕錄影已儲存", "Recording saved", "録画を保存しました", "녹화 저장됨",
+  "Enregistrement sauvegardé", "Aufnahme gespeichert", "Grabación guardada")
+X(REC_FAILED, "录屏失败", "螢幕錄影失敗", "Recording failed", "録画に失敗しました", "녹화 실패",
+  "Échec de l'enregistrement", "Aufnahme fehlgeschlagen", "Error al grabar")
+X(REC_BUSY, "正在录屏，请先停止", "正在錄影，請先停止", "Recording is already in progress",
+  "録画中です。先に停止してください", "녹화 중입니다. 먼저 중지하세요", "Un enregistrement est déjà en cours",
+  "Eine Aufnahme läuft bereits", "Ya se está grabando")
+X(REC_SAVING, "正在保存…", "正在儲存…", "Saving…", "保存中…", "저장 중…", "Enregistrement…",
+  "Wird gespeichert…", "Guardando…")
+X(REC_PAUSED, "已暂停", "已暫停", "Paused", "一時停止", "일시 정지", "En pause", "Pausiert", "En pausa")
 
 /* ---- pins (pin.c) ---- */
 X(PIN_OPACITY, "不透明度 %d%%", "不透明度 %d%%", "Opacity %d%%", "不透明度 %d%%", "불투명도 %d%%", "Opacité %d%%",
@@ -983,6 +1047,15 @@ X(OCR_TABLE, "表格", "表格", "Table", "表", "표", "Tableau", "Tabelle", "T
 X(LONG_HINT, "滚动页面，自动拼接", "捲動頁面，自動拼接", "Scroll the page: it is stitched as you go", "ページをスクロールすると自動でつなぎます",
   "페이지를 스크롤하면 자동으로 이어 붙입니다", "Faites défiler la page : elle est assemblée au fur et à mesure",
   "Seite scrollen: sie wird laufend zusammengesetzt", "Desplaza la página: se va uniendo sola")
+X(LONG_AUTO, "自动滚动中（点击暂停）", "自動捲動中（點擊暫停）", "Auto-scrolling (click to pause)", "自動スクロール中（クリックで一時停止）",
+  "자동 스크롤 중(클릭하여 일시정지)", "Défilement auto (cliquer pour suspendre)", "Automatisches Scrollen (Klick pausiert)",
+  "Desplazamiento automático (clic para pausar)")
+X(LONG_AUTO_PAUSED, "自动滚动已暂停（点击继续）", "自動捲動已暫停（點擊繼續）", "Paused (click to resume)", "一時停止中（クリックで再開）",
+  "일시정지됨(클릭하여 재개)", "En pause (cliquer pour reprendre)", "Pausiert (Klick setzt fort)", "En pausa (clic para continuar)")
+X(LONG_AUTO_END, "已到底", "已到底", "Bottom reached", "最後まで到達", "끝까지 도달", "Bas de page atteint", "Ende erreicht",
+  "Final de la página")
+X(LONG_AUTO_MANUAL, "请手动滚动", "請手動捲動", "Scroll manually", "手動でスクロールしてください", "직접 스크롤해 주세요",
+  "Faites défiler manuellement", "Bitte manuell scrollen", "Desplaza manualmente")
 X(LONG_LOST, "滚得太快了，往回滚一点", "捲得太快了，往回捲一點", "Too fast: scroll back a little", "速すぎます。少し戻してください", "너무 빠릅니다. 조금 되돌려 주세요",
   "Trop vite : revenez un peu en arrière", "Zu schnell: ein Stück zurückscrollen",
   "Demasiado rápido: vuelve un poco atrás")

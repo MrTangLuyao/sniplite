@@ -34,6 +34,7 @@
 #define W_VK_RETURN 0x0D
 #define W_VK_SHIFT 0x10
 #define W_VK_CONTROL 0x11
+#define W_VK_MENU 0x12
 #define W_VK_ESCAPE 0x1B
 #define W_VK_LEFT 0x25
 #define W_VK_UP 0x26
@@ -68,6 +69,7 @@
 #define K_D 0x44                        /* = 'D' */
 #define K_L 0x4C                        /* = 'L' */
 #define K_O 0x4F                        /* = 'O' */
+#define K_R 0x52                        /* = 'R' */
 #define K_S 0x53                        /* = 'S' */
 #define K_T 0x54                        /* = 'T' */
 #define K_V 0x56                        /* = 'V' */
@@ -93,6 +95,7 @@
         .section .rdata$ov_input,"dr"
         .balign 4
 .Lf_3:          .long 0x40400000                /* 3.0f */
+.Lf_8:          .long 0x41000000                /* 8.0f */
         .balign 2
 /* L"sniplite.overlay" */
 w_ov_class:     .short 0x0073, 0x006E, 0x0069, 0x0070, 0x006C, 0x0069, 0x0074, 0x0065, 0x002E, 0x006F, 0x0076, 0x0065, 0x0072, 0x006C, 0x0061, 0x0079, 0x0000
@@ -169,6 +172,10 @@ FUNC on_mouse_move
         mov rbx, rax
         cmp dword ptr [rip + O + OV_PHASE], PH_SELECT
         jne .Lmm_edit
+        cmp byte ptr [rip + O + OV_RULER], 0
+        jne .Lmm_ruler
+        cmp byte ptr [rip + O + OV_PICKER], 0
+        jne .Lmm_picker
         cmp byte ptr [rip + O + OV_LDOWN], 0
         je .Lmm_scale
         cmp byte ptr [rip + O + OV_RUBBER], 0
@@ -202,6 +209,38 @@ FUNC on_mouse_move
         je 2f
 1:      call update_scale
 2:      call update_chain
+        jmp .Lmm_refresh
+
+.Lmm_picker:                            /* the picker needs the DPI scale only */
+        call pick_track
+        call update_scale
+        jmp .Lmm_refresh
+
+.Lmm_ruler:                             /* the ruler follows the mouse; Shift/Alt adjust it */
+        call update_scale
+        cmp dword ptr [rip + O + OV_RULER_DRAG], 0
+        je .Lmm_refresh
+        mov eax, dword ptr [rip + O + OV_CUR + PT_X]
+        mov dword ptr [rip + O + OV_RULER_PX], eax
+        mov eax, dword ptr [rip + O + OV_CUR + PT_Y]
+        mov dword ptr [rip + O + OV_RULER_PY], eax
+        xor esi, esi
+        mov ecx, W_VK_SHIFT
+        API GetKeyState
+        test ax, ax
+        jns 1f
+        mov esi, 1
+1:      xor r9d, r9d
+        mov ecx, W_VK_MENU
+        API GetKeyState
+        test ax, ax
+        jns 2f
+        mov r9d, 1
+2:      mov r8d, esi
+        lea rcx, [rip + O + OV_RULER_AX]
+        mov edx, dword ptr [rip + O + OV_RULER_DRAG]
+        call ruler_move
+        mov byte ptr [rip + O + OV_RULER_ON], 1
         jmp .Lmm_refresh
 
 .Lmm_edit:
@@ -407,9 +446,69 @@ FUNC on_lbutton_down
         API SetCapture
         cmp dword ptr [rip + O + OV_PHASE], PH_SELECT
         jne .Lld_edit
+        cmp byte ptr [rip + O + OV_RULER], 0
+        jne .Lld_ruler
+        cmp byte ptr [rip + O + OV_PICKER], 0
+        jne .Lld_pick
         mov byte ptr [rip + O + OV_LDOWN], 1
         mov qword ptr [rip + O + OV_DOWN], rbx
         mov byte ptr [rip + O + OV_RUBBER], 0
+        jmp .Lld_refresh
+.Lld_pick:                              /* the color is taken on release */
+        call pick_track
+        mov byte ptr [rip + O + OV_LDOWN], 1
+        mov byte ptr [rip + O + OV_PICK_SKIP], 0
+        jmp .Lld_refresh
+.Lld_ruler:                             /* a press on an end moves it; elsewhere starts over */
+        cmp byte ptr [rip + O + OV_RULER_ON], 0
+        je .Lld_ruler_new
+        movss xmm0, dword ptr [rip + O + OV_S]
+        mulss xmm0, dword ptr [rip + .Lf_8]
+        cvttss2si edx, xmm0
+        test edx, edx
+        jg 1f
+        mov edx, 8
+1:      mov eax, dword ptr [rip + O + OV_CUR + PT_X]
+        sub eax, dword ptr [rip + O + OV_RULER_AX]
+        ABS32 ecx, eax
+        cmp ecx, edx
+        jg .Lld_ruler_b
+        mov eax, dword ptr [rip + O + OV_CUR + PT_Y]
+        sub eax, dword ptr [rip + O + OV_RULER_AY]
+        ABS32 ecx, eax
+        cmp ecx, edx
+        jg .Lld_ruler_b
+        mov dword ptr [rip + O + OV_RULER_DRAG], 1
+        jmp .Lld_ruler_start
+.Lld_ruler_b:
+        mov eax, dword ptr [rip + O + OV_CUR + PT_X]
+        sub eax, dword ptr [rip + O + OV_RULER_BX]
+        ABS32 ecx, eax
+        cmp ecx, edx
+        jg .Lld_ruler_new
+        mov eax, dword ptr [rip + O + OV_CUR + PT_Y]
+        sub eax, dword ptr [rip + O + OV_RULER_BY]
+        ABS32 ecx, eax
+        cmp ecx, edx
+        jg .Lld_ruler_new
+        mov dword ptr [rip + O + OV_RULER_DRAG], 2
+        jmp .Lld_ruler_start
+.Lld_ruler_new:
+        mov eax, dword ptr [rip + O + OV_CUR + PT_X]
+        mov dword ptr [rip + O + OV_RULER_AX], eax
+        mov dword ptr [rip + O + OV_RULER_BX], eax
+        mov dword ptr [rip + O + OV_RULER_CX], eax
+        mov dword ptr [rip + O + OV_RULER_PX], eax
+        mov eax, dword ptr [rip + O + OV_CUR + PT_Y]
+        mov dword ptr [rip + O + OV_RULER_AY], eax
+        mov dword ptr [rip + O + OV_RULER_BY], eax
+        mov dword ptr [rip + O + OV_RULER_CY], eax
+        mov dword ptr [rip + O + OV_RULER_PY], eax
+        mov dword ptr [rip + O + OV_RULER_DRAG], 2
+        mov byte ptr [rip + O + OV_RULER_ON], 0
+.Lld_ruler_start:
+        mov byte ptr [rip + O + OV_LDOWN], 1
+        mov byte ptr [rip + O + OV_PICK_SKIP], 0
         jmp .Lld_refresh
 .Lld_edit:
         mov rcx, rbx
@@ -529,6 +628,10 @@ FUNC on_lbutton_up
         ENDPROLOG
         mov rbx, rcx
         call release_capture
+        cmp byte ptr [rip + O + OV_RULER], 0
+        jne .Llu_ruler
+        cmp byte ptr [rip + O + OV_PICKER], 0
+        jne .Llu_pick
         cmp dword ptr [rip + O + OV_PHASE], PH_SELECT
         jne .Llu_edit
         cmp byte ptr [rip + O + OV_LDOWN], 0
@@ -599,6 +702,35 @@ FUNC on_lbutton_up
         add rsp, 48
         pop rbx
         jmp refresh
+.Llu_pick:
+        call pick_track
+        mov byte ptr [rip + O + OV_LDOWN], 0
+        cmp byte ptr [rip + O + OV_PICK_SKIP], 0
+        je .Llu_pick_copy
+        mov byte ptr [rip + O + OV_PICK_SKIP], 0
+        add rsp, 48
+        pop rbx
+        ret
+.Llu_pick_copy:
+        add rsp, 48
+        pop rbx
+        jmp copy_color
+.Llu_ruler:
+        cmp byte ptr [rip + O + OV_LDOWN], 0
+        je .Llu_ret
+        mov byte ptr [rip + O + OV_LDOWN], 0
+        mov dword ptr [rip + O + OV_RULER_DRAG], 0
+        mov eax, dword ptr [rip + O + OV_RULER_BX]
+        sub eax, dword ptr [rip + O + OV_RULER_AX]
+        ABS32 edx, eax
+        mov eax, dword ptr [rip + O + OV_RULER_BY]
+        sub eax, dword ptr [rip + O + OV_RULER_AY]
+        ABS32 ecx, eax
+        add edx, ecx
+        cmp edx, 2
+        jg .Llu_refresh
+        mov byte ptr [rip + O + OV_RULER_ON], 0
+        jmp .Llu_refresh
 ENDF
 
 /* void on_dblclick(POINT p): a text annotation opens for editing; elsewhere in the
@@ -609,6 +741,8 @@ FUNC on_dblclick
         ALLOC 32
         ENDPROLOG
         mov rbx, rcx
+        cmp byte ptr [rip + O + OV_PICKER], 0  /* the first click copied: the second copies nothing */
+        jne .Ldc_pick
         cmp dword ptr [rip + O + OV_PHASE], PH_EDIT
         jne .Ldc_down
         cmp dword ptr [rip + O + OV_DRAG], DR_NONE
@@ -657,6 +791,8 @@ FUNC on_dblclick
         add rsp, 32
         pop rbx
         jmp on_lbutton_down
+.Ldc_pick:                              /* the first click already copied: skip the second */
+        mov byte ptr [rip + O + OV_PICK_SKIP], 1
 .Ldc_ret:
         add rsp, 32
         pop rbx
@@ -667,6 +803,8 @@ ENDF
 FUNC on_rbutton_up
         ALLOC 40
         ENDPROLOG
+        cmp byte ptr [rip + O + OV_PICKER], 0
+        jne .Lru_cancel
         cmp dword ptr [rip + O + OV_PHASE], PH_SELECT
         jne .Lru_edit
         cmp byte ptr [rip + O + OV_LDOWN], 0
@@ -705,6 +843,8 @@ FUNC on_wheel
         PUSHREG rdi
         ALLOC 32
         ENDPROLOG
+        cmp byte ptr [rip + O + OV_PICKER], 0  /* no window chain to step through */
+        jne .Lwh_ret
         xor ebx, ebx                    /* d = delta > 0 ? 1 : -1 */
         test ecx, ecx
         setg bl
@@ -976,6 +1116,10 @@ FUNC on_key
         xor r12d, r12d
         test ax, ax
         sets r12b
+        cmp byte ptr [rip + O + OV_RULER], 0
+        jne .Lky_picker
+        cmp byte ptr [rip + O + OV_PICKER], 0
+        jne .Lky_picker
         cmp byte ptr [rip + O + OV_TE_ON], 0
         je .Lky_keys
         cmp ebx, W_VK_ESCAPE            /* typing: Esc ends the text, Ctrl+V pastes */
@@ -1020,6 +1164,8 @@ FUNC on_key
         je .Lky_ocr
         cmp ebx, K_L
         je .Lky_long
+        cmp ebx, K_R
+        je .Lky_rec
         cmp ebx, K_Z
         je .Lky_undo
         cmp ebx, K_Y
@@ -1093,6 +1239,9 @@ FUNC on_key
 .Lky_long:
         mov ecx, ACT_LONG
         jmp .Lky_finish
+.Lky_rec:
+        mov ecx, ACT_RECORD
+        jmp .Lky_finish
 .Lky_ocr:
         call ocr_panel                  /* the text panel, shown or hidden */
         jmp .Lky_refresh
@@ -1128,6 +1277,110 @@ FUNC on_key
         bt rsi, 30
         jc .Lky_ret
         xor byte ptr [rip + O + OV_HEX], 1
+        jmp .Lky_refresh
+
+.Lky_picker:                            /* the picker: leave, copy, or RGB / hex */
+        cmp byte ptr [rip + O + OV_RULER], 0
+        jne .Lky_ruler
+        cmp ebx, W_VK_ESCAPE
+        je .Lky_cancel
+        cmp ebx, K_R
+        je .Lky_pick_ruler
+        cmp ebx, K_C
+        je .Lky_pick_copy
+        cmp ebx, W_VK_RETURN
+        je .Lky_pick_copy
+        cmp ebx, W_VK_SHIFT
+        jne .Lky_ret
+        bt rsi, 30                      /* first press only, not auto-repeat */
+        jc .Lky_ret
+        xor byte ptr [rip + O + OV_HEX], 1
+        movzx ecx, byte ptr [rip + O + OV_HEX]
+        call color_hex_set              /* main.c: keep the choice for the next time */
+        jmp .Lky_refresh
+.Lky_pick_copy:
+        bt rsi, 30                      /* first press only, not auto-repeat */
+        jc .Lky_ret
+        jmp .Lky_color
+.Lky_pick_ruler:                        /* R: the same overlay, with a full screenshot */
+        bt rsi, 30
+        jc .Lky_ret
+        call ov_cancel
+        call ov_begin_ruler
+        jmp .Lky_ret
+.Lky_ruler:                             /* the ruler: copy, nudge, or back to the picker */
+        cmp ebx, W_VK_ESCAPE
+        je .Lky_cancel
+        cmp ebx, K_R
+        je .Lky_ruler_picker
+        cmp ebx, W_VK_RETURN
+        je .Lky_ruler_copy
+        cmp ebx, K_C
+        je .Lky_ruler_copy
+        lea eax, [rbx - W_VK_LEFT]
+        cmp eax, W_VK_DOWN - W_VK_LEFT
+        jbe .Lky_ruler_arrow
+        jmp .Lky_ret
+.Lky_ruler_picker:
+        bt rsi, 30
+        jc .Lky_ret
+        call ov_cancel
+        call ov_begin_pick
+        jmp .Lky_ret
+.Lky_ruler_copy:
+        call ruler_copy
+        jmp .Lky_refresh
+.Lky_ruler_arrow:
+        cmp byte ptr [rip + O + OV_RULER_ON], 0
+        je .Lky_ret
+        mov ecx, W_VK_SHIFT
+        API GetAsyncKeyState
+        mov eax, 1
+        test ax, ax
+        jns .Lky_ruler_step
+        mov eax, 10
+.Lky_ruler_step:
+        cmp ebx, W_VK_LEFT
+        je .Lky_ruler_left
+        cmp ebx, W_VK_RIGHT
+        je .Lky_ruler_right
+        cmp ebx, W_VK_UP
+        je .Lky_ruler_up
+        mov ecx, dword ptr [rip + O + OV_RULER_BY]
+        add ecx, eax
+        jmp .Lky_ruler_sety
+.Lky_ruler_up:
+        mov ecx, dword ptr [rip + O + OV_RULER_BY]
+        sub ecx, eax
+        jmp .Lky_ruler_sety
+.Lky_ruler_left:
+        mov ecx, dword ptr [rip + O + OV_RULER_BX]
+        sub ecx, eax
+        jmp .Lky_ruler_setx
+.Lky_ruler_right:
+        mov ecx, dword ptr [rip + O + OV_RULER_BX]
+        add ecx, eax
+.Lky_ruler_setx:
+        mov edx, dword ptr [rip + O + OV_SHOT + SHOT_VW]
+        dec edx
+        cmp ecx, 0
+        jge .Lky_ruler_setx_ok
+        xor ecx, ecx
+.Lky_ruler_setx_ok:
+        cmp ecx, edx
+        cmovg ecx, edx
+        mov dword ptr [rip + O + OV_RULER_BX], ecx
+        jmp .Lky_refresh
+.Lky_ruler_sety:
+        mov edx, dword ptr [rip + O + OV_SHOT + SHOT_VH]
+        dec edx
+        cmp ecx, 0
+        jge .Lky_ruler_sety_ok
+        xor ecx, ecx
+.Lky_ruler_sety_ok:
+        cmp ecx, edx
+        cmovg ecx, edx
+        mov dword ptr [rip + O + OV_RULER_BY], ecx
         jmp .Lky_refresh
 .Lky_undo:
         test r12d, r12d                 /* Ctrl+Shift+Z redoes */
@@ -1387,6 +1640,10 @@ FUNC ov_proc
         je .Lp_zero
         cmp byte ptr [rip + O + OV_RELEASING], 0
         jne .Lp_zero
+        cmp byte ptr [rip + O + OV_RULER], 0
+        je .Lp_cap_ruler_done
+        mov dword ptr [rip + O + OV_RULER_DRAG], 0
+.Lp_cap_ruler_done:
         cmp dword ptr [rip + O + OV_DRAG], DR_DRAW
         jne 1f
         call end_draw

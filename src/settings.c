@@ -414,6 +414,12 @@ static void show_save_dir(void)
     SetDlgItemTextW(S.page[PG_CAPTURE], IDC_SAVE_DIR, dir);
 }
 
+/* the recording location: its own folder, or a note that it follows the one above */
+static void show_rec_dir(void)
+{
+    SetDlgItemTextW(S.page[PG_CAPTURE], IDC_REC_DIR, S.cfg.rec_dir[0] ? S.cfg.rec_dir : T(C_REC_SAME));
+}
+
 /* the file names to choose from, each shown as the name it gives right now */
 static void show_names(void)
 {
@@ -730,6 +736,7 @@ typedef struct {
 static const Shortcut kShortcuts[] = {
     {0, S_SC_START, NULL, 0, HK_CAPTURE},
     {0, S_SC_QUICK, NULL, 0, HK_QUICK},
+    {0, S_SC_PICKER, NULL, 0, HK_PICK},
     {0, S_SC_WINDOW, NULL, S_K_CLICK, 0},
     {0, S_SC_COPY, NULL, S_K_ENTER_DBL, 0},
     {0, S_SC_SAVE, L"Ctrl+S", 0, 0},
@@ -737,6 +744,7 @@ static const Shortcut kShortcuts[] = {
     {0, S_SC_OCR, L"Ctrl+O", 0, 0},
     {0, S_PM_OCR, L"Ctrl+Shift+C", 0, 0},
     {0, S_SC_LONG, L"Ctrl+L", 0, 0},
+    {0, S_SC_REC, L"Ctrl+R", 0, 0},
     {0, S_SC_UNDO, L"Ctrl+Z", 0, 0},
     {0, S_SC_CANCEL, L"Esc", 0, 0},
     {1, S_SC_PIN_CLIP, NULL, 0, HK_PIN},
@@ -1118,7 +1126,7 @@ static void page_command(HWND page, int id, int code, HWND ctl)
         }
         return;
     }
-    if (id >= IDC_HK_FIELD1 && id <= IDC_HK_FIELD6) {
+    if (id >= IDC_HK_FIELD1 && id <= IDC_HK_FIELD8) {
         int hk = id - IDC_HK_FIELD1 + 1;
         if (code == HKN_BEGIN) {
             daemon_cmd(L"_hotkeys", L"off"); /* let our own hotkeys reach the field */
@@ -1130,7 +1138,7 @@ static void page_command(HWND page, int id, int code, HWND ctl)
         }
         return;
     }
-    if (id >= IDC_HK_CLEAR1 && id <= IDC_HK_CLEAR6) {
+    if (id >= IDC_HK_CLEAR1 && id <= IDC_HK_CLEAR8) {
         int hk = id - IDC_HK_CLEAR1 + 1;
         S.cfg.mod[hk] = S.cfg.vk[hk] = 0;
         show_hotkeys();
@@ -1220,6 +1228,12 @@ static void page_command(HWND page, int id, int code, HWND ctl)
             apply();
         }
         break;
+    case IDC_REC_PICK:
+        if (pick_path(S.dlg, S.cfg.rec_dir, COUNTOF(S.cfg.rec_dir), false)) {
+            show_rec_dir();
+            apply();
+        }
+        break;
     case IDC_ALSO_SAVE:
         S.cfg.also_save = IsDlgButtonChecked(page, IDC_ALSO_SAVE) == BST_CHECKED;
         apply();
@@ -1258,6 +1272,8 @@ static void page_command(HWND page, int id, int code, HWND ctl)
             CheckDlgButton(page, IDC_EXIT_ASK, d.exit_ask ? BST_CHECKED : BST_UNCHECKED);
             S.cfg.save_dir[0] = 0;
             show_save_dir();
+            S.cfg.rec_dir[0] = 0;
+            show_rec_dir();
             S.cfg.name = d.name;
             SendDlgItemMessageW(page, IDC_NAME, CB_SETCURSEL, (WPARAM)d.name, 0);
             S.cfg.also_save = d.also_save;
@@ -1292,9 +1308,9 @@ static INT_PTR CALLBACK page_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
     case WM_DRAWITEM: {
         const DRAWITEMSTRUCT *di = (const DRAWITEMSTRUCT *)lp;
         int id = (int)di->CtlID, kind = RI_NONE;
-        if (id >= IDC_HK_CLEAR1 && id <= IDC_HK_CLEAR6)
+        if (id >= IDC_HK_CLEAR1 && id <= IDC_HK_CLEAR8)
             kind = RI_CLEAR;
-        else if (id >= IDC_HK_STATE1 && id <= IDC_HK_STATE6) {
+        else if (id >= IDC_HK_STATE1 && id <= IDC_HK_STATE8) {
             int hk = id - IDC_HK_STATE1 + 1;
             kind = !S.cfg.vk[hk] || S.state[hk] == 2 ? RI_NONE : S.state[hk] ? RI_OK : RI_FAIL;
         } else if (id == IDC_HELPBTN)
@@ -1351,6 +1367,8 @@ static const struct {
     {PG_CAPTURE, IDC_EXIT_ASK, S_C_EXIT_ASK},
     {PG_CAPTURE, IDC_SAVE_LABEL, S_C_SAVE_DIR},
     {PG_CAPTURE, IDC_SAVE_PICK, S_C_CHANGE},
+    {PG_CAPTURE, IDC_REC_DIR_LABEL, S_C_REC_DIR},
+    {PG_CAPTURE, IDC_REC_PICK, S_C_CHANGE},
     {PG_CAPTURE, IDC_NAME_LABEL, S_C_NAME},
     {PG_CAPTURE, IDC_ALSO_SAVE, S_C_ALSO_SAVE},
     {PG_HOTKEYS, IDC_HK_LABEL1, S_H_CAPTURE}, /* the rows in the order of HK_* */
@@ -1359,6 +1377,8 @@ static const struct {
     {PG_HOTKEYS, IDC_HK_LABEL4, S_H_TOGGLE},
     {PG_HOTKEYS, IDC_HK_LABEL5, S_H_OCR},
     {PG_HOTKEYS, IDC_HK_LABEL6, S_H_OCRCOPY},
+    {PG_HOTKEYS, IDC_HK_LABEL7, S_H_PICK},
+    {PG_HOTKEYS, IDC_HK_LABEL8, S_H_RECORD},
     {PG_HOTKEYS, IDC_HINT, S_H_HINT},
     {PG_HOTKEYS, IDC_HK_FULLSCREEN, S_H_FULLSCREEN},
     {PG_HOTKEYS, IDC_HK_APPS_LABEL, S_H_APPS},
@@ -1453,6 +1473,7 @@ static INT_PTR CALLBACK main_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         SendDlgItemMessageW(c, IDC_DETECT, CB_SETCURSEL, (WPARAM)S.cfg.detect, 0);
         CheckDlgButton(c, IDC_EXIT_ASK, S.cfg.exit_ask ? BST_CHECKED : BST_UNCHECKED);
         show_save_dir();
+        show_rec_dir();
         show_names();
         CheckDlgButton(c, IDC_ALSO_SAVE, S.cfg.also_save ? BST_CHECKED : BST_UNCHECKED);
         SetDlgItemTextW(S.page[PG_ABOUT], IDC_VERSION,
@@ -1598,6 +1619,7 @@ int settings_main(HINSTANCE inst, const WCHAR *page)
                    : arg_eq(page, L"update")              ? PG_UPDATE
                    : arg_eq(page, L"ocr") || S.ocr_auto   ? PG_OCR
                    : arg_eq(page, L"about")               ? PG_ABOUT
+                   : arg_eq(page, L"hotkeys")             ? PG_HOTKEYS
                                                           : PG_GENERAL;
     HWND open = ipc_find_dialog(SETTINGS_MARK);
     if (open) {

@@ -25,11 +25,13 @@
 ## Merkmale
 
 - **Schnell**: F1 drücken, und der Screenshot ist da, schneller als bei 99 % der Screenshot-Programme
-- **Schlank**: etwa 320 KB, nichts weiter zu installieren; der Kern für Aufnahme und Zeichnen ist in Assembler geschrieben
+- **Schlank**: etwa 360 KB, nichts weiter zu installieren; der Kern für Aufnahme und Zeichnen ist in Assembler geschrieben
 - **Pins**: einen Screenshot über allen Fenstern anheften, damit er beim Arbeiten im Blick bleibt
 - **Komplett**: Screenshots, Pins, Pfeile, Text, Verpixeln, Spotlight, Lupe, alles dabei
+- **Messen**: Ein Bildschirmlinieal misst Abstand, Größe und Winkel zwischen zwei Punkten; Umschalt rastet auf 0°/45°/90° ein, Alt misst von der Mitte aus, Enter kopiert den Messwert; das Randlineal zeigt dauerhaft Skalen am oberen und linken Bildschirmrand, ein dünnes Fadenkreuz folgt der Maus und zeigt beim Anhalten die Koordinaten samt Pixel-Lupe
 - **Texterkennung**: liest den Text einer Aufnahme, auch Tabellen; ein optionales Modul, das vollständig auf dem eigenen Computer läuft
 - **Scrollaufnahmen**: Seite scrollen, sie wird laufend zusammengesetzt
+- **Aufnahme**: Bereich auswählen und Ctrl+R drücken, um ihn mit dem Mauszeiger als MP4 (H.264, 30 fps) aufzunehmen; die Leiste kann pausieren; das Infobereichsmenü oder Ctrl+Alt+R startet die Aufnahme direkt nach der Bereichsauswahl
 - **Sauber**: keine Werbung, Open Source, keine Protokolle, keine Datensammlung
 - **Mehrsprachig**: 8 Sprachen; richtet sich nach Windows, solange Sie keine wählen
 
@@ -48,6 +50,9 @@ Dazu gibt es zwei portable Versionen ohne Installation: `sniplite_<Version>_port
 | --- | --- |
 | **F1** | Aufnehmen |
 | **Shift+F1** | Schnellaufnahme: der Bildschirm unter der Maus direkt in eine Datei (Ordner in den Einstellungen) |
+| **F2** | Farbpipette: Klicken kopiert die Farbe und Sie können weiter aufnehmen; Umschalt wechselt HEX / RGB; Esc oder Rechtsklick schließt |
+| **R** (in der Pipette oder dem Lineal) | Zwischen Farbpipette und Bildschirmlinieal wechseln |
+| **C** (beim Aufnehmen) | Die Farbe unter dem Cursor kopieren |
 | **F3** | Kopiertes Bild oder kopierten Text anheften |
 | **Shift+F3** | Alle Pins aus- / einblenden |
 | **F4** | Aufnehmen und Text erkennen (mit dem Texterkennungsmodul) |
@@ -59,6 +64,9 @@ Dazu gibt es zwei portable Versionen ohne Installation: `sniplite_<Version>_port
 | **Ctrl+O** | Text der Auswahl erkennen |
 | **Ctrl+Shift+C** | Text der Auswahl kopieren |
 | **Ctrl+L** | Scrollaufnahme: scrollen, sie wird zusammengesetzt |
+| **Ctrl+R** | Auswahl als MP4-Video aufnehmen; zum Beenden auf die Stopp-Schaltfläche klicken oder Esc drücken |
+| **Ctrl+Alt+R** | Aufnahme starten: Bereich wählen, dann sofort aufnehmen (änderbar unter Einstellungen → Tasten) |
+| **Pause-Schaltfläche** | Pausiert die Aufnahme oder setzt sie fort; die Pausenzeit ist nicht im Video |
 | **Esc** | Aufnahme abbrechen |
 | **Pfeiltasten**, **W A S D** | Cursor oder Auswahl um 1 Pixel verschieben, mit Shift um 10 |
 | **Mausrad** | Bei der Aufnahme: größeres oder kleineres Fenster wählen; auf einem Pin: zoomen |
@@ -91,9 +99,17 @@ Die Teile, die schnell sein müssen (Aufnahme, Komposition, Zeichnen und Aufnahm
 
 Einen Bereich auswählen und auf die Text-Schaltfläche klicken (Ctrl+O): Der Text erscheint in einem Feld neben der Auswahl und lässt sich markieren, bearbeiten und kopieren. Eine Tabelle behält ihre Spalten und landet in einer Tabellenkalkulation Zelle für Zelle, auf Wunsch auch als Markdown. Ctrl+Shift+C kopiert den Text sofort. Dafür braucht es das Texterkennungsmodul (12 MB; PaddleOCR-Modelle PP-OCRv6 mit ONNX Runtime, vollständig auf dem eigenen Computer): auf der Seite OCR der Einstellungen installieren, im Installer ankreuzen oder die portable Version mit OCR nehmen. Solange es fehlt, werden die Text-Schaltflächen nicht angezeigt. F4 und Shift+F4 starten eine Aufnahme, die den Text sofort erkennt oder kopiert.
 
+**Wie nehme ich eine Farbe auf?**
+
+Mit F2 (oder `sniplite pick`) erscheint eine Farbpipette mit Lupe auf dem Bildschirm. Klicken kopiert die Farbe und Sie können weiter aufnehmen; Umschalt wechselt zwischen `#RRGGBB` und `R, G, B`; Esc oder ein Rechtsklick schließt sie. Bei einer normalen Aufnahme kopiert C ebenfalls die Farbe unter dem Cursor.
+
 **Wie mache ich eine Scrollaufnahme?**
 
 Den Bereich auswählen, auf die Schaltfläche für die Scrollaufnahme klicken (Ctrl+L) und die Seite selbst scrollen. sniplite setzt zusammen, was vorbeiläuft, und ein Streifen neben dem Bereich zeigt das Ergebnis. Enter kopiert, Esc bricht ab; speichern, anheften oder den Text erkennen geht ebenfalls.
+
+**Wie nehme ich den Bildschirm auf?**
+
+Bereich auswählen und Ctrl+R drücken: Eine kleine Leiste mit Laufzeit, Pause- und Stopp-Schaltfläche erscheint; auf Stopp klicken oder Esc drücken, und die MP4-Datei wird dort gespeichert, wo auch Ihre Screenshots landen, mit einer Meldung. Pause anklicken (oder Leertaste, wenn die Leiste den Fokus hat) hält die Aufnahme an, und die Pausenzeit ist nicht im Video; der Mauszeiger wird ebenfalls aufgenommen. Die Aufnahme nutzt die Grafikkarte (DXGI Desktop Duplication und Media Foundation), setzt Windows 10 oder 11 voraus und erfasst jeweils einen Monitor; hardwaregeschützte Inhalte (manche Player, DRM-Videos) erscheinen schwarz. Die Aufnahmeleiste selbst ist nicht im Video.
 
 **Wo werden die Aufnahmen gespeichert?**
 

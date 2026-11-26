@@ -25,11 +25,13 @@
 ## Características
 
 - **Rápido**: pulsa F1 y la captura está ahí, antes que en el 99 % de las herramientas de captura
-- **Ligero**: unos 320 KB, sin nada más que instalar; el núcleo de captura y dibujo está escrito en ensamblador
+- **Ligero**: unos 360 KB, sin nada más que instalar; el núcleo de captura y dibujo está escrito en ensamblador
 - **Fijar**: fija una captura por encima de todas las ventanas para tenerla a la vista mientras trabajas
 - **Completo**: capturas, imágenes fijadas, flechas, texto, mosaico, foco, lupa: no falta nada
+- **Medir**: una regla de pantalla mide la distancia, el tamaño y el ángulo entre dos puntos; Mayús ajusta a 0°/45°/90°, Alt mide desde el centro e Intro copia la lectura; la regla de borde mantiene marcas en el borde superior e izquierdo, con una cruz fina que sigue el ratón, un cuadro de coordenadas y una lupa de píxeles al detenerse
 - **Reconocimiento de texto**: lee el texto de una captura, tablas incluidas; un módulo opcional que funciona por completo en tu equipo
 - **Capturas con desplazamiento**: desplaza la página y se va uniendo sola
+- **Grabación**: selecciona una zona y pulsa Ctrl+R para grabarla con el puntero en MP4 (H.264, 30 fps); la barra permite pausar; el menú de la bandeja o Ctrl+Alt+R empieza a grabar en cuanto eliges la zona
 - **Limpio**: sin anuncios, de código abierto, sin archivos de registro, sin recopilar datos
 - **Multilingüe**: 8 idiomas; sigue el de Windows salvo que elijas otro
 
@@ -48,6 +50,9 @@ También hay dos versiones portables, sin instalación: `sniplite_<versión>_por
 | --- | --- |
 | **F1** | Capturar |
 | **Shift+F1** | Captura rápida: la pantalla donde está el ratón, directamente a un archivo (la carpeta se elige en los ajustes) |
+| **F2** | Selector de color: haz clic para copiar el color y seguir eligiendo; Mayús alterna HEX / RGB; Esc o clic derecho cierra |
+| **R** (en el cuentagotas o la regla) | Cambiar entre el cuentagotas y la regla de pantalla |
+| **C** (durante una captura) | Copiar el color bajo el cursor |
 | **F3** | Fijar en pantalla la imagen o el texto copiado |
 | **Shift+F3** | Ocultar / mostrar todas las imágenes fijadas |
 | **F4** | Capturar y leer el texto (con el módulo de reconocimiento de texto) |
@@ -59,6 +64,9 @@ También hay dos versiones portables, sin instalación: `sniplite_<versión>_por
 | **Ctrl+O** | Reconocer el texto de la selección |
 | **Ctrl+Shift+C** | Copiar el texto de la selección |
 | **Ctrl+L** | Captura con desplazamiento: desplaza y se une sola |
+| **Ctrl+R** | Grabar la selección como vídeo MP4; pulsa el botón de detener o Esc para terminar |
+| **Ctrl+Alt+R** | Empezar a grabar: elige la zona y la grabación arranca al momento (se cambia en Ajustes → Atajos) |
+| **Botón de pausa** | Pausa o reanuda la grabación; el tiempo en pausa no aparece en el vídeo |
 | **Esc** | Cancelar la captura |
 | **Flechas**, **W A S D** | Mover el cursor o la selección un píxel; con Shift, diez |
 | **Rueda** | Al capturar: elegir una ventana mayor o menor; sobre una imagen fijada: zoom |
@@ -91,9 +99,17 @@ Las partes que deben ser rápidas (captura, composición, dibujo y la pantalla d
 
 Selecciona una zona y pulsa el botón de texto (Ctrl+O): el texto aparece en un panel junto a la selección, donde puedes seleccionarlo, editarlo y copiarlo. Una tabla conserva sus columnas y se pega en una hoja de cálculo celda por celda, o como Markdown si lo prefieres. Ctrl+Shift+C copia el texto directamente. Hace falta el módulo de reconocimiento de texto (12 MB; los modelos PaddleOCR PP-OCRv6 con ONNX Runtime, todo en tu equipo): instálalo en la pestaña OCR de los ajustes, márcalo en el instalador o usa la versión portable con OCR. Mientras no esté instalado, los botones de texto no se muestran. F4 y Shift+F4 inician una captura que lee o copia el texto al momento.
 
+**¿Cómo cojo un color?**
+
+Pulsa F2 (o ejecuta `sniplite pick`) y aparece un selector de color con lupa sobre la pantalla. Haz clic para copiar el color y seguir eligiendo; Mayús alterna entre `#RRGGBB` y `R, G, B`; Esc o el clic derecho lo cierran. Durante una captura normal, C también copia el color bajo el cursor.
+
 **¿Cómo hago una captura larga?**
 
 Selecciona la zona, pulsa el botón de captura con desplazamiento (Ctrl+L) y desplaza la página tú mismo. sniplite une lo que va pasando, y una franja junto a la zona muestra el resultado. Enter copia y Esc cancela; también puedes guardarla, fijarla o leer su texto.
+
+**¿Cómo grabo la pantalla?**
+
+Selecciona la zona y pulsa Ctrl+R: aparece una barra pequeña con el tiempo transcurrido, un botón de pausa y otro de detener; pulsa detener o Esc para terminar, y el MP4 se guarda donde van tus capturas, con un aviso. Pulsa pausa (o Espacio cuando la barra tiene el foco) para pausar, y el tiempo en pausa no aparece en el vídeo; el puntero del ratón también se graba. La grabación usa la tarjeta gráfica (duplicación de escritorio DXGI y Media Foundation), requiere Windows 10 u 11 y cubre un monitor a la vez; el contenido protegido por el hardware (algunos reproductores, vídeo DRM) sale en negro. La barra de grabación no aparece en el vídeo.
 
 **¿Dónde se guardan las capturas?**
 

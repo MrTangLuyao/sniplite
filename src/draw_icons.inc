@@ -262,5 +262,19 @@
         .long 0x41200000, 0x41380000
         .long 0x41600000, 0x40F00000
         .byte 0, 0, 0, 0
+/* record: a filled dot inside a ring */
+.Lic_rec:
+        .byte 3, 0, 1, 0
+        .long 0x41200000, 0x41200000, 0x41080000, 0x41080000
+        .byte 2, 8, 0, 0
+        .long 0x41200000, 0x40A00000
+        .long 0x41580000, 0x40D00000
+        .long 0x41700000, 0x41200000
+        .long 0x41580000, 0x41680000
+        .long 0x41200000, 0x41700000
+        .long 0x40D00000, 0x41680000
+        .long 0x40A00000, 0x41200000
+        .long 0x40D00000, 0x40D00000
+        .byte 0, 0, 0, 0
 /* the mosaic icon's grid lines, (float)(3 + 3.5 * i) */
 .Lic_mosaic_grid: .long 0x40400000, 0x40D00000, 0x41200000, 0x41580000, 0x41880000

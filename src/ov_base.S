@@ -102,11 +102,11 @@ O:      .space OV_BYTES
 
         .globl kTbOrder
 kTbOrder:       .long T_RECT, T_ELLIPSE, T_LINE, T_ARROW, T_PEN, T_MARKER, T_MOSAIC, T_TEXT, T_NUMBER, T_SPOT, T_LENS
-                .long -1, B_UNDO, B_REDO, -1, B_LONG, B_OCR, B_OCRCOPY, B_PIN, B_SAVE, B_CLOSE, B_OK
+                .long -1, B_UNDO, B_REDO, -1, B_REC, B_LONG, B_OCR, B_OCRCOPY, B_PIN, B_SAVE, B_CLOSE, B_OK
 /* the same without the two text buttons: while the text recognition module is not installed */
         .globl kTbPlain
 kTbPlain:       .long T_RECT, T_ELLIPSE, T_LINE, T_ARROW, T_PEN, T_MARKER, T_MOSAIC, T_TEXT, T_NUMBER, T_SPOT, T_LENS
-                .long -1, B_UNDO, B_REDO, -1, B_LONG, B_PIN, B_SAVE, B_CLOSE, B_OK
+                .long -1, B_UNDO, B_REDO, -1, B_REC, B_LONG, B_PIN, B_SAVE, B_CLOSE, B_OK
 .Ltb_end:
         .if kTbPlain - kTbOrder - 4 * TB_ITEMS || .Ltb_end - kTbPlain - 4 * (TB_ITEMS - 2)
         .error "TB_ITEMS is not the number of entries of kTbOrder, or kTbPlain has not two less"
@@ -371,6 +371,19 @@ FUNC mon_rect_at
         ALLOC 32
         ENDPROLOG
         mov rbx, rcx
+        cmp byte ptr o(OV_PICK_SMALL), 0
+        je .Lmr_tile
+        mov eax, dword ptr o(OV_PICK_MON + RC_R)
+        cmp eax, dword ptr o(OV_PICK_MON + RC_L)
+        jle .Lmr_tile
+        lea rdx, o(OV_PICK_MON)          /* the picker's tile is not a monitor */
+        movdqu xmm0, xmmword ptr [rdx]
+        movdqu xmmword ptr [rbx], xmm0
+        mov rax, rbx
+        add rsp, 32
+        pop rbx
+        ret
+.Lmr_tile:
         lea rcx, o(OV_SHOT)
         call shot_tile_at
         cdqe

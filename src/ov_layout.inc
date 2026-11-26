@@ -63,8 +63,9 @@
 #define B_LONG                       28
 #define B_FRONT                      29    /* in the property bar, with B_BACK */
 #define B_BACK                       30
-#define B_LAST                       B_BACK /* the commands are B_UNDO .. B_LAST */
-#define TB_ITEMS                     22    /* entries of kTbOrder, separators included; kTbPlain has two less */
+#define B_REC                        31
+#define B_LAST                       B_REC /* the commands are B_UNDO .. B_LAST */
+#define TB_ITEMS                     23    /* entries of kTbOrder, separators included; kTbPlain has two less */
 #define B_SIZE                       40
 #define B_COLOR                      50
 #define ACT_COPY                     0
@@ -72,6 +73,7 @@
 #define ACT_PIN                      2
 #define ACT_OCR                      3
 #define ACT_LONG                     4
+#define ACT_RECORD                   5
 #define SHOT_MAX_TILES               16
 
 /* Tile */
@@ -218,6 +220,9 @@
 #define OV_HOVER                     2232
 #define OV_TIP                       2236
 #define OV_HEX                       2240
+#define OV_PICKER                    2241 /* PH_SELECT: the color picker, not a selection */
+#define OV_PICK_SKIP                 2242 /* the picker's second click of a double click */
+#define OV_PICK_SMALL                2243 /* the picker samples a small BitBlt tile */
 #define OV_S                         2244
 #define OV_FONT_S                    2248
 #define OV_FONT_UI                   2256
@@ -240,7 +245,20 @@
 #define OV_C_NS                      2728
 #define OV_C_NWSE                    2736
 #define OV_C_NESW                    2744
-#define OV_BYTES                     2752
+#define OV_PICK_MON                  2752 /* the picker's monitor, client coordinates */
+#define OV_RULER_AX                  2768 /* RulerGeom (ruler.h): ax, ay, bx, by, cx, cy, px, py */
+#define OV_RULER_AY                  2772
+#define OV_RULER_BX                  2776
+#define OV_RULER_BY                  2780
+#define OV_RULER_CX                  2784
+#define OV_RULER_CY                  2788
+#define OV_RULER_PX                  2792
+#define OV_RULER_PY                  2796
+#define OV_RULER_DRAG                2800 /* 0 none, 1 A, 2 B */
+#define OV_RULER                     2804 /* byte: this overlay is the screen ruler */
+#define OV_RULER_ON                  2805 /* byte: there is a measurement to show */
+#define OV_RECORD                    2806 /* byte: the selection starts a screen recording */
+#define OV_BYTES                     2808
 
 /* element sizes */
 #define OV_FONTS_BYTES               16

@@ -35,8 +35,8 @@
 #define IDC_HK_LABEL1 137
 #define IDC_HK_LABEL2 138
 #define IDC_HK_LABEL3 139
-#define IDC_TAGLINE 146
-#define IDC_LICENSE 147
+#define IDC_TAGLINE 239
+#define IDC_LICENSE 242
 #define IDC_HK_LABEL4 148
 #define IDC_HK_LABEL5 149
 
@@ -47,18 +47,24 @@
 #define IDC_HK_FIELD4 143
 #define IDC_HK_FIELD5 144
 #define IDC_HK_FIELD6 145
+#define IDC_HK_FIELD7 146
+#define IDC_HK_FIELD8 147
 #define IDC_HK_CLEAR1 150
 #define IDC_HK_CLEAR2 151
 #define IDC_HK_CLEAR3 152
 #define IDC_HK_CLEAR4 153
 #define IDC_HK_CLEAR5 154
 #define IDC_HK_CLEAR6 155
+#define IDC_HK_CLEAR7 156
+#define IDC_HK_CLEAR8 157
 #define IDC_HK_STATE1 160
 #define IDC_HK_STATE2 161
 #define IDC_HK_STATE3 162
 #define IDC_HK_STATE4 163
 #define IDC_HK_STATE5 164
 #define IDC_HK_STATE6 165
+#define IDC_HK_STATE7 166
+#define IDC_HK_STATE8 167
 
 #define IDD_SHORTCUTS 170
 #define IDC_LIST 171
@@ -83,12 +89,17 @@
 #define IDC_PIN_TOP 192
 #define IDC_PROJECT 193 /* the About page: opens the project's page */
 #define IDC_HK_LABEL6 194
+#define IDC_HK_LABEL7 240
+#define IDC_HK_LABEL8 241
 #define IDC_EXIT_ASK 195
 #define IDC_THEME 196
 #define IDC_THEME_LABEL 197
 #define IDC_SAVE_LABEL 198 /* where files go and how they are named */
 #define IDC_SAVE_DIR 199
 #define IDC_SAVE_PICK 220
+#define IDC_REC_DIR_LABEL 243 /* where recordings go */
+#define IDC_REC_DIR 244
+#define IDC_REC_PICK 245
 #define IDC_NAME_LABEL 223
 #define IDC_NAME 224
 #define IDC_ALSO_SAVE 225
