@@ -1,6 +1,7 @@
 /* sniplite.exe: the background process (hotkeys, tray icon, capture overlay, pins, IPC),
  * plus the internal helper modes (--save-dialog, --settings, --shortcuts,
- * --update-check, --ocr, --quick-save, --uninstall), each its own short-lived process. */
+ * --update-check, --ocr, --quick-save, --record, --record-test, --uninstall), each its own
+ * short-lived process. */
 #include "common.h"
 #include "config.h"
 #include "image.h"
@@ -9,6 +10,7 @@
 #include "ocr.h"
 #include "overlay.h"
 #include "pin.h"
+#include "rec.h"
 #include "ruler_win.h"
 #include "settings.h"
 #include "shot.h"
@@ -22,6 +24,8 @@
 #define WM_APP_TRAY (WM_APP + 2)
 #define WM_APP_SETTINGS_DONE (WM_APP + 3)
 #define WM_APP_ALSO_FAILED (WM_APP + 6)
+#define WM_APP_REC_DONE (WM_APP + 7)   /* lParam = RecDone* */
+#define WM_APP_REC_FAILED (WM_APP + 8) /* the helper could not be started */
 #define TIMER_MENU_CAPTURE 1
 #define TIMER_UPDATE 2
 #define TIMER_THEME 3 /* a theme that changed during a capture waits for its end */
@@ -285,9 +289,9 @@ static bool resolve_path(const WCHAR *cwd, const WCHAR *file, WCHAR *out, int ca
 }
 
 /* the options that set a hotkey, by HK_*, and the NULL that ends a list for args_valid */
-static const WCHAR *kHkOpts[HK_COUNT + 1] = {NULL,           L"--hotkey",        L"--quick-hotkey",
+static const WCHAR *kHkOpts[HK_COUNT + 1] = {NULL,            L"--hotkey",        L"--quick-hotkey",
                                              L"--pin-hotkey", L"--toggle-hotkey", L"--ocr-hotkey",
-                                             L"--ocr-copy-hotkey", L"--pick-hotkey"};
+                                             L"--ocr-copy-hotkey", L"--pick-hotkey", L"--record-hotkey"};
 
 static bool start_opts_parse(int argc, WCHAR **argv, StartOpts *so, Str *err)
 {
@@ -358,7 +362,7 @@ static void status_text(Str *out)
 static void status_json(Str *out)
 {
     static const WCHAR *keys[HK_COUNT] = {NULL, L"capture", L"quick", L"pin", L"toggle_pins", L"ocr", L"ocr_copy",
-                                           L"picker"};
+                                           L"picker", L"record"};
     str_addf(out, L"{\"running\":true,\"version\":\"%s\",\"pid\":%lu,\"backend\":\"%s\",\"capturing\":%s,\"pins\":%d,",
              SNIPLITE_VERSION, GetCurrentProcessId(), shot_backend(), ov_active() ? L"true" : L"false", pin_count());
     str_add(out, L"\"hotkeys\":{");
@@ -873,10 +877,14 @@ static int cmd_run(int argc, WCHAR **argv, const WCHAR *cwd, Str *out)
         return EXIT_OK;
     }
     if (arg_eq(c, L"ruler")) { /* the screen ruler: the capture overlay without a selection */
-        static const WCHAR *flags[] = {L"--json", L"--edge", L"--hide", NULL};
+        static const WCHAR *flags[] = {L"--json", L"--edge", L"--hide", L"--cross", L"--cross-hide", NULL};
         static const WCHAR *opts[] = {NULL};
         if (!args_valid(argc, argv, flags, opts, 0, out))
             return EXIT_USAGE;
+        if (opt_has(argc, argv, L"--cross") || opt_has(argc, argv, L"--cross-hide")) {
+            edge_ruler_cross_set(!opt_has(argc, argv, L"--cross-hide"));
+            return EXIT_OK;
+        }
         if (opt_has(argc, argv, L"--edge") || opt_has(argc, argv, L"--hide")) {
             if (opt_has(argc, argv, L"--hide"))
                 edge_ruler_hide();
@@ -935,7 +943,7 @@ static int cmd_run(int argc, WCHAR **argv, const WCHAR *cwd, Str *out)
     /* sniplite was started while it runs (_again), or `settings`; `settings update`, `settings ocr`,
      * `settings about`: on that tab */
     if (arg_eq(c, L"_again") || arg_eq(c, L"settings")) {
-        static const WCHAR *pages[] = {L"update", L"ocr", L"about"};
+        static const WCHAR *pages[] = {L"update", L"ocr", L"about", L"hotkeys"};
         const WCHAR *page = NULL;
         for (int i = 0; argc > 1 && i < COUNTOF(pages); i++)
             if (arg_eq(argv[1], pages[i]))
@@ -1242,6 +1250,115 @@ static int quick_save(const WCHAR *arg)
     return ok ? EXIT_OK : EXIT_FAIL;
 }
 
+/* ---- recording: the selection, into an MP4 through a helper ---------------------------------- */
+
+/* What the thread that starts the recorder is given. The name and the folder come from the
+ * window thread, so that the settings are read where they are changed. */
+typedef struct {
+    int x, y, w, h;
+    POINT at;
+    WCHAR name[NAME_CAP];
+    WCHAR dir[MAX_PATH];
+} RecStart;
+
+/* What that thread tells the window thread when the helper has ended. */
+typedef struct {
+    int code;
+    POINT at;
+    WCHAR path[2 * MAX_PATH];
+} RecDone;
+
+static volatile LONG g_rec_busy;
+
+/* The file's path: as the settings say, on the desktop when they say nothing; a second
+ * recording in the same second gets a number. The folder is made when it is gone. */
+static bool rec_path(const RecStart *rs, WCHAR *path, int cap)
+{
+    WCHAR dir[MAX_PATH];
+    if (rs->dir[0])
+        lstrcpynW(dir, rs->dir, COUNTOF(dir));
+    else if (!shell_folder(CSIDL_DESKTOPDIRECTORY, dir))
+        return false;
+    CreateDirectoryW(dir, NULL);
+    int n = wsprintfW(path, L"%s\\%s", dir, rs->name);
+    if (n <= 0 || n + 10 >= cap)
+        return false;
+    lstrcpynW(path + n, L".mp4", cap - n);
+    for (int k = 2; k < 100; k++) {
+        if (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES)
+            return true;
+        wsprintfW(path + n, L"_%d.mp4", k);
+    }
+    return false;
+}
+
+/* Starting the helper takes some milliseconds, and a folder on a network can take more:
+ * neither happens in the window thread. The helper is a process, so its DXGI and Media
+ * Foundation DLLs never enter this one. */
+static DWORD WINAPI rec_start_thread(void *arg)
+{
+    RecStart *rs = arg;
+    WCHAR exe[MAX_PATH], path[2 * MAX_PATH] = L"", cmd[1024];
+    bool ok = rec_path(rs, path, COUNTOF(path)) && GetModuleFileNameW(NULL, exe, COUNTOF(exe)) > 0;
+    if (ok) {
+        wsprintfW(cmd, L"\"%s\" --record %d %d %d %d \"%s\"", exe, rs->x, rs->y, rs->w, rs->h, path);
+        STARTUPINFOW si = {sizeof si};
+        PROCESS_INFORMATION pi;
+        si.dwFlags = STARTF_FORCEOFFFEEDBACK;
+        ok = CreateProcessW(exe, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi) != 0;
+        if (ok) {
+            CloseHandle(pi.hThread);
+            WaitForSingleObject(pi.hProcess, INFINITE);
+            DWORD code = 1;
+            GetExitCodeProcess(pi.hProcess, &code);
+            CloseHandle(pi.hProcess);
+            RecDone *d = mem_alloc(sizeof *d);
+            if (d) {
+                d->code = (int)code;
+                d->at = rs->at;
+                lstrcpynW(d->path, path, COUNTOF(d->path));
+                if (!PostMessageW(D.hwnd, WM_APP_REC_DONE, 0, (LPARAM)d))
+                    mem_free(d);
+            }
+            mem_free(rs);
+            return 0;
+        }
+    }
+    mem_free(rs);
+    PostMessageW(D.hwnd, WM_APP_REC_FAILED, 0, 0);
+    return 0;
+}
+
+/* Called by the capture overlay (ov_show.S) with the selection in screen coordinates. */
+void record_begin(int x, int y, int w, int h)
+{
+    POINT at = {x + w / 2, y + h / 2};
+    if (w < 2 || h < 2)
+        return;
+    if (InterlockedExchange(&g_rec_busy, 1)) { /* one recording at a time */
+        notice_corner(T(REC_BUSY), L"", at, 2000);
+        return;
+    }
+    RecStart *rs = mem_alloc(sizeof *rs);
+    if (!rs) {
+        InterlockedExchange(&g_rec_busy, 0);
+        notice_corner(T(REC_FAILED), L"", at, 4000);
+        return;
+    }
+    rs->x = x, rs->y = y, rs->w = w, rs->h = h;
+    rs->at = at;
+    file_name(rs->name);
+    lstrcpynW(rs->dir, D.cfg.rec_dir[0] ? D.cfg.rec_dir : D.cfg.save_dir, COUNTOF(rs->dir));
+    HANDLE th = CreateThread(NULL, 0, rec_start_thread, rs, 0, NULL);
+    if (th) {
+        CloseHandle(th);
+        return;
+    }
+    mem_free(rs);
+    InterlockedExchange(&g_rec_busy, 0);
+    notice_corner(T(REC_FAILED), L"", at, 4000);
+}
+
 /* ---- leaving a capture ---------------------------------------------------------------------- */
 
 static INT_PTR CALLBACK leave_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
@@ -1299,6 +1416,7 @@ enum {
     TM_CAPTURE = 1,
     TM_PIN,
     TM_PICK,
+    TM_RECORD,
     TM_RULER,
     TM_EDGE_RULER,
     TM_EDGE_CROSS,
@@ -1328,15 +1446,17 @@ static void tray_menu(POINT at)
     menu_item(m, TM_CAPTURE, T(M_CAPTURE), HK_CAPTURE, true);
     menu_item(m, TM_PIN, T(M_PIN), HK_PIN, true);
     menu_item(m, TM_PICK, T(SC_PICKER), HK_PICK, true);
+    menu_item(m, TM_RECORD, T(SC_REC), HK_RECORD, !g_rec_busy);
     menu_item(m, TM_RULER, T(SC_RULER), 0, true);
-    menu_item(m, TM_EDGE_RULER, edge_ruler_visible() ? T(SC_EDGE_RULER_HIDE) : T(SC_EDGE_RULER), 0, true);
     {
         WCHAR t[96];
-        UINT flags = MF_STRING;
-        lstrcpynW(t, T(SC_EDGE_CROSS), COUNTOF(t));
-        if (edge_ruler_visible() && edge_ruler_cross_enabled())
-            flags |= MF_CHECKED;
-        AppendMenuW(m, flags, TM_EDGE_CROSS, t);
+        UINT flags = MF_STRING | (edge_ruler_visible() ? MF_CHECKED : 0);
+        lstrcpynW(t, T(SC_EDGE_RULER), COUNTOF(t));
+        AppendMenuW(m, flags, TM_EDGE_RULER, t);
+    }
+    {
+        UINT flags = MF_STRING | (edge_ruler_cross_visible() ? MF_CHECKED : 0);
+        AppendMenuW(m, flags, TM_EDGE_CROSS, T(SC_EDGE_CROSS));
     }
     AppendMenuW(m, MF_SEPARATOR, 0, NULL);
     menu_item(m, TM_TOGGLE, pins && !pin_any_visible() ? T(M_SHOW_PINS) : T(M_HIDE_PINS), HK_TOGGLE, pins);
@@ -1366,6 +1486,10 @@ static void tray_menu(POINT at)
         if (!ov_active())
             ov_begin_pick();
         break;
+    case TM_RECORD:
+        if (!ov_active() && !g_rec_busy)
+            ov_begin_record();
+        break;
     case TM_RULER:
         if (!ov_active())
             ov_begin_ruler();
@@ -1374,12 +1498,7 @@ static void tray_menu(POINT at)
         edge_ruler_toggle();
         break;
     case TM_EDGE_CROSS:
-        if (!edge_ruler_visible()) {
-            edge_ruler_cross_set(true);
-            edge_ruler_show();
-        } else {
-            edge_ruler_cross_toggle();
-        }
+        edge_ruler_cross_toggle();
         break;
     case TM_TOGGLE:
         pin_toggle_all();
@@ -1458,6 +1577,27 @@ static LRESULT CALLBACK daemon_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
     case WM_APP_ALSO_FAILED:
         also_failed();
         return 0;
+    case WM_APP_REC_DONE: {
+        RecDone *d = (RecDone *)lp;
+        if (d) {
+            if (d->code == 0) {
+                notice_corner(T(REC_SAVED), d->path, d->at, 3000);
+            } else {
+                DeleteFileW(d->path); /* a helper that crashed can leave it half written */
+                notice_corner(T(REC_FAILED), L"", d->at, 4000);
+            }
+            mem_free(d);
+        }
+        InterlockedExchange(&g_rec_busy, 0);
+        return 0;
+    }
+    case WM_APP_REC_FAILED: {
+        POINT at = {0, 0};
+        GetCursorPos(&at);
+        InterlockedExchange(&g_rec_busy, 0);
+        notice_corner(T(REC_FAILED), L"", at, 4000);
+        return 0;
+    }
     case WM_HOTKEY:
         if (wp == HK_CAPTURE) {
             if (!ov_active())
@@ -1475,6 +1615,9 @@ static LRESULT CALLBACK daemon_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         } else if (wp == HK_PICK) {
             if (!ov_active())
                 ov_begin_pick();
+        } else if (wp == HK_RECORD) {
+            if (!ov_active() && !g_rec_busy)
+                ov_begin_record();
         } else if (wp == HK_OCR || wp == HK_OCRCOPY) {
             ocr_capture(wp == HK_OCRCOPY);
         }
@@ -1649,6 +1792,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
         return ocr_helper(argc, argv);
     if (argc > 2 && arg_eq(argv[1], L"--quick-save"))
         return quick_save(argv[2]);
+    if (argc > 1 && arg_eq(argv[1], L"--record"))
+        return rec_main(argc, argv);
+    if (argc > 1 && arg_eq(argv[1], L"--record-test"))
+        return rec_test_main(argc, argv);
     if (argc > 1 && arg_eq(argv[1], L"--uninstall"))
         return uninstall_main(argc > 2 && (arg_eq(argv[2], L"/S") || arg_eq(argv[2], L"-S")));
 

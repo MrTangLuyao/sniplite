@@ -1164,6 +1164,8 @@ FUNC on_key
         je .Lky_ocr
         cmp ebx, K_L
         je .Lky_long
+        cmp ebx, K_R
+        je .Lky_rec
         cmp ebx, K_Z
         je .Lky_undo
         cmp ebx, K_Y
@@ -1236,6 +1238,9 @@ FUNC on_key
         jmp .Lky_finish
 .Lky_long:
         mov ecx, ACT_LONG
+        jmp .Lky_finish
+.Lky_rec:
+        mov ecx, ACT_RECORD
         jmp .Lky_finish
 .Lky_ocr:
         call ocr_panel                  /* the text panel, shown or hidden */

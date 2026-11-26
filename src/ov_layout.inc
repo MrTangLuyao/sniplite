@@ -63,8 +63,9 @@
 #define B_LONG                       28
 #define B_FRONT                      29    /* in the property bar, with B_BACK */
 #define B_BACK                       30
-#define B_LAST                       B_BACK /* the commands are B_UNDO .. B_LAST */
-#define TB_ITEMS                     22    /* entries of kTbOrder, separators included; kTbPlain has two less */
+#define B_REC                        31
+#define B_LAST                       B_REC /* the commands are B_UNDO .. B_LAST */
+#define TB_ITEMS                     23    /* entries of kTbOrder, separators included; kTbPlain has two less */
 #define B_SIZE                       40
 #define B_COLOR                      50
 #define ACT_COPY                     0
@@ -72,6 +73,7 @@
 #define ACT_PIN                      2
 #define ACT_OCR                      3
 #define ACT_LONG                     4
+#define ACT_RECORD                   5
 #define SHOT_MAX_TILES               16
 
 /* Tile */
@@ -255,6 +257,7 @@
 #define OV_RULER_DRAG                2800 /* 0 none, 1 A, 2 B */
 #define OV_RULER                     2804 /* byte: this overlay is the screen ruler */
 #define OV_RULER_ON                  2805 /* byte: there is a measurement to show */
+#define OV_RECORD                    2806 /* byte: the selection starts a screen recording */
 #define OV_BYTES                     2808
 
 /* element sizes */

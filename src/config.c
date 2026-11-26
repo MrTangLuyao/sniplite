@@ -103,6 +103,7 @@ void config_defaults(Config *c)
     hotkey_parse(L"F4", &c->mod[HK_OCR], &c->vk[HK_OCR]);
     hotkey_parse(L"Shift+F4", &c->mod[HK_OCRCOPY], &c->vk[HK_OCRCOPY]);
     hotkey_parse(L"F2", &c->mod[HK_PICK], &c->vk[HK_PICK]);
+    hotkey_parse(L"Ctrl+Alt+R", &c->mod[HK_RECORD], &c->vk[HK_RECORD]);
     c->tray = true;
     c->pin_top = true;
     c->pin_text = true;
@@ -114,8 +115,9 @@ void config_defaults(Config *c)
 
 void config_path(WCHAR *out, int cap) { ini_path(out, cap); }
 
-static const WCHAR *kHkKeys[HK_COUNT] = {NULL,           L"hotkey",     L"quick_hotkey",   L"pin_hotkey",
-                                         L"toggle_hotkey", L"ocr_hotkey", L"ocr_copy_hotkey", L"pick_hotkey"};
+static const WCHAR *kHkKeys[HK_COUNT] = {NULL,            L"hotkey",     L"quick_hotkey",   L"pin_hotkey",
+                                         L"toggle_hotkey", L"ocr_hotkey", L"ocr_copy_hotkey", L"pick_hotkey",
+                                         L"record_hotkey"};
 static const WCHAR *kThemes[] = {L"auto", L"light", L"dark"}; /* by THEME_* */
 static const WCHAR *kDetects[] = {L"controls", L"windows", L"elements"}; /* by DETECT_* */
 /* the file names: two or more of y M d H m s in a row stand for that part of the time */
@@ -267,6 +269,7 @@ bool config_load(Config *c)
     ini_utf8(text, "save_dir", c->save_dir, COUNTOF(c->save_dir));
     if (!c->save_dir[0]) /* as 1.4 called it */
         ini_utf8(text, "quick_dir", c->save_dir, COUNTOF(c->save_dir));
+    ini_utf8(text, "rec_dir", c->rec_dir, COUNTOF(c->rec_dir));
     ini_utf8(text, "block_apps", c->block_apps, COUNTOF(c->block_apps));
     ini_utf8(text, "last_dir", c->last_dir, COUNTOF(c->last_dir));
     mem_free(text);
@@ -300,6 +303,8 @@ bool config_save(const Config *c)
              c->exit_ask ? 1 : 0, kThemes[c->theme], kDetects[c->detect], c->also_save ? 1 : 0,
              c->color_hex ? 1 : 0, cross, kNames[c->name]);
     str_add(&s, c->save_dir); /* by itself: str_addf stops at 1024 characters */
+    str_add(&s, L"\r\nrec_dir=");
+    str_add(&s, c->rec_dir);
     str_add(&s, L"\r\nlast_dir=");
     str_add(&s, c->last_dir);
     str_add(&s, L"\r\n");

@@ -21,7 +21,7 @@ windres --input-format=rc -O coff -I res -DSNIPLITE_CLI res\sniplite.rc build\cl
 gcc %CF% -Wl,--subsystem,windows -o build\sniplite.exe src\start.S src\main.c src\ov_base.S src\ov_edit.S ^
  src\ov_paint.S src\ov_show.S src\ov_input.S src\present.S src\shot.S src\draw.S src\pin.c src\image.S ^
  src\config.c src\ruler.c src\ruler_win.c src\settings.c src\update.c src\uninstall.c src\util.c src\ipc.c src\lang.c src\crt.c ^
- src\ocr.c src\ocr_ui.c src\ocr_table.c src\ocr_get.c src\scroll.c src\snap.c build\sniplite.res ^
+ src\ocr.c src\ocr_ui.c src\ocr_table.c src\ocr_get.c src\scroll.c src\snap.c src\rec.c build\sniplite.res ^
  %LDFLAGS% -lkernel32 -luser32 -lgdi32 -ldwmapi -limm32 -luuid -lgcc || exit /b 1
 gcc %CF% -DCONSOLE -Wl,--subsystem,console -o build\sniplite.com src\start.S src\cli.c src\update.c src\util.c ^
  src\ipc.c src\lang.c src\crt.c build\cli.res %LDFLAGS% -lkernel32 -luser32 -lgdi32 -lgcc || exit /b 1

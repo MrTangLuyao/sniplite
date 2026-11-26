@@ -696,7 +696,8 @@ ENDF
  * composition transparent (nothing committed yet), and its appearance is what
  * makes DWM present the frame; with GDI cloaked (cloaked windows are not
  * composed). The window enumeration runs on a thread meanwhile. mode 1 is the
- * picker, mode 2 the screen ruler; both stay open without a selection or editing.
+ * picker, mode 2 the screen ruler, mode 3 a recording: the picked area is recorded
+ * at once. 1 and 2 stay open without a selection or editing.
  * The ruler always uses GDI: its line and guides need the whole picture. */
 #define BG_CLOAK 56
 #define BG_SHOW 64                      /* ShotShow */
@@ -717,11 +718,17 @@ FUNC ov_begin_ex
         jne .Lbg_ret
         mov byte ptr OV(OV_RULER), 0
         mov byte ptr OV(OV_PICKER), 0
+        mov byte ptr OV(OV_RECORD), 0
+        cmp ecx, 3
+        je .Lbg_record_mode
         cmp ecx, 1
         jb .Lbg_flags
         cmp ecx, 2
         je .Lbg_ruler_mode
         mov byte ptr OV(OV_PICKER), 1
+        jmp .Lbg_flags
+.Lbg_record_mode:
+        mov byte ptr OV(OV_RECORD), 1
         jmp .Lbg_flags
 .Lbg_ruler_mode:
         mov byte ptr OV(OV_RULER), 1
@@ -1039,6 +1046,13 @@ FUNC ov_begin_ruler
         jmp ov_begin_ex
 ENDF
 
+/* bool ov_begin_record(void): choose an area, then record it. */
+FUNC ov_begin_record
+        ENDPROLOG
+        mov ecx, 3
+        jmp ov_begin_ex
+ENDF
+
 /* void ov_gpu_changed(void): the GPU state changed; build the composition for the
  * new device now, so the next capture does not pay for it. */
 FUNC ov_gpu_changed
@@ -1167,7 +1181,7 @@ FUNC output_image
 ENDF
 
 /* void finish(int act): ACT_COPY, ACT_SAVE or ACT_PIN the selection, ACT_OCR its text,
- * ACT_LONG a long screenshot that begins with it */
+ * ACT_LONG a long screenshot that begins with it, ACT_RECORD a screen recording */
 #define FI_OUT 48                       /* Img */
 #define FI_PATH 96                      /* WCHAR[MAX_PATH * 2] */
 #define FI_FRAME (FI_PATH + 2 * W_PATH_CAP)
@@ -1199,8 +1213,24 @@ FUNC finish
         jmp .Lfi_cancel
 .Lfi_notocr:
         cmp ebx, ACT_LONG
-        jne .Lfi_picture
+        jne .Lfi_notlong
         call long_begin                 /* the selection, growing as the user scrolls (scroll.c) */
+        jmp .Lfi_cancel
+.Lfi_notlong:
+        cmp ebx, ACT_RECORD
+        jne .Lfi_picture
+        mov rcx, qword ptr OV(OV_HWND)
+        xor edx, edx
+        API ShowWindow
+        mov ecx, dword ptr OV(OV_SHOT + SHOT_VX)
+        add ecx, dword ptr OV(OV_SEL + RC_L)
+        mov edx, dword ptr OV(OV_SHOT + SHOT_VY)
+        add edx, dword ptr OV(OV_SEL + RC_T)
+        mov r8d, dword ptr OV(OV_SEL + RC_R)
+        sub r8d, dword ptr OV(OV_SEL + RC_L)
+        mov r9d, dword ptr OV(OV_SEL + RC_B)
+        sub r9d, dword ptr OV(OV_SEL + RC_T)
+        call record_begin               /* starts the recording helper (main.c) */
         jmp .Lfi_cancel
 .Lfi_picture:
         /* gone from the screen first: nothing is painted until the next message */
@@ -1488,9 +1518,15 @@ FUNC enter_edit
         mov dword ptr OV(OV_DRAG), DR_NONE
         SNAP_END
         call canvas_free
+        cmp byte ptr OV(OV_RECORD), 0
+        jne .Lee_record
         call update_scale
         add rsp, 40
         jmp refresh
+.Lee_record:
+        add rsp, 40
+        mov ecx, ACT_RECORD
+        jmp finish
 .Lee_ret:
         add rsp, 40
         ret
@@ -2627,6 +2663,9 @@ FUNC on_button
 7:
         mov ecx, ACT_OCR
         cmp ebx, B_OCRCOPY
+        je .Lob_finish
+        mov ecx, ACT_RECORD
+        cmp ebx, B_REC
         je .Lob_finish
         mov ecx, ACT_LONG
         cmp ebx, B_LONG

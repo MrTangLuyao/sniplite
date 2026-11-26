@@ -25,12 +25,13 @@
 ## Características
 
 - **Rápido**: pulsa F1 y la captura está ahí, antes que en el 99 % de las herramientas de captura
-- **Ligero**: unos 320 KB, sin nada más que instalar; el núcleo de captura y dibujo está escrito en ensamblador
+- **Ligero**: unos 360 KB, sin nada más que instalar; el núcleo de captura y dibujo está escrito en ensamblador
 - **Fijar**: fija una captura por encima de todas las ventanas para tenerla a la vista mientras trabajas
 - **Completo**: capturas, imágenes fijadas, flechas, texto, mosaico, foco, lupa: no falta nada
 - **Medir**: una regla de pantalla mide la distancia, el tamaño y el ángulo entre dos puntos; Mayús ajusta a 0°/45°/90°, Alt mide desde el centro e Intro copia la lectura; la regla de borde mantiene marcas en el borde superior e izquierdo, con una cruz fina que sigue el ratón, un cuadro de coordenadas y una lupa de píxeles al detenerse
 - **Reconocimiento de texto**: lee el texto de una captura, tablas incluidas; un módulo opcional que funciona por completo en tu equipo
 - **Capturas con desplazamiento**: desplaza la página y se va uniendo sola
+- **Grabación**: selecciona una zona y pulsa Ctrl+R para grabarla con el puntero en MP4 (H.264, 30 fps); la barra permite pausar; el menú de la bandeja o Ctrl+Alt+R empieza a grabar en cuanto eliges la zona
 - **Limpio**: sin anuncios, de código abierto, sin archivos de registro, sin recopilar datos
 - **Multilingüe**: 8 idiomas; sigue el de Windows salvo que elijas otro
 
@@ -63,6 +64,9 @@ También hay dos versiones portables, sin instalación: `sniplite_<versión>_por
 | **Ctrl+O** | Reconocer el texto de la selección |
 | **Ctrl+Shift+C** | Copiar el texto de la selección |
 | **Ctrl+L** | Captura con desplazamiento: desplaza y se une sola |
+| **Ctrl+R** | Grabar la selección como vídeo MP4; pulsa el botón de detener o Esc para terminar |
+| **Ctrl+Alt+R** | Empezar a grabar: elige la zona y la grabación arranca al momento (se cambia en Ajustes → Atajos) |
+| **Botón de pausa** | Pausa o reanuda la grabación; el tiempo en pausa no aparece en el vídeo |
 | **Esc** | Cancelar la captura |
 | **Flechas**, **W A S D** | Mover el cursor o la selección un píxel; con Shift, diez |
 | **Rueda** | Al capturar: elegir una ventana mayor o menor; sobre una imagen fijada: zoom |
@@ -102,6 +106,10 @@ Pulsa F2 (o ejecuta `sniplite pick`) y aparece un selector de color con lupa sob
 **¿Cómo hago una captura larga?**
 
 Selecciona la zona, pulsa el botón de captura con desplazamiento (Ctrl+L) y desplaza la página tú mismo. sniplite une lo que va pasando, y una franja junto a la zona muestra el resultado. Enter copia y Esc cancela; también puedes guardarla, fijarla o leer su texto.
+
+**¿Cómo grabo la pantalla?**
+
+Selecciona la zona y pulsa Ctrl+R: aparece una barra pequeña con el tiempo transcurrido, un botón de pausa y otro de detener; pulsa detener o Esc para terminar, y el MP4 se guarda donde van tus capturas, con un aviso. Pulsa pausa (o Espacio cuando la barra tiene el foco) para pausar, y el tiempo en pausa no aparece en el vídeo; el puntero del ratón también se graba. La grabación usa la tarjeta gráfica (duplicación de escritorio DXGI y Media Foundation), requiere Windows 10 u 11 y cubre un monitor a la vez; el contenido protegido por el hardware (algunos reproductores, vídeo DRM) sale en negro. La barra de grabación no aparece en el vídeo.
 
 **¿Dónde se guardan las capturas?**
 

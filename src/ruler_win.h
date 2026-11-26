@@ -13,6 +13,7 @@ bool edge_ruler_visible(void);
 void edge_ruler_refresh(void);
 /* The crosshair and coordinate box, shown with the ruler by default. */
 bool edge_ruler_cross_enabled(void);
+bool edge_ruler_cross_visible(void);
 void edge_ruler_cross_set(bool on);
 void edge_ruler_cross_toggle(void);
 /* The crosshair and coordinate box color, 0xRRGGBB. */

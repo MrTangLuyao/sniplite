@@ -15,6 +15,7 @@ bool ov_init(HINSTANCE inst, HWND daemon);
 bool ov_begin(void);      /* start an interactive capture; false if busy or failed */
 bool ov_begin_pick(void); /* the color picker: the same overlay, no selection */
 bool ov_begin_ruler(void); /* the screen ruler: the same overlay, no selection */
+bool ov_begin_record(void); /* pick an area, then record it to a video file */
 bool ov_active(void);
 void ov_pin_hotkey(void); /* pin hotkey pressed while capturing */
 void ruler_copy(void);    /* the ruler's readout as text, without leaving it */

@@ -23,8 +23,12 @@
 
 #define SNIPLITE_VERSION L"1.5.1"
 
+#ifndef DAEMON_CLASS
 #define DAEMON_CLASS L"sniplite.daemon"
+#endif
+#ifndef DAEMON_MUTEX
 #define DAEMON_MUTEX L"Local\\sniplite.daemon"
+#endif
 
 /* IPC over WM_COPYDATA. Request payload: cwd, then argv, separated by IPC_SEP. */
 #define IPC_REQ   0x4C534E01u

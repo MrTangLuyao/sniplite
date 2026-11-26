@@ -25,12 +25,13 @@
 ## Points forts
 
 - **Rapide** : appuyez sur F1 et la capture est là, plus vite qu'avec 99 % des outils de capture
-- **Léger** : environ 320 Ko, rien d'autre à installer ; le cœur de la capture et du dessin est écrit en assembleur
+- **Léger** : environ 360 Ko, rien d'autre à installer ; le cœur de la capture et du dessin est écrit en assembleur
 - **Épingles** : épinglez une capture au-dessus de toutes les fenêtres pour la garder sous les yeux pendant que vous travaillez
 - **Complet** : captures, épingles, flèches, texte, mosaïque, projecteur, loupe : tout y est
 - **Mesurer** : une règle d'écran mesure la distance, la taille et l'angle entre deux points ; Maj accroche à 0°/45°/90°, Alt mesure depuis le centre et Entrée copie le relevé ; la règle de bord garde des graduations en haut et à gauche de l'écran, avec un fin réticule qui suit la souris, un cadre de coordonnées et une loupe de pixels à l'arrêt
 - **Reconnaissance de texte** : lit le texte d'une capture, tableaux compris ; un module facultatif qui fonctionne entièrement sur votre ordinateur
 - **Captures défilantes** : faites défiler une page, elle est assemblée au fur et à mesure
+- **Enregistrement** : sélectionnez une zone et appuyez sur Ctrl+R pour l'enregistrer avec le pointeur en MP4 (H.264, 30 i/s) ; la barre permet de mettre en pause ; le menu de la zone de notification ou Ctrl+Alt+R lance l'enregistrement dès que la zone est choisie
 - **Propre** : sans publicité, open source, sans journaux, sans collecte de données
 - **Multilingue** : 8 langues ; suit celle de Windows, sauf si vous en choisissez une
 
@@ -63,6 +64,9 @@ Il existe aussi deux versions portables, sans installation : `sniplite_<version>
 | **Ctrl+O** | Reconnaître le texte de la sélection |
 | **Ctrl+Shift+C** | Copier le texte de la sélection |
 | **Ctrl+L** | Capture défilante : faites défiler, elle s'assemble |
+| **Ctrl+R** | Enregistrer la sélection en vidéo MP4 ; cliquez sur le bouton d'arrêt ou appuyez sur Esc pour terminer |
+| **Ctrl+Alt+R** | Lancer un enregistrement : choisissez la zone, l'enregistrement démarre aussitôt (modifiable dans Préférences → Raccourcis) |
+| **Bouton pause** | Met l'enregistrement en pause ou le reprend ; le temps en pause n'est pas dans la vidéo |
 | **Esc** | Annuler la capture |
 | **Flèches**, **W A S D** | Déplacer le curseur ou la sélection d'un pixel ; de dix avec Shift |
 | **Molette** | Pendant la capture : choisir une fenêtre plus grande ou plus petite ; sur une épingle : zoomer |
@@ -102,6 +106,10 @@ Appuyez sur F2 (ou lancez `sniplite pick`) : une pipette avec loupe apparaît su
 **Comment faire une capture défilante ?**
 
 Sélectionnez la zone, cliquez sur le bouton de capture défilante (Ctrl+L) et faites défiler la page vous-même. sniplite assemble ce qui défile, et une bande à côté de la zone montre le résultat. Enter copie et Esc annule ; vous pouvez aussi enregistrer, épingler ou lire le texte.
+
+**Comment enregistrer l'écran ?**
+
+Sélectionnez la zone et appuyez sur Ctrl+R : une petite barre apparaît avec le temps écoulé, un bouton de pause et un bouton d'arrêt ; cliquez sur l'arrêt ou appuyez sur Esc pour terminer, et le MP4 est enregistré là où vont vos captures, avec une notification. Cliquez sur pause (ou appuyez sur Espace quand la barre a le focus) pour mettre en pause, et le temps de pause n'est pas dans la vidéo ; le pointeur de la souris est enregistré aussi. L'enregistrement utilise la carte graphique (duplication de bureau DXGI et Media Foundation), nécessite Windows 10 ou 11 et couvre un seul écran à la fois ; les contenus protégés par le matériel (certains lecteurs, vidéos DRM) apparaissent en noir. La barre d'enregistrement n'apparaît pas dans la vidéo.
 
 **Où sont enregistrées les captures ?**
 
