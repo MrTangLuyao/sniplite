@@ -1025,7 +1025,7 @@ FUNC output_image
 ENDF
 
 /* void finish(int act): ACT_COPY, ACT_SAVE or ACT_PIN the selection, ACT_OCR its text,
- * ACT_LONG a long screenshot that begins with it */
+ * ACT_LONG a long screenshot that begins with it, ACT_GIF a recording that begins with it */
 #define FI_OUT 48                       /* Img */
 #define FI_PATH 96                      /* WCHAR[MAX_PATH * 2] */
 #define FI_FRAME (FI_PATH + 2 * W_PATH_CAP)
@@ -1057,8 +1057,13 @@ FUNC finish
         jmp .Lfi_cancel
 .Lfi_notocr:
         cmp ebx, ACT_LONG
-        jne .Lfi_picture
+        jne .Lfi_notgif
         call long_begin                 /* the selection, growing as the user scrolls (scroll.c) */
+        jmp .Lfi_cancel
+.Lfi_notgif:
+        cmp ebx, ACT_GIF
+        jne .Lfi_picture
+        call rec_begin                  /* the selection, recorded as a GIF (rec.c) */
         jmp .Lfi_cancel
 .Lfi_picture:
         /* gone from the screen first: nothing is painted until the next message */
@@ -2379,6 +2384,9 @@ FUNC on_button
         je .Lob_finish
         mov ecx, ACT_LONG
         cmp ebx, B_LONG
+        je .Lob_finish
+        mov ecx, ACT_GIF
+        cmp ebx, B_GIF
         je .Lob_finish
         mov ecx, ACT_PIN
         cmp ebx, B_PIN

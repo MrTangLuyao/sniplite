@@ -3731,7 +3731,7 @@ ENDF
 #define IC_XMM 0xC0
 
 FUNC d_icon
-        cmp edx, 21
+        cmp edx, 22
         ja .Lic_ret0
         PUSHREG rbx
         PUSHREG rsi
@@ -3898,6 +3898,6 @@ ENDF
 .Lic_table:                             /* by icon id (draw.h); the mosaic is special */
         .quad .Lic_rect, .Lic_ellipse, .Lic_line, .Lic_arrow, .Lic_pen, .Lic_marker, 0
         .quad .Lic_text, .Lic_number, .Lic_spot, .Lic_lens, .Lic_undo, .Lic_redo, .Lic_pin, .Lic_save
-        .quad .Lic_close, .Lic_ok, .Lic_ocr, .Lic_ocrcopy, .Lic_long, .Lic_front, .Lic_back
+        .quad .Lic_close, .Lic_ok, .Lic_ocr, .Lic_ocrcopy, .Lic_long, .Lic_front, .Lic_back, .Lic_gif
         .balign 4
 #include "draw_icons.inc"

@@ -48,7 +48,7 @@ void d_dim_row(uint32_t *dst, const uint32_t *src, int n);
 
 enum {
     IC_RECT, IC_ELLIPSE, IC_LINE, IC_ARROW, IC_PEN, IC_MARKER, IC_MOSAIC, IC_TEXT, IC_NUMBER, IC_SPOT, IC_LENS,
-    IC_UNDO, IC_REDO, IC_PIN, IC_SAVE, IC_CLOSE, IC_OK, IC_OCR, IC_OCRCOPY, IC_LONG, IC_FRONT, IC_BACK,
+    IC_UNDO, IC_REDO, IC_PIN, IC_SAVE, IC_CLOSE, IC_OK, IC_OCR, IC_OCRCOPY, IC_LONG, IC_FRONT, IC_BACK, IC_GIF,
 };
 /* Draw a toolbar icon into the box (x, y, size, size). */
 void d_icon(const Surf *s, int icon, float x, float y, float size, uint32_t c);
