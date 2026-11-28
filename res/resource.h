@@ -98,6 +98,10 @@
 #define IDC_HK_FULLSCREEN 229 /* the hotkeys step aside for a full-screen program and for the ones listed */
 #define IDC_HK_APPS_LABEL 230
 #define IDC_HK_APPS 231
+#define IDC_FPS 212         /* the frame rate of a recording */
+#define IDC_FPS_LABEL 213
+#define IDC_COLOURS 214     /* the size of its palette */
+#define IDC_COLOURS_LABEL 215
 
 /* the list of programs the hotkeys step aside for (settings.c), and its text */
 #define IDD_APPS 115

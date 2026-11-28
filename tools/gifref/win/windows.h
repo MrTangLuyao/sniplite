@@ -11,6 +11,8 @@
 
 typedef wchar_t WCHAR;
 typedef int BOOL;
+typedef unsigned long long WPARAM, LPARAM, LRESULT;
+typedef long INT_PTR;
 typedef unsigned short WORD;
 typedef unsigned char BYTE;
 typedef BYTE *LPBYTE;
@@ -43,3 +45,5 @@ typedef struct {
     HANDLE hProcess, hThread;
     DWORD dwProcessId, dwThreadId;
 } PROCESS_INFORMATION;
+
+typedef INT_PTR (*DLGPROC)(HWND, UINT, WPARAM, LPARAM);

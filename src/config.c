@@ -102,6 +102,8 @@ void config_defaults(Config *c)
     hotkey_parse(L"Shift+F3", &c->mod[HK_TOGGLE], &c->vk[HK_TOGGLE]);
     hotkey_parse(L"F4", &c->mod[HK_OCR], &c->vk[HK_OCR]);
     hotkey_parse(L"Shift+F4", &c->mod[HK_OCRCOPY], &c->vk[HK_OCRCOPY]);
+    c->fps = 1; /* 15 frames a second */
+    c->colours = 0; /* 256 colours */
     c->tray = true;
     c->pin_top = true;
     c->pin_text = true;
@@ -115,6 +117,8 @@ static const WCHAR *kHkKeys[HK_COUNT] = {NULL,           L"hotkey",     L"quick_
                                          L"toggle_hotkey", L"ocr_hotkey", L"ocr_copy_hotkey"};
 static const WCHAR *kThemes[] = {L"auto", L"light", L"dark"}; /* by THEME_* */
 static const WCHAR *kDetects[] = {L"controls", L"windows", L"elements"}; /* by DETECT_* */
+const int kFps[FPS_COUNT] = {10, 15, 20, 30};                            /* the frame rates of a recording */
+const int kColours[COLOURS_COUNT] = {256, 128, 64};                      /* the sizes of a palette */
 /* the file names: two or more of y M d H m s in a row stand for that part of the time */
 static const WCHAR *kNames[NAME_COUNT] = {L"sniplite_yyyy-MM-dd_HH-mm-ss",   L"sniplite_yyyyMMdd_HHmmss",
                                           L"Screenshot_yyyy-MM-dd_HH-mm-ss", L"Screenshot_yyyyMMdd_HHmmss",
@@ -185,6 +189,15 @@ static void ini_utf8(const char *text, const char *key, WCHAR *out, int cap)
     }
 }
 
+/* the place of a value in a list of values, or the default when it is not in it */
+static int pick_index(int v, const int *k, int n, int def)
+{
+    for (int i = 0; i < n; i++)
+        if (k[i] == v)
+            return i;
+    return def;
+}
+
 /* which of the n words of k the setting key holds: the first when it is none of them */
 static int ini_pick(const WCHAR *path, const WCHAR *key, const WCHAR *const *k, int n)
 {
@@ -224,6 +237,8 @@ bool config_load(Config *c)
     c->theme = ini_pick(path, L"theme", kThemes, COUNTOF(kThemes));
     c->detect = ini_pick(path, L"detect", kDetects, COUNTOF(kDetects));
     c->name = ini_pick(path, L"file_name", kNames, NAME_COUNT);
+    c->fps = pick_index(GetPrivateProfileIntW(L"sniplite", L"gif_fps", kFps[1], path), kFps, FPS_COUNT, 1);
+    c->colours = pick_index(GetPrivateProfileIntW(L"sniplite", L"gif_colours", kColours[0], path), kColours, COLOURS_COUNT, 0);
     char *text = ini_text(path);
     ini_utf8(text, "save_dir", c->save_dir, COUNTOF(c->save_dir));
     if (!c->save_dir[0]) /* as 1.4 called it */
@@ -253,8 +268,9 @@ bool config_save(const Config *c)
     str_addf(&s, L"block_fullscreen=%d\r\nblock_apps=%s\r\n", c->block_fullscreen ? 1 : 0, c->block_apps);
     str_addf(&s, L"capture=%s\r\ntray=%d\r\nauto_update=%d\r\npin_top=%d\r\npin_text=%d\r\n", c->gdi ? L"gdi" : L"dxgi",
              c->tray ? 1 : 0, c->auto_update ? 1 : 0, c->pin_top ? 1 : 0, c->pin_text ? 1 : 0);
-    str_addf(&s, L"exit_ask=%d\r\ntheme=%s\r\ndetect=%s\r\nalso_save=%d\r\nfile_name=%s\r\nsave_dir=", c->exit_ask ? 1 : 0,
-             kThemes[c->theme], kDetects[c->detect], c->also_save ? 1 : 0, kNames[c->name]);
+    str_addf(&s, L"exit_ask=%d\r\ntheme=%s\r\ndetect=%s\r\nalso_save=%d\r\nfile_name=%s\r\ngif_fps=%d\r\ngif_colours=%d\r\nsave_dir=",
+             c->exit_ask ? 1 : 0, kThemes[c->theme], kDetects[c->detect], c->also_save ? 1 : 0, kNames[c->name], kFps[c->fps],
+             kColours[c->colours]);
     str_add(&s, c->save_dir); /* by itself: str_addf stops at 1024 characters */
     str_add(&s, L"\r\nlast_dir=");
     str_add(&s, c->last_dir);

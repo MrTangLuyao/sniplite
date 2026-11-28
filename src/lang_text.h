@@ -621,6 +621,8 @@ X(C_SAVE_DIR,
 X(C_CHANGE, "更改…", "變更…", "Change…", "変更…", "변경…", "Changer…", "Ändern…", "Cambiar…")
 X(C_NAME, "文件名格式:", "檔案名稱格式:", "File name format:", "ファイル名の形式:", "파일 이름 형식:", "Format du nom :",
   "Dateinamenformat:", "Formato del nombre:")
+X(C_FPS, "帧率:", "影格率:", "Frame rate:", "フレームレート:", "프레임 속도:", "Fréquence :", "Bildrate:", "Fotogramas por segundo:")
+X(C_COLOURS, "颜色数:", "顏色數:", "Colours:", "色数:", "색상 수:", "Couleurs :", "Farben:", "Colores:")
 X(C_ALSO_SAVE,
   "截图时同时保存文件", "截圖時同時儲存檔案", "Also save each capture as a file", "キャプチャ時にファイルにも保存する",
   "캡처할 때 파일로도 저장", "Enregistrer aussi chaque capture dans un fichier",
@@ -908,6 +910,8 @@ X(TIP_FRONT, "置于顶层", "移到最上層", "Bring to front", "最前面へ�
   "In den Vordergrund", "Traer al frente")
 X(TIP_BACK, "置于底层", "移到最下層", "Send to back", "最背面へ移動", "맨 뒤로 보내기", "Mettre à l'arrière-plan",
   "In den Hintergrund", "Enviar al fondo")
+X(TIP_GIF, "录制成 GIF", "錄製成 GIF", "Record as GIF", "GIFとして録画", "GIF로 녹화", "Enregistrer en GIF",
+  "Als GIF aufnehmen", "Grabar como GIF")
 /* the three sizes */
 X(TIP_SIZE0, "细  (滚轮调节)", "細  (滾輪調整)", "Thin  (wheel to change)", "細い  (ホイールで調整)",
   "가늘게  (휠로 조절)", "Fin  (molette pour changer)", "Dünn  (Mausrad zum Ändern)", "Fino  (rueda para cambiar)")
@@ -988,6 +992,12 @@ X(LONG_LOST, "滚得太快了，往回滚一点", "捲得太快了，往回捲�
   "Demasiado rápido: vuelve un poco atrás")
 X(LONG_FULL, "已经到最大长度", "已達最大長度", "As long as it can get", "これ以上は長くできません", "최대 길이에 도달했습니다",
   "Longueur maximale atteinte", "Maximale Länge erreicht", "Longitud máxima alcanzada")
+
+/* ---- the GIF recorder (rec.c) ---- */
+X(REC_STOP, "停止", "停止", "Stop", "停止", "중지", "Arrêter", "Stopp", "Detener")
+X(REC_TIME, "时间", "時間", "Time", "時間", "시간", "Durée", "Zeit", "Tiempo")
+X(REC_FRAMES, "帧数", "影格數", "Frames", "フレーム", "프레임", "Images", "Bilder", "Fotogramas")
+X(REC_SIZE, "大小", "大小", "Size", "サイズ", "크기", "Taille", "Größe", "Tamaño")
 
 /* ---- preferences: the text recognition page (settings.c, ocr_get.c) ---- */
 X(O_STATE_NONE, "文字识别模块：未安装", "文字辨識模組：未安裝", "Text recognition module: not installed", "文字認識モジュール: 未インストール",

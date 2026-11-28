@@ -6,6 +6,8 @@
 enum { HK_CAPTURE = 1, HK_QUICK, HK_PIN, HK_TOGGLE, HK_OCR, HK_OCRCOPY, HK_COUNT };
 enum { THEME_AUTO, THEME_LIGHT, THEME_DARK }; /* the capture's bars: as Windows is set, or always one */
 enum { NAME_COUNT = 7, NAME_CAP = 32 };       /* the file names to choose from; room for the longest, with its 0 */
+enum { FPS_COUNT = 4 };                        /* the frame rates of a recording: kFps */
+enum { COLOURS_COUNT = 3 };                    /* the sizes of a palette: kColours */
 
 typedef struct {
     UINT mod[HK_COUNT], vk[HK_COUNT]; /* index HK_*; vk 0 = no hotkey */
@@ -20,6 +22,8 @@ typedef struct {
     int theme;                        /* THEME_* */
     int detect;                       /* DETECT_* (ov_layout.inc) */
     int name;                         /* which of the NAME_COUNT file names (name_format) */
+    int fps;                          /* which of the kFps frame rates */
+    int colours;                      /* which of the kColours palette sizes */
     WCHAR save_dir[MAX_PATH];         /* default save location; empty: the desktop */
     WCHAR last_dir[MAX_PATH];         /* the folder of the file last saved through the save dialog */
     WCHAR block_apps[256];            /* no hotkeys while a program of these is in front: file names, | between them */
@@ -34,6 +38,10 @@ void config_set_last_dir(const WCHAR *dir);  /* and the save dialog's folder, af
 void config_path(WCHAR *out, int cap);
 /* The name of a file made at that time, without its ending. out: NAME_CAP characters; returns its length. */
 int name_format(int name, const SYSTEMTIME *t, WCHAR *out);
+
+/* the frame rates and the palette sizes, in the order of the settings lists */
+extern const int kFps[FPS_COUNT];        /* 10, 15, 20, 30 */
+extern const int kColours[COLOURS_COUNT]; /* 256, 128, 64 */
 
 bool hotkey_parse(const WCHAR *s, UINT *mod, UINT *vk); /* "Ctrl+Alt+A", "F1", "none" */
 void hotkey_format(UINT mod, UINT vk, WCHAR *out);      /* out: >= 40 chars; "none" if vk == 0 */
