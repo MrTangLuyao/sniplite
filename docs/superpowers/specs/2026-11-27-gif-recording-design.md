@@ -290,9 +290,10 @@ whole screen grows into gigabytes of RAM, and a crash would lose all of it.
 Writing as it goes means the memory is one frame, and the file on disk is
 always a valid GIF up to the last frame written.
 
-The size is therefore the size of the file on disk, which the bar shows. There
+The size is therefore the size of the file on disk, which the panel shows.
+There
 is a cap, as the long screenshot has one (`MAX_PIXELS`, 160 MB): the
-recording stops at 256 MB and the bar says so.
+recording stops at 256 MB and the panel says so.
 
 The file is written with `CreateFileW` and `WriteFile` — there is no stdio
 here, and the project's own `image.S` does the same.
@@ -303,6 +304,16 @@ writes to that folder and says where it put the file when it ends. (The
 dialog would have to come first, before the recording starts, which is the
 wrong way round.)
 
+The name is made when the recording starts, so that two recordings in the
+same second do not write over each other. The `.gif` ending is added to it,
+the way the other saves add their own.
+
+When the recording ends, the notice in the corner of the monitor says what
+was saved and where. That is the same notice the quick capture shows
+(`notice_corner` in `ocr_ui.c`), with the same texts, so nothing new is
+needed for it: the line is the same "Saved" text and the path is the one
+that was written.
+
 ### `src/rec.c` — the recorder
 
 The shape of `scroll.c`, with the stitching replaced by the encoder.
@@ -311,26 +322,30 @@ The shape of `scroll.c`, with the stitching replaced by the encoder.
 - A timer reads the region with `BitBlt` and hands the pixels to the encoder.
 - The frame that changed is found by comparing with the frame before: the
   rectangle that differs is what goes into the GIF.
-- The bar below the region shows the buttons (done, cancel), the time so far,
-  the number of frames, and the size of the file so far. The size matters:
-  the user should see a 40 MB file growing before it is a surprise.
-- The window helpers (`make()` with `WDA_EXCLUDEFROMCAPTURE`, the ring frame,
-  the bar, the hotkeys) are `static` in `scroll.c`. The recorder needs the
-  same few, and the author's diff is easier to read if `scroll.c` is not
-  touched: so they are written again in `rec.c`, small and plainly. If the
-  author would rather they were shared, that is a small follow-up.
-- `WDA_EXCLUDEFROMCAPTURE` on the recorder's own windows, so they are never in
-  the recording.
-- Enter ends it and writes the file; Esc ends it and writes nothing.
+- The interface is a small floating panel, and nothing else. No ring around
+  the region, no toolbar: the region is recorded as it is, and the panel sits
+  outside it. The panel shows the time so far, the number of frames, the size
+  of the file so far, and one button, to stop.
+- The size matters: the user should see a 40 MB file growing before it is a
+  surprise.
+- The panel is a `WS_EX_NOACTIVATE` window with `WDA_EXCLUDEFROMCAPTURE`, so
+  it never appears in what it is recording, and it takes no focus.
+- The panel is placed just outside the region, on whichever side has room,
+  the way the long screenshot puts its strip. If there is no room on either
+  side, it goes in the corner of the monitor the region is on.
+- Enter stops the recording, as the button does. Esc stops it and throws the
+  recording away.
+- The window helpers (`make()` with `WDA_EXCLUDEFROMCAPTURE`, the panel, the
+  hotkeys) are `static` in `scroll.c`. The recorder needs the same few, and
+  the author's diff is easier to read if `scroll.c` is not touched: so they
+  are written again in `rec.c`, small and plainly. If the author would rather
+  they were shared, that is a small follow-up.
 - A capture that starts while the recorder runs ends the recording the way it
   ends the long screenshot: the work is thrown away, because the user has
   moved on. (The long screenshot does the same, in `tick()`.) The file that
   was being written is deleted.
 - The screen changing (a monitor unplugged, a resolution change) ends it too,
   and the same way.
-- The file name comes from the same naming setting the other saves use, and
-  it goes to the same folder. The name is made when the recording starts, so
-  two recordings in the same second do not overwrite each other.
 
 The recorder has no message loop of its own: the daemon has one, and it
 dispatches to whatever window the message is for, which is how the long
@@ -356,9 +371,11 @@ setting (`config.h` / `config.c`).
 New strings in `src/lang_text.h`, all eight languages:
 
 - the button's tooltip ("Record as GIF"),
-- the recorder's bar: "Done", "Cancel", "Time", "Frames", "Size",
-- the notice after saving ("Saved the recording to %s"),
+- the panel's button ("Stop"), and the words in it: "Time", "Frames", "Size",
 - the two settings' labels and their choices.
+
+The notice that says the file was saved is the one the quick capture already
+shows, so it needs no new text.
 
 ### The icon
 
@@ -389,7 +406,7 @@ size and the correctness are known rather than guessed.
 1. `src/gif.c` and `src/gif.h`: quantisation, LZW, the container. The LZW is
    the part with the fiddly rules; it is described above and a reference
    implementation exists.
-2. `src/rec.c`: the recorder window, the timer, the differencing, the bar.
+2. `src/rec.c`: the recorder window, the timer, the differencing, the panel.
 3. The button: `B_GIF` in `src/ov_layout.inc`, the entry in `kTbOrder` in
    `src/ov_base.S`, the call in `src/ov_show.S` next to `long_begin`.
    Three things in there will break the build if they are missed, so they are
@@ -460,6 +477,20 @@ not written yet.
 The order is: implement here, then open the issue on upstream, then the pull
 request. The author is at the moment very busy and does not reply quickly, so
 the issue comes after the work, not before it.
+
+**What upstream looks like now** (checked on 2026-11-28). The last release is
+still v1.5.1, from 2026-11-20; nothing has been committed since. Issue #19 is
+still open with one comment, the author's "可以试试", and nobody has taken it
+up. There is no GIF anywhere in the program.
+
+One thing to keep in mind: pull request #33 (from lvjunlei, still open, no
+review yet) adds MP4 recording through DXGI and Media Foundation. That is a
+different format from a GIF, and it reads the screen through the GPU where
+this design reads it with `BitBlt`, the way the long screenshot does. If that
+pull request is merged, the program would have two recorders, and the two
+would want the same place in the toolbar. That is not a reason to hold off:
+the author asked for a GIF and said he would not do one soon. But it is worth
+saying so in the issue, so that the author can say what he thinks.
 
 The issue says, in short: the feature from #19, what it does, the two things
 that needed deciding (the encoder is written here rather than taken from
