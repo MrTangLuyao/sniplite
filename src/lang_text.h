@@ -998,6 +998,8 @@ X(REC_STOP, "停止", "停止", "Stop", "停止", "중지", "Arrêter", "Stopp",
 X(REC_TIME, "时间", "時間", "Time", "時間", "시간", "Durée", "Zeit", "Tiempo")
 X(REC_FRAMES, "帧数", "影格數", "Frames", "フレーム", "프레임", "Images", "Bilder", "Fotogramas")
 X(REC_SIZE, "大小", "大小", "Size", "サイズ", "크기", "Taille", "Größe", "Tamaño")
+X(REC_FULL, "已经到最大长度", "已達最大長度", "As long as it can get", "これ以上は長くできません", "최대 길이에 도달했습니다",
+  "Longueur maximale atteinte", "Maximale Länge erreicht", "Longitud máxima alcanzada")
 
 /* ---- preferences: the text recognition page (settings.c, ocr_get.c) ---- */
 X(O_STATE_NONE, "文字识别模块：未安装", "文字辨識模組：未安裝", "Text recognition module: not installed", "文字認識モジュール: 未インストール",

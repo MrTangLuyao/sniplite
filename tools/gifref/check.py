@@ -1,4 +1,5 @@
-"""Check a GIF encoder against the reference in this folder.
+"""Check the GIF encoder against the reference in this folder, and the picture
+the recorder scales down.
 
 The reference (refgif.c) and the encoder under test must produce the same
 bytes for the same picture, and the picture must come back out of the file
@@ -221,6 +222,63 @@ def check_pixels(tmp):
     return checks, fails
 
 
+def check_scale(tmp):
+    """The recorder scales a region down to the picture: the code is taken from
+    src/rec.c, so that what is checked is what runs."""
+    rec = open(os.path.join(ROOT, 'src', 'rec.c')).read()
+    start = rec.find('static void scale_pixels')
+    if start < 0:
+        print('MISMATCH  the scaling: src/rec.c has no scale_pixels')
+        return 0, 1
+    end = rec.index('\n}\n', start) + 3
+    code = rec[start:end]
+    program = """#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+%s
+int main(int argc, char **argv) {
+    int w = atoi(argv[2]), h = atoi(argv[3]), sw = atoi(argv[4]), sh = atoi(argv[5]);
+    uint32_t *src = malloc((size_t)w * h * 4), *dst = malloc((size_t)sw * sh * 4);
+    for (int i = 0; i < w * h; i++) src[i] = (uint32_t)atoi(argv[6 + i]);
+    scale_pixels(src, w, h, dst, sw, sh);
+    for (int i = 0; i < sw * sh; i++) printf("%%u ", dst[i]);
+    return 0;
+}
+""" % code
+    src_file = os.path.join(tmp, 'scale.c')
+    open(src_file, 'w').write(program)
+    exe = os.path.join(tmp, 'scale')
+    subprocess.run(['cc', '-O2', '-o', exe, src_file], check=True)
+    fails = 0
+    checks = 0
+    for w, h, sw, sh in ((4, 4, 2, 2), (3, 3, 2, 2), (5, 3, 2, 1), (8, 8, 8, 8)):
+        # the picture: every pixel is a number of its own
+        picture = [(i * 37 + 11) & 0xFFFFFF for i in range(w * h)]
+        got = subprocess.run([exe, 'x', str(w), str(h), str(sw), str(sh)] +
+                             [str(c) for c in picture], check=True, capture_output=True, text=True)
+        values = [int(v) for v in got.stdout.split()]
+        # what it has to be: the average of the pixels of the block
+        want = []
+        for y in range(sh):
+            for x in range(sw):
+                y0, y1 = y * h // sh, (y + 1) * h // sh
+                x0, x1 = x * w // sw, (x + 1) * w // sw
+                r = g = b = n = 0
+                for yy in range(y0, y1):
+                    for xx in range(x0, x1):
+                        v = picture[yy * w + xx]
+                        r += v >> 16 & 255
+                        g += v >> 8 & 255
+                        b += v & 255
+                        n += 1
+                want.append((r // n << 16) | (g // n << 8) | b // n)
+        checks += 1
+        if values != want:
+            print('MISMATCH  the scaling: %dx%d to %dx%d is %r, not %r' % (w, h, sw, sw, values, want))
+            fails += 1
+    return checks, fails
+
+
 def main():
     build_ref()
     if len(sys.argv) > 1:
@@ -258,7 +316,9 @@ def main():
     print('%s: %d of %d checks passed' % (name, checks - fails, checks))
     pchecks, pfails = check_pixels(tmp)
     print('the pixels: %d of %d checks passed' % (pchecks - pfails, pchecks))
-    return 1 if (fails or pfails) else 0
+    schecks, sfails = check_scale(tmp)
+    print('the scaling: %d of %d checks passed' % (schecks - sfails, schecks))
+    return 1 if (fails or pfails or sfails) else 0
 
 
 if __name__ == '__main__':
