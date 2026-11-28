@@ -74,6 +74,23 @@ def parse(path):
     return {'size': (w, h), 'frames': frames, 'palette': gct, 'loop': loop}
 
 
+def compose(g):
+    """The picture of every frame, as a viewer shows it: the transparent index
+    means the pixel of the frame before stays. The colours, not the indices."""
+    w, h = g['size']
+    canvas = [None] * (w * h)
+    out = []
+    for f in g['frames']:
+        pal = f['pal']
+        trans = f['gce']['trans'] if f['gce'] else None
+        for i, v in enumerate(f['px']):
+            if trans is not None and v == trans:
+                continue
+            canvas[(f['y'] + i // f['w']) * w + f['x'] + i % f['w']] = pal[v]
+        out.append(list(canvas))
+    return out
+
+
 def lzw_decode(data, mincode, npix):
     """The GIF flavour of LZW, decoded from the bytes of one frame."""
     clear = 1 << mincode

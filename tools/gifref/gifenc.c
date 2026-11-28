@@ -54,7 +54,7 @@ int main(int argc, char **argv)
     for (int i = 0; i < 256; i++)
         g.pal[i][0] = g.pal[i][1] = g.pal[i][2] = (uint8_t)i;
     g.npal = 256;
-    if (!gif_write_frame(&g, idx, w, h, 0, 0, 7)) {
+    if (!gif_write_frame(&g, idx, w, h, 0, 0, 7, -1)) {
         free(idx);
         return 1;
     }

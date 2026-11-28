@@ -18,12 +18,16 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from gifread import parse  # noqa: E402
+from gifread import parse, compose  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 REF = os.path.join(HERE, 'refgif')
 ENC = os.path.join(HERE, 'gifenc')
+PIX = os.path.join(HERE, 'gifpix')
+
+# The frame rate the pictures are made at, and so the delay of every frame.
+FPS = 15
 
 # The pictures the encoders are given. The first four are the ones refgif.c
 # knows; the rest are the awkward ones: all one colour, two colours, a
@@ -39,6 +43,14 @@ DISPOSAL = 1
 
 def build_ref():
     subprocess.run(['cc', '-O2', '-o', REF, os.path.join(HERE, 'refgif.c')], check=True)
+
+
+def build_pix():
+    """The encoder of src/gif.c, driven with pixels by the harness in this folder."""
+    subprocess.run(['cc', '-O2',
+                    '-I', os.path.join(HERE, 'win'), '-I', os.path.join(ROOT, 'src'),
+                    '-o', PIX, os.path.join(HERE, 'gifpix.c'), os.path.join(ROOT, 'src', 'gif.c')],
+                   check=True)
 
 
 def build_enc():
@@ -86,6 +98,129 @@ def problems(path, w, h):
     return bad
 
 
+# The four colours of the checkerboard, and the picture of a frame: the
+# checkerboard with the block of the mode on top of it.
+COLOURS = [(0, 0, 0), (255, 255, 255), (255, 0, 0), (0, 0, 255)]
+
+
+def picture(w, h, n, mode):
+    """The picture of frame n, in colours. The grey block of mode 2 comes back
+    as white: it is the nearest of the four colours, and that is what the
+    quantiser promises."""
+    px = []
+    for y in range(h):
+        for x in range(w):
+            px.append(COLOURS[((x // 8) + (y // 8)) % 4])
+    if mode == 0:
+        x0, y0 = n * 4, h // 4
+        for y in range(y0, min(h, y0 + 16)):
+            for x in range(x0, min(w, x0 + 16)):
+                px[y * w + x] = (255, 0, 0)
+    elif mode == 2 and n >= 1:
+        x0, y0 = w // 2, h // 4
+        for y in range(y0, min(h, y0 + 16)):
+            for x in range(x0, min(w, x0 + 16)):
+                px[y * w + x] = (255, 255, 255)
+    elif mode == 3:
+        # a gradient: every pixel is a colour of its own, so the palette has to
+        # be cut out of the colour cube
+        for y in range(h):
+            for x in range(w):
+                px[y * w + x] = (x * 255 // (w - 1), y * 255 // (h - 1), 0x40)
+    return px
+
+
+def error(got, want):
+    """The worst a channel is off by, over the whole picture."""
+    worst = 0
+    for a, b in zip(got, want):
+        if a is None or b is None:
+            return 255
+        for i in range(3):
+            worst = max(worst, abs(a[i] - b[i]))
+    return worst
+
+
+def delay_of(n):
+    """The delay of frame n: from its number, so that the total comes out right."""
+    return round((n + 1) * 100.0 / FPS) - round(n * 100.0 / FPS)
+
+
+def check_pixels(tmp):
+    """The encoder, driven with pixels: the frames have to come back out of the
+    file as they went in."""
+    build_pix()
+    fails = 0
+    checks = 0
+
+    def bad(what):
+        """One check that did not pass."""
+        nonlocal fails
+        fails += 1
+        print('MISMATCH  ' + what)
+
+    for mode in (0, 1, 2, 3):
+        for w, h, nframes in ((64, 48, 4), (37, 23, 3)):
+            out = os.path.join(tmp, 'pix.gif')
+            subprocess.run([PIX, out, str(w), str(h), str(nframes), str(mode)], check=True)
+            g = parse(out)
+            checks += 1
+            if g['size'] != (w, h):
+                bad('pixels %dx%d mode %d: the picture is %r' % (w, h, mode, g['size']))
+            if g['loop'] != 0:
+                bad('pixels %dx%d mode %d: the animation does not loop' % (w, h, mode))
+            if len(g['frames']) != nframes:
+                bad('pixels %dx%d mode %d: %d frames, not %d' % (w, h, mode, len(g['frames']), nframes))
+                continue
+            for n, f in enumerate(g['frames']):
+                checks += 1
+                if f['gce']['delay'] != delay_of(n):
+                    bad('pixels %dx%d mode %d: the delay of frame %d is %d, not %d'
+                        % (w, h, mode, n, f['gce']['delay'], delay_of(n)))
+                checks += 1
+                if f['gce']['disposal'] != DISPOSAL:
+                    bad('pixels %dx%d mode %d: the disposal method of frame %d is %d'
+                        % (w, h, mode, n, f['gce']['disposal']))
+            # the first frame is the whole picture, the later ones only what changed
+            first = g['frames'][0]
+            checks += 1
+            if (first['x'], first['y'], first['w'], first['h']) != (0, 0, w, h):
+                bad('pixels %dx%d mode %d: the first frame is not the whole picture' % (w, h, mode))
+            checks += 1
+            if first['gce']['trans'] is not None:
+                bad('pixels %dx%d mode %d: the first frame has a transparent index' % (w, h, mode))
+            # a frame in which nothing changed is one transparent pixel
+            for n, f in enumerate(g['frames'][1:], start=1):
+                if mode == 1 or (mode == 2 and n >= 2) or mode == 3:
+                    checks += 1
+                    if (f['w'], f['h']) != (1, 1):
+                        bad('pixels %dx%d mode %d: frame %d is %dx%d, not one pixel'
+                            % (w, h, mode, n, f['w'], f['h']))
+            # and the picture of every frame has to come back out of the file
+            for n, got in enumerate(compose(g)):
+                checks += 1
+                want = picture(w, h, n, mode)
+                if mode == 3:
+                    # the palette cannot hold every colour of a gradient: the
+                    # picture comes back close to it, not exactly
+                    if error(got, want) > 24:
+                        bad('pixels %dx%d mode %d: the picture of frame %d is %d off'
+                            % (w, h, mode, n, error(got, want)))
+                        break
+                elif got != want:
+                    bad('pixels %dx%d mode %d: the picture of frame %d is not the one that went in'
+                        % (w, h, mode, n))
+                    break
+            # the file has to be a valid GIF after every frame, too
+            for n in range(1, nframes + 1):
+                checks += 1
+                part = parse('%s.%d' % (out, n))
+                if len(part['frames']) != n:
+                    bad('pixels %dx%d mode %d: the file after frame %d has %d frames'
+                        % (w, h, mode, n, len(part['frames'])))
+    return checks, fails
+
+
 def main():
     build_ref()
     if len(sys.argv) > 1:
@@ -121,7 +256,9 @@ def main():
                 print('MISMATCH  %dx%d pattern %d: the pixels differ' % (w, h, pattern))
                 fails += 1
     print('%s: %d of %d checks passed' % (name, checks - fails, checks))
-    return 1 if fails else 0
+    pchecks, pfails = check_pixels(tmp)
+    print('the pixels: %d of %d checks passed' % (pchecks - pfails, pchecks))
+    return 1 if (fails or pfails) else 0
 
 
 if __name__ == '__main__':

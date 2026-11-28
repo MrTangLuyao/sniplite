@@ -6,3 +6,4 @@ tests/
 __pycache__/
 tools/gifref/refgif
 tools/gifref/gifenc
+tools/gifref/gifpix
