@@ -2,9 +2,10 @@
  * and written to a GIF file.
  *
  * The shape of scroll.c: the capture closes and its selection becomes the
- * region; a small panel beside it shows the time, the number of frames and the
- * size of the file; Enter stops the recording and keeps the file, Esc stops it
- * and throws it away.
+ * region; a thin ring around the region shows where the recording is, and a
+ * small panel beside it shows the time, the number of frames and the size of
+ * the file; the panel can be dragged out of the way by its body. Enter stops
+ * the recording and keeps the file, Esc stops it and throws it away.
  *
  * The file is written as the recording goes, so that the memory is one frame
  * and the file on disk is a valid GIF up to the last frame that was written.
@@ -45,7 +46,10 @@ static struct {
     int sw, sh; /* the size of the picture: the region, scaled down when it is big */
     int vw, vh; /* the screen, to know when it changes under the recording */
     float s;    /* the scale of the screen */
+    HWND frame; /* the ring around the region: where the recording is */
     HWND panel;
+    bool moving; /* the panel is being dragged */
+    POINT grab;  /* where on the panel the drag took hold */
     Img shot;   /* the region, as it is read */
     Img small;  /* the region, scaled down */
     Img bar;    /* the picture of the panel */
@@ -75,8 +79,11 @@ static HWND make(DWORD ex, int x, int y, int w, int h)
 {
     HWND wnd = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | ex, REC_CLASS, L"sniplite", WS_POPUP, x, y, w, h,
                                NULL, NULL, GetModuleHandleW(NULL), NULL);
-    if (wnd)
+    if (wnd) {
         SetWindowDisplayAffinity(wnd, 0x11); /* WDA_EXCLUDEFROMCAPTURE: never part of what is read */
+        if (ex & WS_EX_LAYERED)
+            SetLayeredWindowAttributes(wnd, 0, 255, LWA_ALPHA);
+    }
     return wnd;
 }
 
@@ -260,6 +267,8 @@ static void rec_end(bool save)
         CloseHandle(R.file);
     if (!save && R.ours)
         DeleteFileW(R.path);
+    if (R.frame)
+        DestroyWindow(R.frame);
     if (R.panel)
         DestroyWindow(R.panel);
     WCHAR path[MAX_PATH + 80];
@@ -378,6 +387,19 @@ void rec_begin(void)
     GetMonitorInfoW(MonitorFromRect(&rc, MONITOR_DEFAULTTONEAREST), &mi);
     const RECT *mon = &mi.rcMonitor;
     int pw = px(300), ph = px(34), gap = px(6);
+
+    /* the frame: a ring just outside the region, so that what is being
+     * recorded is seen (the shape of scroll.c's) */
+    int t = MAXI(px(2), 2);
+    R.frame = make(WS_EX_LAYERED | WS_EX_TRANSPARENT, rc.left - t, rc.top - t, w + 2 * t, h + 2 * t);
+    if (R.frame) {
+        HRGN ring = CreateRectRgn(0, 0, w + 2 * t, h + 2 * t), hole = CreateRectRgn(t, t, t + w, t + h);
+        CombineRgn(ring, ring, hole, RGN_DIFF);
+        DeleteObject(hole);
+        SetWindowRgn(R.frame, ring, FALSE);
+        ShowWindow(R.frame, SW_SHOWNOACTIVATE);
+    }
+
     int bx = CLAMPI(rc.left, mon->left, MAXI(mon->left, mon->right - pw));
     int by = rc.bottom + gap;
     if (by + ph > mon->bottom)
@@ -408,6 +430,15 @@ static LRESULT CALLBACK rec_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         return 1;
     if (m == WM_MOUSEACTIVATE)
         return MA_NOACTIVATE; /* the keyboard stays with the program in front */
+    if (h == R.frame && m == WM_PAINT) {
+        PAINTSTRUCT ps;
+        HDC dc = BeginPaint(h, &ps);
+        HBRUSH accent = CreateSolidBrush(RGB(ACCENT >> 16, ACCENT >> 8 & 255, ACCENT & 255));
+        FillRect(dc, &ps.rcPaint, accent);
+        DeleteObject(accent);
+        EndPaint(h, &ps);
+        return 0;
+    }
     if (!R.on || h != R.panel)
         return DefWindowProcW(h, m, wp, lp);
     switch (m) {
@@ -424,6 +455,12 @@ static LRESULT CALLBACK rec_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
             rec_end(false);
         return 0;
     case WM_MOUSEMOVE: {
+        if (R.moving) { /* the panel is dragged by its body */
+            POINT p;
+            GetCursorPos(&p);
+            SetWindowPos(h, NULL, p.x - R.grab.x, p.y - R.grab.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            return 0;
+        }
         int at = panel_hit(lp);
         if (at != R.hover) {
             R.hover = at;
@@ -439,9 +476,27 @@ static LRESULT CALLBACK rec_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         return 0;
     case WM_LBUTTONDOWN:
         R.down = panel_hit(lp);
+        if (R.down < 0) { /* not the button: the panel is moved from here */
+            RECT wr;
+            GetWindowRect(h, &wr);
+            POINT p = {(short)LOWORD(lp), (short)HIWORD(lp)};
+            R.grab.x = p.x, R.grab.y = p.y;
+            ClientToScreen(h, &R.grab);
+            R.grab.x -= wr.left, R.grab.y -= wr.top;
+            R.moving = true;
+            SetCapture(h);
+        }
         InvalidateRect(h, NULL, FALSE);
         return 0;
+    case WM_CAPTURECHANGED:
+        R.moving = false;
+        return 0;
     case WM_LBUTTONUP: {
+        if (R.moving) {
+            R.moving = false;
+            ReleaseCapture();
+            return 0;
+        }
         int at = panel_hit(lp), was = R.down;
         R.down = -1;
         InvalidateRect(h, NULL, FALSE);
