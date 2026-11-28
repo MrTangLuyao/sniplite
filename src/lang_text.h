@@ -621,7 +621,7 @@ X(C_SAVE_DIR,
 X(C_CHANGE, "更改…", "變更…", "Change…", "変更…", "변경…", "Changer…", "Ändern…", "Cambiar…")
 X(C_NAME, "文件名格式:", "檔案名稱格式:", "File name format:", "ファイル名の形式:", "파일 이름 형식:", "Format du nom :",
   "Dateinamenformat:", "Formato del nombre:")
-X(C_FPS, "帧率:", "影格率:", "Frame rate:", "フレームレート:", "프레임 속도:", "Fréquence :", "Bildrate:", "Fotogramas por segundo:")
+X(C_FPS, "帧率:", "影格率:", "Frame rate:", "フレームレート:", "프레임 속도:", "Fréquence :", "Bildrate:", "Frecuencia:")
 X(C_COLOURS, "颜色数:", "顏色數:", "Colours:", "色数:", "색상 수:", "Couleurs :", "Farben:", "Colores:")
 X(C_ALSO_SAVE,
   "截图时同时保存文件", "截圖時同時儲存檔案", "Also save each capture as a file", "キャプチャ時にファイルにも保存する",
@@ -994,7 +994,6 @@ X(LONG_FULL, "已经到最大长度", "已達最大長度", "As long as it can g
   "Longueur maximale atteinte", "Maximale Länge erreicht", "Longitud máxima alcanzada")
 
 /* ---- the GIF recorder (rec.c) ---- */
-X(REC_STOP, "停止", "停止", "Stop", "停止", "중지", "Arrêter", "Stopp", "Detener")
 X(REC_TIME, "时间", "時間", "Time", "時間", "시간", "Durée", "Zeit", "Tiempo")
 X(REC_FRAMES, "帧数", "影格數", "Frames", "フレーム", "프레임", "Images", "Bilder", "Fotogramas")
 X(REC_SIZE, "大小", "大小", "Size", "サイズ", "크기", "Taille", "Größe", "Tamaño")

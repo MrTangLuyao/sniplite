@@ -59,6 +59,9 @@ static struct {
     int hover, down; /* the button of the panel under the mouse, pressed; -1 none */
     bool full;       /* the file is as big as it may be */
     bool first;      /* the first frame is read after the capture is off the screen */
+    bool ours;       /* the file is ours: it is ours to delete */
+    bool failed;     /* the writing failed: the file is kept, but it is not whole */
+    bool quiet;      /* the program is closing: there is no time for a notice */
 } R;
 
 static void rec_end(bool save);
@@ -218,7 +221,8 @@ static void tick(void)
     }
     DWORD written = 0;
     if (!WriteFile(R.file, R.gif.buf, (DWORD)R.gif.n, &written, NULL) || written != (DWORD)R.gif.n) {
-        rec_end(false);
+        R.failed = true; /* the disk is full, or something like that: the file is kept */
+        rec_end(true);
         return;
     }
     R.size += written;
@@ -254,20 +258,21 @@ static void rec_end(bool save)
     }
     if (R.file)
         CloseHandle(R.file);
-    if (!save && R.path[0])
+    if (!save && R.ours)
         DeleteFileW(R.path);
     if (R.panel)
         DestroyWindow(R.panel);
     WCHAR path[MAX_PATH + 80];
     lstrcpynW(path, R.path, COUNTOF(path));
     POINT at = {R.rc.left, R.rc.top};
+    bool failed = R.failed, quiet = R.quiet;
     img_destroy(&R.shot);
     img_destroy(&R.small);
     img_destroy(&R.bar);
     gif_free(&R.gif);
     memset(&R, 0, sizeof R);
-    if (save && path[0])
-        notice_corner(T(QUICK_SAVED), path, at, 2000);
+    if (save && path[0] && !quiet)
+        notice_corner(failed ? T(OV_SAVE_FAILED) : T(QUICK_SAVED), path, at, failed ? 4000 : 2000);
 }
 
 /* The folder of the settings, or the desktop when there is none */
@@ -299,13 +304,22 @@ static bool open_file(const Config *c)
     name_format(c->name, &now, name);
     int n = wsprintfW(R.path, L"%s\\%s", dir, name); /* the end of the name */
     lstrcpyW(R.path + n, L".gif");
+    CreateDirectoryW(dir, NULL); /* a chosen folder that is gone comes back */
     for (int k = 2; k < 100; k++) { /* CREATE_NEW: two recordings never take the same name */
         R.file = CreateFileW(R.path, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
-        if (R.file != INVALID_HANDLE_VALUE || GetLastError() != ERROR_FILE_EXISTS)
-            return R.file != INVALID_HANDLE_VALUE;
+        if (R.file != INVALID_HANDLE_VALUE) {
+            R.ours = true;
+            return true;
+        }
+        if (GetLastError() != ERROR_FILE_EXISTS)
+            break;
         wsprintfW(R.path + n, L"_%d.gif", k);
     }
     R.file = NULL;
+    R.path[0] = 0; /* the file is not ours: it is not ours to delete */
+    POINT at = {0, 0};
+    GetCursorPos(&at);
+    notice_corner(T(OV_SAVE_FAILED), dir, at, 4000);
     return false;
 }
 
@@ -380,7 +394,13 @@ void rec_begin(void)
     ShowWindow(R.panel, SW_SHOWNOACTIVATE);
 }
 
-void rec_cancel(void) { rec_end(false); }
+/* The program is closing: the recording ends, and the file is kept and
+ * finished, so that a viewer can play it. */
+void rec_cancel(void)
+{
+    R.quiet = true;
+    rec_end(true);
+}
 
 static LRESULT CALLBACK rec_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
 {

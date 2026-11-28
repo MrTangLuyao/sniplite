@@ -1355,6 +1355,7 @@ static LRESULT CALLBACK daemon_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         return 0;
     case WM_CLOSE:
         ov_cancel();
+        rec_cancel(); /* a recording that is on ends with the program: the file is kept */
         pin_close_all();
         ipc_close(ipc_find_dialog(SHORTCUTS_MARK)); /* its windows go with it */
         ipc_close(ipc_find_dialog(SETTINGS_MARK));

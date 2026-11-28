@@ -1263,6 +1263,10 @@ static void page_command(HWND page, int id, int code, HWND ctl)
             SendDlgItemMessageW(page, IDC_NAME, CB_SETCURSEL, (WPARAM)d.name, 0);
             S.cfg.also_save = d.also_save;
             CheckDlgButton(page, IDC_ALSO_SAVE, d.also_save ? BST_CHECKED : BST_UNCHECKED);
+            S.cfg.fps = d.fps;
+            SendDlgItemMessageW(page, IDC_FPS, CB_SETCURSEL, (WPARAM)d.fps, 0);
+            S.cfg.colours = d.colours;
+            SendDlgItemMessageW(page, IDC_COLOURS, CB_SETCURSEL, (WPARAM)d.colours, 0);
         } else if (page == S.page[PG_HOTKEYS]) {
             memcpy(S.cfg.mod, d.mod, sizeof d.mod);
             memcpy(S.cfg.vk, d.vk, sizeof d.vk);

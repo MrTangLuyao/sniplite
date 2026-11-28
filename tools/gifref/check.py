@@ -21,6 +21,11 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gifread import parse, compose  # noqa: E402
 
+try:
+    from PIL import Image
+except ImportError:  # the reader of this folder is enough, but PIL is the better opinion
+    Image = None
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 REF = os.path.join(HERE, 'refgif')
@@ -72,6 +77,21 @@ def run(prog, out, w, h, pattern, px=None):
         args.append(px)
     subprocess.run(args, check=True)
     return open(out, 'rb').read()
+
+
+def pil_picture(path):
+    """The picture of the file, as an independent decoder reads it: every frame
+    over the ones before it. None when PIL is not there."""
+    if Image is None:
+        return None
+    im = Image.open(path)
+    frames = []
+    for i in range(getattr(im, 'n_frames', 1)):
+        im.seek(i)
+        rgb = im.convert('RGB')
+        flat = getattr(rgb, 'get_flattened_data', None)
+        frames.append(list(flat() if flat else rgb.getdata()))
+    return frames
 
 
 def problems(path, w, h):
@@ -212,6 +232,22 @@ def check_pixels(tmp):
                     bad('pixels %dx%d mode %d: the picture of frame %d is not the one that went in'
                         % (w, h, mode, n))
                     break
+            # and the same for a decoder that is not this one: PIL puts the
+            # frames over the ones before them, as a viewer does
+            frames = pil_picture(out)
+            if frames is not None:
+                for n, got in enumerate(frames):
+                    checks += 1
+                    want = picture(w, h, n, mode)
+                    if mode == 3:
+                        if error(got, want) > 24:
+                            bad('pixels %dx%d mode %d: PIL reads the picture of frame %d %d off'
+                                % (w, h, mode, n, error(got, want)))
+                            break
+                    elif got != want:
+                        bad('pixels %dx%d mode %d: PIL reads another picture of frame %d'
+                            % (w, h, mode, n))
+                        break
             # the file has to be a valid GIF after every frame, too
             for n in range(1, nframes + 1):
                 checks += 1
@@ -313,6 +349,13 @@ def main():
             if got != want:
                 print('MISMATCH  %dx%d pattern %d: the pixels differ' % (w, h, pattern))
                 fails += 1
+            # and it must come back out of it for a decoder that is not this one
+            frames = pil_picture(b)
+            if frames is not None:
+                checks += 1
+                if frames[0] != [(v, v, v) for v in want]:
+                    print('MISMATCH  %dx%d pattern %d: PIL reads a different picture' % (w, h, pattern))
+                    fails += 1
     print('%s: %d of %d checks passed' % (name, checks - fails, checks))
     pchecks, pfails = check_pixels(tmp)
     print('the pixels: %d of %d checks passed' % (pchecks - pfails, pchecks))

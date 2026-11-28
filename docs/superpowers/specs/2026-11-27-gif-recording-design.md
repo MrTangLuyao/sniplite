@@ -392,8 +392,12 @@ setting (`config.h` / `config.c`).
 New strings in `src/lang_text.h`, all eight languages:
 
 - the button's tooltip ("Record as GIF"),
-- the panel's button ("Stop"), and the words in it: "Time", "Frames", "Size",
+- the words in the panel: "Time", "Frames", "Size", and the one it says when
+  the file is as big as it may be,
 - the two settings' labels and their choices.
+
+The panel's button is the check mark the long screenshot's bar uses for "done",
+so it needs no text of its own.
 
 The notice that says the file was saved is the one the quick capture already
 shows, so it needs no new text.
@@ -498,6 +502,32 @@ not written yet.
 The order is: implement here, then open the issue on upstream, then the pull
 request. The author is at the moment very busy and does not reply quickly, so
 the issue comes after the work, not before it.
+
+**What changed while it was built** (the code is the truth; this is what it
+came to be).
+
+- The interface of `src/gif.h` is as it is above: the bytes come out one frame at
+  a time, and the caller writes them to the file as they come.
+- The palette's lookup is a table of the colour cube (32 levels a channel,
+  32 KB), not a cache of the colours that were seen. A cache is fast for a
+  screen, but a picture with more colours than the cache holds misses on every
+  pixel, and the search of the palette then takes a quarter of a second a frame.
+  With the table every pixel is one lookup, and the whole screen is read in
+  about ten milliseconds.
+- The colours of a frame are counted in a table of eight thousand entries of
+  eight bytes: the colour and its place in the array in one word, so that the
+  counting of a whole screen is one cache miss a pixel and not two.
+- The picture of a region that is bigger than 1280x720 is scaled down by the
+  recorder, before the encoder sees it. The averaging of the block is in
+  `src/rec.c`, and the check of it is in `tools/gifref/check.py`: the check
+  takes the code from the file, so that what is checked is what runs.
+- The icon of the button is a circle in a ring. The icons have one colour and
+  no filled circle, so the circle is a polygon of eight points and the ring is
+  an ellipse.
+- The recording stops when the file is as big as it may be (256 MB), and the
+  panel says so; the user ends it with the key or the button as usual.
+- The file is named when the recording starts, and it is written to the folder
+  of the settings, or to the desktop when there is none.
 
 **What upstream looks like now** (checked on 2026-11-28). The last release is
 still v1.5.1, from 2026-11-20; nothing has been committed since. Issue #19 is
