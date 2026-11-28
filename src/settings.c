@@ -1109,7 +1109,8 @@ static void page_command(HWND page, int id, int code, HWND ctl)
             set_language(lang);
         return;
     }
-    int *choice = id == IDC_THEME ? &S.cfg.theme : id == IDC_DETECT ? &S.cfg.detect : id == IDC_NAME ? &S.cfg.name : NULL;
+    int *choice = id == IDC_THEME ? &S.cfg.theme : id == IDC_DETECT ? &S.cfg.detect : id == IDC_NAME ? &S.cfg.name
+               : id == IDC_FPS ? &S.cfg.fps : id == IDC_COLOURS ? &S.cfg.colours : NULL;
     if (choice) { /* a list of a setting's values, in their order */
         int i = (int)SendMessageW(ctl, CB_GETCURSEL, 0, 0);
         if (code == CBN_SELCHANGE && i >= 0) {
@@ -1262,6 +1263,10 @@ static void page_command(HWND page, int id, int code, HWND ctl)
             SendDlgItemMessageW(page, IDC_NAME, CB_SETCURSEL, (WPARAM)d.name, 0);
             S.cfg.also_save = d.also_save;
             CheckDlgButton(page, IDC_ALSO_SAVE, d.also_save ? BST_CHECKED : BST_UNCHECKED);
+            S.cfg.fps = d.fps;
+            SendDlgItemMessageW(page, IDC_FPS, CB_SETCURSEL, (WPARAM)d.fps, 0);
+            S.cfg.colours = d.colours;
+            SendDlgItemMessageW(page, IDC_COLOURS, CB_SETCURSEL, (WPARAM)d.colours, 0);
         } else if (page == S.page[PG_HOTKEYS]) {
             memcpy(S.cfg.mod, d.mod, sizeof d.mod);
             memcpy(S.cfg.vk, d.vk, sizeof d.vk);
@@ -1353,6 +1358,8 @@ static const struct {
     {PG_CAPTURE, IDC_SAVE_PICK, S_C_CHANGE},
     {PG_CAPTURE, IDC_NAME_LABEL, S_C_NAME},
     {PG_CAPTURE, IDC_ALSO_SAVE, S_C_ALSO_SAVE},
+    {PG_CAPTURE, IDC_FPS_LABEL, S_C_FPS},
+    {PG_CAPTURE, IDC_COLOURS_LABEL, S_C_COLOURS},
     {PG_HOTKEYS, IDC_HK_LABEL1, S_H_CAPTURE}, /* the rows in the order of HK_* */
     {PG_HOTKEYS, IDC_HK_LABEL2, S_H_QUICK},
     {PG_HOTKEYS, IDC_HK_LABEL3, S_H_PIN},
@@ -1451,6 +1458,17 @@ static INT_PTR CALLBACK main_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         for (int i = 0; i <= DETECT_ELEMENTS; i++) /* in the order of DETECT_* */
             SendDlgItemMessageW(c, IDC_DETECT, CB_ADDSTRING, 0, (LPARAM)g_tr[S_C_DETECT_CONTROLS + i]);
         SendDlgItemMessageW(c, IDC_DETECT, CB_SETCURSEL, (WPARAM)S.cfg.detect, 0);
+        WCHAR num[16];
+        for (int i = 0; i < FPS_COUNT; i++) { /* the frame rates, in the order of kFps */
+            wsprintfW(num, L"%d", kFps[i]);
+            SendDlgItemMessageW(c, IDC_FPS, CB_ADDSTRING, 0, (LPARAM)num);
+        }
+        SendDlgItemMessageW(c, IDC_FPS, CB_SETCURSEL, (WPARAM)S.cfg.fps, 0);
+        for (int i = 0; i < COLOURS_COUNT; i++) { /* the sizes of the palette */
+            wsprintfW(num, L"%d", kColours[i]);
+            SendDlgItemMessageW(c, IDC_COLOURS, CB_ADDSTRING, 0, (LPARAM)num);
+        }
+        SendDlgItemMessageW(c, IDC_COLOURS, CB_SETCURSEL, (WPARAM)S.cfg.colours, 0);
         CheckDlgButton(c, IDC_EXIT_ASK, S.cfg.exit_ask ? BST_CHECKED : BST_UNCHECKED);
         show_save_dir();
         show_names();

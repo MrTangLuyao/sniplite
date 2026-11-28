@@ -262,5 +262,19 @@
         .long 0x41200000, 0x41380000
         .long 0x41600000, 0x40F00000
         .byte 0, 0, 0, 0
+/* the recording of a GIF: a circle in a ring, the button of a camera */
+.Lic_gif:
+        .byte 3, 0, 0, 0
+        .long 0x41200000, 0x41200000, 0x41000000, 0x41000000
+        .byte 2, 8, 0, 0
+        .long 0x41200000, 0x40B00000
+        .long 0x4152E964, 0x40DA2D37
+        .long 0x41680000, 0x41200000
+        .long 0x4152E964, 0x4152E964
+        .long 0x41200000, 0x41680000
+        .long 0x40DA2D37, 0x4152E964
+        .long 0x40B00000, 0x41200000
+        .long 0x40DA2D37, 0x40DA2D37
+        .byte 0, 0, 0, 0
 /* the mosaic icon's grid lines, (float)(3 + 3.5 * i) */
 .Lic_mosaic_grid: .long 0x40400000, 0x40D00000, 0x41200000, 0x41580000, 0x41880000

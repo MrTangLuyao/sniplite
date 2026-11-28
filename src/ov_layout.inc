@@ -63,8 +63,9 @@
 #define B_LONG                       28
 #define B_FRONT                      29    /* in the property bar, with B_BACK */
 #define B_BACK                       30
-#define B_LAST                       B_BACK /* the commands are B_UNDO .. B_LAST */
-#define TB_ITEMS                     22    /* entries of kTbOrder, separators included; kTbPlain has two less */
+#define B_GIF                        31    /* the recording of the selection as a GIF */
+#define B_LAST                       B_GIF /* the commands are B_UNDO .. B_LAST */
+#define TB_ITEMS                     23    /* entries of kTbOrder, separators included; kTbPlain has two less */
 #define B_SIZE                       40
 #define B_COLOR                      50
 #define ACT_COPY                     0
@@ -72,6 +73,7 @@
 #define ACT_PIN                      2
 #define ACT_OCR                      3
 #define ACT_LONG                     4
+#define ACT_GIF                      5
 #define SHOT_MAX_TILES               16
 
 /* Tile */

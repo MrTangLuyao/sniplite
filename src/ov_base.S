@@ -102,11 +102,11 @@ O:      .space OV_BYTES
 
         .globl kTbOrder
 kTbOrder:       .long T_RECT, T_ELLIPSE, T_LINE, T_ARROW, T_PEN, T_MARKER, T_MOSAIC, T_TEXT, T_NUMBER, T_SPOT, T_LENS
-                .long -1, B_UNDO, B_REDO, -1, B_LONG, B_OCR, B_OCRCOPY, B_PIN, B_SAVE, B_CLOSE, B_OK
+                .long -1, B_UNDO, B_REDO, -1, B_LONG, B_GIF, B_OCR, B_OCRCOPY, B_PIN, B_SAVE, B_CLOSE, B_OK
 /* the same without the two text buttons: while the text recognition module is not installed */
         .globl kTbPlain
 kTbPlain:       .long T_RECT, T_ELLIPSE, T_LINE, T_ARROW, T_PEN, T_MARKER, T_MOSAIC, T_TEXT, T_NUMBER, T_SPOT, T_LENS
-                .long -1, B_UNDO, B_REDO, -1, B_LONG, B_PIN, B_SAVE, B_CLOSE, B_OK
+                .long -1, B_UNDO, B_REDO, -1, B_LONG, B_GIF, B_PIN, B_SAVE, B_CLOSE, B_OK
 .Ltb_end:
         .if kTbPlain - kTbOrder - 4 * TB_ITEMS || .Ltb_end - kTbPlain - 4 * (TB_ITEMS - 2)
         .error "TB_ITEMS is not the number of entries of kTbOrder, or kTbPlain has not two less"

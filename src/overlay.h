@@ -29,6 +29,11 @@ void also_save(const uint32_t *px, int w, int h);
 void long_begin(void);
 void long_cancel(void);
 
+/* rec.c: the GIF recorder. rec_begin is called by the capture, which closes
+ * right after: its selection becomes the region that is recorded. */
+void rec_begin(void);
+void rec_cancel(void);
+
 #ifdef SNIPLITE_DEMO
 /* README image generator only (tools/mkdemo.c). Tool ids follow the toolbar:
  * 1 rect, 2 ellipse, 3 line, 4 arrow, 5 pen, 6 marker, 7 mosaic, 8 text, 9 number. */
