@@ -5,3 +5,4 @@ tests/
 # the tools' own build products
 __pycache__/
 tools/gifref/refgif
+tools/gifref/gifenc

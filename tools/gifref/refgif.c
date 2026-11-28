@@ -164,6 +164,23 @@ int main(int argc, char **argv)
         fputc(i, f);
         fputc(i, f);
     }
+    /* the Netscape extension: the animation loops forever */
+    fputc(0x21, f);
+    fputc(0xFF, f);
+    fputc(0x0B, f);
+    fputs("NETSCAPE2.0", f);
+    fputc(0x03, f);
+    fputc(0x01, f);
+    put_word(f, 0);
+    fputc(0, f);
+    /* the graphic control extension: the delay, the disposal method 1 */
+    fputc(0x21, f);
+    fputc(0xF9, f);
+    fputc(0x04, f);
+    fputc(0x04, f); /* do not dispose */
+    put_word(f, 7); /* the delay, in hundredths of a second */
+    fputc(0, f);    /* no transparent index */
+    fputc(0, f);    /* the end of the block */
     fputc(0x2C, f); /* the image descriptor */
     put_word(f, 0);
     put_word(f, 0);

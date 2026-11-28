@@ -22,6 +22,7 @@ def parse(path):
         p += 3 * n
     frames = []
     gce = None
+    loop = None
     while p < len(d):
         b = d[p]
         if b == 0x3B:  # the trailer
@@ -42,6 +43,8 @@ def parse(path):
                     'trans': blocks[3] if flags & 1 else None,
                     'disposal': (flags >> 2) & 7,
                 }
+            elif label == 0xFF and blocks[:11] == b'NETSCAPE2.0':  # the loop count
+                loop = struct.unpack_from('<H', blocks, 12)[0]
             continue
         if b == 0x2C:  # the image descriptor
             ix, iy, iw, ih, ipacked = struct.unpack_from('<HHHHB', d, p + 1)
@@ -68,7 +71,7 @@ def parse(path):
             gce = None
             continue
         raise ValueError('unknown block %#x at %d' % (b, p))
-    return {'size': (w, h), 'frames': frames}
+    return {'size': (w, h), 'frames': frames, 'palette': gct, 'loop': loop}
 
 
 def lzw_decode(data, mincode, npix):

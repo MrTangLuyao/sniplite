@@ -8,7 +8,9 @@ unchanged.
     python3 tools/gifref/check.py <encoder>  # the encoder against the reference
 
 The encoder under test is a program that takes the same arguments as
-refgif.c and writes a GIF:  <out.gif> <width> <height> <pattern>.
+refgif.c and writes a GIF:
+
+    <encoder> <out.gif> <width> <height> <pattern>
 """
 import os
 import subprocess
@@ -19,7 +21,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gifread import parse  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))
 REF = os.path.join(HERE, 'refgif')
+ENC = os.path.join(HERE, 'gifenc')
 
 # The pictures the encoders are given. The first four are the ones refgif.c
 # knows; the rest are the awkward ones: all one colour, two colours, a
@@ -27,9 +31,25 @@ REF = os.path.join(HERE, 'refgif')
 PATTERNS = [0, 1, 2, 3]
 SIZES = [(1, 1), (17, 9), (64, 48), (200, 150), (400, 300)]
 
+# What a file of the reference has to be: the delay of its one frame, and the
+# disposal method, are fixed by the reference.
+DELAY = 7
+DISPOSAL = 1
+
 
 def build_ref():
     subprocess.run(['cc', '-O2', '-o', REF, os.path.join(HERE, 'refgif.c')], check=True)
+
+
+def build_enc():
+    """The encoder of src/gif.c, driven by the harness in this folder.
+
+    The stub of the Windows header is what lets common.h be compiled here.
+    """
+    subprocess.run(['cc', '-O2',
+                    '-I', os.path.join(HERE, 'win'), '-I', os.path.join(ROOT, 'src'),
+                    '-o', ENC, os.path.join(HERE, 'gifenc.c'), os.path.join(ROOT, 'src', 'gif.c')],
+                   check=True)
 
 
 def run(prog, out, w, h, pattern, px=None):
@@ -41,9 +61,38 @@ def run(prog, out, w, h, pattern, px=None):
     return open(out, 'rb').read()
 
 
+def problems(path, w, h):
+    """What is wrong with the file, if anything."""
+    g = parse(path)
+    bad = []
+    if g['size'] != (w, h):
+        bad.append('the picture is %r, not %r' % (g['size'], (w, h)))
+    if g['palette'] is None or len(g['palette']) != 256:
+        bad.append('the colour table has %s entries, not 256' % (len(g['palette'] or []),))
+    if g['loop'] != 0:
+        bad.append('the animation loops %r times, not forever' % (g['loop'],))
+    if len(g['frames']) != 1:
+        bad.append('there are %d frames, not one' % len(g['frames']))
+    else:
+        f = g['frames'][0]
+        if (f['x'], f['y'], f['w'], f['h']) != (0, 0, w, h):
+            bad.append('the frame is at %r, not over the whole picture' % ((f['x'], f['y'], f['w'], f['h']),))
+        if f['gce']['delay'] != DELAY:
+            bad.append('the delay is %d, not %d' % (f['gce']['delay'], DELAY))
+        if f['gce']['disposal'] != DISPOSAL:
+            bad.append('the disposal method is %d, not %d' % (f['gce']['disposal'], DISPOSAL))
+        if f['gce']['trans'] is not None:
+            bad.append('there is a transparent index, and there should not be one')
+    return bad
+
+
 def main():
     build_ref()
-    under_test = sys.argv[1] if len(sys.argv) > 1 else REF
+    if len(sys.argv) > 1:
+        under_test = sys.argv[1]
+    else:
+        build_enc()
+        under_test = ENC
     name = 'reference' if under_test == REF else under_test
     tmp = tempfile.mkdtemp(prefix='gifcheck')
     fails = 0
@@ -60,6 +109,10 @@ def main():
                 print('MISMATCH  %dx%d pattern %d: the bytes differ' % (w, h, pattern))
                 fails += 1
                 continue
+            # the file has to be the file it is supposed to be
+            for what in problems(b, w, h):
+                print('MISMATCH  %dx%d pattern %d: %s' % (w, h, pattern, what))
+                fails += 1
             # and the picture must come back out of it
             g = parse(b)
             got = g['frames'][0]['px']
