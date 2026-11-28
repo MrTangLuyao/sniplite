@@ -10,6 +10,11 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-27-gif-recording-design.md` — read it before starting; this plan argues from it and does not repeat it.
 
+**The order of the tasks was changed on 2026-11-28**, before the first of them was
+run: the settings (Task 4) come before the recorder (Task 5), because the recorder
+reads the frame rate and the palette size from them. The button (Task 6) stays
+after the recorder, because it calls `rec_begin()`. Nothing else changed.
+
 ## Global Constraints
 
 - No new library, no new DLL, no third-party code. Only `kernel32`, `user32`, `gdi32`, `dwmapi`, `imm32`, `uuid` stay linked (`build.bat`).
@@ -28,11 +33,11 @@
 
 Five things the spec implies that no single test exercises. Each one gets the test named under it, in the task that owns the code.
 
-1. **The region is the whole screen, or bigger than 1280x720.** The picture is scaled down to fit, and the panel has nowhere beside the region, so it goes into the corner of the monitor. (Task 4: the scaling; Task 7: the manual list.)
+1. **The region is the whole screen, or bigger than 1280x720.** The picture is scaled down to fit, and the panel has nowhere beside the region, so it goes into the corner of the monitor. (Task 5: the scaling; Task 7: the manual list.)
 2. **The screen does not change.** Every tick still writes a frame — a 1x1 one whose pixel is the transparent index — so the delays stay exact and the file does not drift out of time. (Task 3: `test_still_screen`.)
 3. **A colour that the palette does not have appears later** (a window opens, a tooltip shows). It gets the nearest palette entry, and the picture must not fall apart. (Task 3: `test_new_colour`.)
-4. **The recording is cut short**: a capture begins, the monitor is unplugged, the user presses Esc. The file that was being written is deleted; nothing is left behind. (Task 4: `test_discard`; Task 7: the manual list.)
-5. **The machine cannot keep up** (a whole screen at 30 fps on a slow disk). The file on disk is always a valid GIF up to the last frame written, the frames that arrive late are simply late, and the recording stops at 256 MB. (Task 3: the file is valid after every frame; Task 4: the size cap.)
+4. **The recording is cut short**: a capture begins, the monitor is unplugged, the user presses Esc. The file that was being written is deleted; nothing is left behind. (Task 5: `test_discard`; Task 7: the manual list.)
+5. **The machine cannot keep up** (a whole screen at 30 fps on a slow disk). The file on disk is always a valid GIF up to the last frame written, the frames that arrive late are simply late, and the recording stops at 256 MB. (Task 3: the file is valid after every frame; Task 5: the size cap.)
 
 ---
 
@@ -417,7 +422,144 @@ git commit -m "gif: the quantiser and the frame differencing"
 
 ---
 
-### Task 4: The recorder
+### Task 4: The settings and the texts
+
+**Files:**
+- Modify: `src/config.h`
+- Modify: `src/config.c`
+- Modify: `src/settings.c`
+- Modify: `res/resource.h`
+- Modify: `res/sniplite.rc`
+- Modify: `src/lang_text.h`
+
+**Interfaces:**
+- Consumes: nothing from the earlier tasks (the recorder reads the settings
+  through `config_load`).
+- Produces:
+
+```c
+/* src/config.h */
+enum { FPS_COUNT = 4 };         /* the frame rates: kFps[0..3] */
+enum { COLOURS_COUNT = 3 };     /* the palette sizes: kColours[0..2] */
+extern const int kFps[FPS_COUNT];        /* 10, 15, 20, 30 */
+extern const int kColours[COLOURS_COUNT]; /* 256, 128, 64 */
+
+/* in Config: */
+    int fps;      /* which of the kFps frame rates */
+    int colours;  /* which of the kColours palette sizes */
+```
+
+- [ ] **Step 1: the settings in the file**
+
+`src/config.h`: the two enumerations, the two arrays (declared), the two fields in
+`Config`.
+
+`src/config.c`: the arrays are defined there — `kFps[] = {10, 15, 20, 30}` and
+`kColours[] = {256, 128, 64}`. The defaults (in `config_defaults`): the frame rate
+15 (`kFps[1]`), the palette 256 (`kColours[0]`).
+
+`config_load` reads them, and `config_save` writes them — **both sides**, because
+`config_save` rewrites the whole file by hand and a setting that is only read is
+lost at the next save:
+
+```c
+/* in config_load: the number is in the file, so that a person can read it */
+c->fps = ini_pick(path, L"gif_fps", kFpsTexts, FPS_COUNT);
+c->colours = ini_pick(path, L"gif_colours", kColoursTexts, COLOURS_COUNT);
+/* in config_save: */
+str_addf(&s, L"gif_fps=%d\r\ngif_colours=%d\r\n", kFps[c->fps], kColours[c->colours]);
+```
+
+`ini_pick` (in `src/config.c`) takes the list of the words of the setting; the
+words here are `"10", "15", "20", "30"` and `"256", "128", "64"`, so the file
+holds a number a person can read.
+
+- [ ] **Step 2: the two controls in the preferences**
+
+`res/sniplite.rc`, in `IDD_PAGE_CAPTURE`: two labels and two combo boxes. There is
+room for one row between the file-name row and the *Defaults* button: the file
+name combo sits at y=129, the button at y=163, and a combo box is 13 units high.
+So the row goes at y=145 (the label two units lower, as the other rows do):
+
+```
+    LTEXT           "", IDC_FPS_LABEL, 8, 147, 52, 10
+    COMBOBOX        IDC_FPS, 62, 145, 52, 80, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "", IDC_COLOURS_LABEL, 120, 147, 52, 10
+    COMBOBOX        IDC_COLOURS, 174, 145, 38, 80, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+```
+
+The new ids go into `res/resource.h`, where the ids of the controls are. The
+numbers 212 to 215 are free (211 is the last of the installer's, 220 is the
+first of the preferences'):
+
+```c
+#define IDC_FPS 212
+#define IDC_FPS_LABEL 213
+#define IDC_COLOURS 214
+#define IDC_COLOURS_LABEL 215
+```
+
+`src/settings.c`:
+- the labels are set through `kTexts` (the table of the controls with a text of
+  their own): `{PG_CAPTURE, IDC_FPS_LABEL, S_C_FPS}` and
+  `{PG_CAPTURE, IDC_COLOURS_LABEL, S_C_COLOURS}`;
+- the combos are filled where the other ones are filled (in `WM_INITDIALOG`, next
+  to the theme and the detect combos): the frame rates as the numbers
+  (`"10", "15", "20", "30"`) and the palette sizes as the numbers
+  (`"256", "128", "64"`), and then `CB_SETCURSEL` with the setting;
+- the change is handled in `page_command`, where the other settings' combos are
+  handled:
+
+  ```c
+  int *choice = id == IDC_THEME ? &S.cfg.theme : id == IDC_DETECT ? &S.cfg.detect
+             : id == IDC_NAME ? &S.cfg.name : id == IDC_FPS ? &S.cfg.fps : id == IDC_COLOURS ? &S.cfg.colours : NULL;
+  ```
+
+  The frame rate and the palette size are numbers, so the combo holds the number
+  itself and the index in the list is the index in `kFps` / `kColours`.
+
+- [ ] **Step 3: the texts**
+
+`src/lang_text.h` — the new rows go into the shared section (not the `CONSOLE`
+one), each with all eight languages, in the existing `X(name, zh-Hans, zh-Hant, en,
+ja, ko, fr, de, es)` order:
+
+| Row | What it is |
+|---|---|
+| `TIP_GIF` | the tooltip of the new button: "Record as GIF". It goes **right after `TIP_BACK`**, because `tip_text` maps the buttons onto the rows by position (Task 4). |
+| `REC_STOP` | the button of the panel: "Stop". |
+| `REC_TIME` | "Time". |
+| `REC_FRAMES` | "Frames". |
+| `REC_SIZE` | "Size". |
+| `C_FPS` | the label of the frame rate in the preferences: "Frame rate". In `src/settings.c` it is `S_C_FPS` (the enum adds the `S_`). |
+| `C_COLOURS` | the label of the palette size: "Colours". In `src/settings.c` it is `S_C_COLOURS`. |
+
+The notice that says the file was saved is the one the quick capture already shows
+(`QUICK_SAVED`), so it needs no new row.
+
+**The eight languages are not optional.** The Chinese texts are the ones the
+program is written in; the other seven are translations of them. Where a
+translation does not fit the space (the panel is small), the English word is kept
+as it is in the existing rows.
+
+- [ ] **Step 4: build**
+
+Run: `bash tools/build.sh`
+Expected: no warning. The languages are compiled into the program (`src/lang.c`
+reads the rows of `lang_text.h`), so a row that is missing in one language shows
+up as an empty string at run time, not as a build error — check that every new
+row has all eight.
+
+- [ ] **Step 5: commit**
+
+```bash
+git add src/config.h src/config.c src/settings.c res/resource.h res/sniplite.rc src/lang_text.h
+git commit -m "the settings: the frame rate and the size of the palette"
+```
+
+---
+
+### Task 5: The recorder
 
 The window, the timer, the read of the region, the file.
 
@@ -522,7 +664,7 @@ The panel is drawn by the program, the way the long screenshot's bar is:
   of the bars (`ui_pal[P_BG]`, `ui_pal[P_EDGE]` — see `src/ov_layout.inc`);
 - the text: `Time 01:23   Frames 123   Size 1.2 MB`, with the font the long
   screenshot's bar uses (`CreateFontW(-px(13), ...)`, `T(FONT)`), and the words
-  `Time`, `Frames`, `Size` from `src/lang_text.h` (Task 6 adds them);
+  `Time`, `Frames`, `Size` from `src/lang_text.h` (Task 4 adds them);
 - the button: at the right, 30 by 30, the icon `IC_OK` (the check mark — the same
   one the long screenshot's bar uses for "done"), with the hover and the pressed
   states the bar has;
@@ -569,7 +711,7 @@ git commit -m "rec: the recorder: the panel, the timer, the file"
 
 ---
 
-### Task 5: The button and the icon
+### Task 6: The button and the icon
 
 The capture overlay gets one more button. Six places have to change, and three of
 them break the build if they are missed — that is why they are written down.
@@ -583,7 +725,7 @@ them break the build if they are missed — that is why they are written down.
 - Modify: `src/draw_icons.inc`
 
 **Interfaces:**
-- Consumes: `rec_begin()` (Task 4).
+- Consumes: `rec_begin()` (Task 5).
 - Produces: the button `B_GIF` in the capture's toolbar; pressing it starts the
   recorder on the selection.
 
@@ -621,7 +763,7 @@ them break the build if they are missed — that is why they are written down.
 `TIP_GIF` has to sit in `lang_text.h` right after `TIP_BACK` (the rows are
 `TIP_UNDO, TIP_REDO, TIP_PIN, TIP_SAVE, TIP_QUIT, TIP_COPY, TIP_OCR, TIP_OCRCOPY,
 TIP_LONG, TIP_FRONT, TIP_BACK`, which are `B_UNDO..B_BACK` in that order). If it
-does not, every tooltip after `B_LONG` shifts by one. Task 6 adds the row.
+does not, every tooltip after `B_LONG` shifts by one. Task 4 adds the row.
 
 **The icon.** `src/draw_icons.inc`: a programme in the same form as the others — a
 filled circle with a ring around it, the record button. The format is in the
@@ -639,7 +781,7 @@ in `src/ov_base.S` is satisfied.
 
 - [ ] **Step 2: the click and the call**
 
-As in point 3 above. `rec_begin` is declared in `src/overlay.h` (Task 4), so the
+As in point 3 above. `rec_begin` is declared in `src/overlay.h` (Task 5), so the
 assembly can call it.
 
 - [ ] **Step 3: the icon**
@@ -660,143 +802,6 @@ table and the count do not agree: `kTbOrder` has 23 entries and `kTbPlain` 21.
 ```bash
 git add src/ov_layout.inc src/ov_base.S src/ov_show.S src/draw.h src/draw.S src/draw_icons.inc
 git commit -m "the capture overlay: a button that records the selection as a GIF"
-```
-
----
-
-### Task 6: The settings and the texts
-
-**Files:**
-- Modify: `src/config.h`
-- Modify: `src/config.c`
-- Modify: `src/settings.c`
-- Modify: `res/resource.h`
-- Modify: `res/sniplite.rc`
-- Modify: `src/lang_text.h`
-
-**Interfaces:**
-- Consumes: nothing from the earlier tasks (the recorder reads the settings
-  through `config_load`).
-- Produces:
-
-```c
-/* src/config.h */
-enum { FPS_COUNT = 4 };         /* the frame rates: kFps[0..3] */
-enum { COLOURS_COUNT = 3 };     /* the palette sizes: kColours[0..2] */
-extern const int kFps[FPS_COUNT];        /* 10, 15, 20, 30 */
-extern const int kColours[COLOURS_COUNT]; /* 256, 128, 64 */
-
-/* in Config: */
-    int fps;      /* which of the kFps frame rates */
-    int colours;  /* which of the kColours palette sizes */
-```
-
-- [ ] **Step 1: the settings in the file**
-
-`src/config.h`: the two enumerations, the two arrays (declared), the two fields in
-`Config`.
-
-`src/config.c`: the arrays are defined there — `kFps[] = {10, 15, 20, 30}` and
-`kColours[] = {256, 128, 64}`. The defaults (in `config_defaults`): the frame rate
-15 (`kFps[1]`), the palette 256 (`kColours[0]`).
-
-`config_load` reads them, and `config_save` writes them — **both sides**, because
-`config_save` rewrites the whole file by hand and a setting that is only read is
-lost at the next save:
-
-```c
-/* in config_load: the number is in the file, so that a person can read it */
-c->fps = ini_pick(path, L"gif_fps", kFpsTexts, FPS_COUNT);
-c->colours = ini_pick(path, L"gif_colours", kColoursTexts, COLOURS_COUNT);
-/* in config_save: */
-str_addf(&s, L"gif_fps=%d\r\ngif_colours=%d\r\n", kFps[c->fps], kColours[c->colours]);
-```
-
-`ini_pick` (in `src/config.c`) takes the list of the words of the setting; the
-words here are `"10", "15", "20", "30"` and `"256", "128", "64"`, so the file
-holds a number a person can read.
-
-- [ ] **Step 2: the two controls in the preferences**
-
-`res/sniplite.rc`, in `IDD_PAGE_CAPTURE`: two labels and two combo boxes. There is
-room for one row between the file-name row and the *Defaults* button: the file
-name combo sits at y=129, the button at y=163, and a combo box is 13 units high.
-So the row goes at y=145 (the label two units lower, as the other rows do):
-
-```
-    LTEXT           "", IDC_FPS_LABEL, 8, 147, 52, 10
-    COMBOBOX        IDC_FPS, 62, 145, 52, 80, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    LTEXT           "", IDC_COLOURS_LABEL, 120, 147, 52, 10
-    COMBOBOX        IDC_COLOURS, 174, 145, 38, 80, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-```
-
-The new ids go into `res/resource.h`, where the ids of the controls are. The
-numbers 212 to 215 are free (211 is the last of the installer's, 220 is the
-first of the preferences'):
-
-```c
-#define IDC_FPS 212
-#define IDC_FPS_LABEL 213
-#define IDC_COLOURS 214
-#define IDC_COLOURS_LABEL 215
-```
-
-`src/settings.c`:
-- the labels are set through `kTexts` (the table of the controls with a text of
-  their own): `{PG_CAPTURE, IDC_FPS_LABEL, S_C_FPS}` and
-  `{PG_CAPTURE, IDC_COLOURS_LABEL, S_C_COLOURS}`;
-- the combos are filled where the other ones are filled (in `WM_INITDIALOG`, next
-  to the theme and the detect combos): the frame rates as the numbers
-  (`"10", "15", "20", "30"`) and the palette sizes as the numbers
-  (`"256", "128", "64"`), and then `CB_SETCURSEL` with the setting;
-- the change is handled in `page_command`, where the other settings' combos are
-  handled:
-
-  ```c
-  int *choice = id == IDC_THEME ? &S.cfg.theme : id == IDC_DETECT ? &S.cfg.detect
-             : id == IDC_NAME ? &S.cfg.name : id == IDC_FPS ? &S.cfg.fps : id == IDC_COLOURS ? &S.cfg.colours : NULL;
-  ```
-
-  The frame rate and the palette size are numbers, so the combo holds the number
-  itself and the index in the list is the index in `kFps` / `kColours`.
-
-- [ ] **Step 3: the texts**
-
-`src/lang_text.h` — the new rows go into the shared section (not the `CONSOLE`
-one), each with all eight languages, in the existing `X(name, zh-Hans, zh-Hant, en,
-ja, ko, fr, de, es)` order:
-
-| Row | What it is |
-|---|---|
-| `TIP_GIF` | the tooltip of the new button: "Record as GIF". It goes **right after `TIP_BACK`**, because `tip_text` maps the buttons onto the rows by position (Task 5). |
-| `REC_STOP` | the button of the panel: "Stop". |
-| `REC_TIME` | "Time". |
-| `REC_FRAMES` | "Frames". |
-| `REC_SIZE` | "Size". |
-| `C_FPS` | the label of the frame rate in the preferences: "Frame rate". In `src/settings.c` it is `S_C_FPS` (the enum adds the `S_`). |
-| `C_COLOURS` | the label of the palette size: "Colours". In `src/settings.c` it is `S_C_COLOURS`. |
-
-The notice that says the file was saved is the one the quick capture already shows
-(`QUICK_SAVED`), so it needs no new row.
-
-**The eight languages are not optional.** The Chinese texts are the ones the
-program is written in; the other seven are translations of them. Where a
-translation does not fit the space (the panel is small), the English word is kept
-as it is in the existing rows.
-
-- [ ] **Step 4: build**
-
-Run: `bash tools/build.sh`
-Expected: no warning. The languages are compiled into the program (`src/lang.c`
-reads the rows of `lang_text.h`), so a row that is missing in one language shows
-up as an empty string at run time, not as a build error — check that every new
-row has all eight.
-
-- [ ] **Step 5: commit**
-
-```bash
-git add src/config.h src/config.c src/settings.c res/resource.h res/sniplite.rc src/lang_text.h
-git commit -m "the settings: the frame rate and the size of the palette"
 ```
 
 ---
