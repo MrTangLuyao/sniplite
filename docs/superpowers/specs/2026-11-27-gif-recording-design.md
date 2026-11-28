@@ -205,9 +205,9 @@ the delay is the frame rate the user chose.
 #pragma once
 #include "common.h"
 
-/* A GIF being written: the file grows as the frames are added. */
+/* A GIF being written: the bytes come out one frame at a time. */
 typedef struct {
-    uint8_t *p;      /* the bytes so far */
+    uint8_t *buf;    /* the bytes of the last chunk: what the caller writes to the file */
     int n, cap;
     int w, h;        /* the logical screen: the size of the region */
     int nframes;
@@ -215,16 +215,25 @@ typedef struct {
     uint8_t pal[256][3];  /* the palette: one table for the whole file */
     uint8_t *prev;   /* the indices of the frame before, one byte per pixel */
     int trans;       /* the palette entry that means "unchanged", -1 for none */
+    int ncolours;    /* how many colours the palette may hold */
+    int started;     /* the header and the palette have been written */
 } Gif;
 
-/* Start a GIF of a region. Nothing is written until the first frame. */
-void gif_begin(Gif *g, int w, int h);
+/* Start a GIF of a region: its size, and how many colours the palette may hold.
+ * Nothing is written until the first frame. */
+void gif_begin(Gif *g, int w, int h, int ncolours);
 /* Add a frame: the pixels (top-down 32-bit BGRA), the delay in hundredths of a
- * second. The encoder finds the part that changed by itself. */
+ * second. The encoder finds the part that changed by itself. The bytes of the
+ * frame are in g->buf; the first frame's chunk holds the header and the palette. */
 void gif_frame(Gif *g, const uint32_t *px, int stride, int delay_cs);
-/* Write the file. */
-bool gif_write(Gif *g, const WCHAR *path);
+/* The last byte of the file. */
 void gif_end(Gif *g);
+/* The memory the encoder took. */
+void gif_free(Gif *g);
+
+/* The writer on its own: a frame of indices with the palette already in g->pal.
+ * The check in tools/gifref/ uses this to compare the bytes with the reference. */
+void gif_write_frame(Gif *g, const uint8_t *idx, int fw, int fh, int fx, int fy, int delay_cs);
 ```
 
 **The palette is global: one table for the whole file.** It is built from the
@@ -277,6 +286,18 @@ image descriptor (where in the picture this frame's pixels are), the minimum
 code size, the LZW data in sub-blocks of at most 255 bytes, and the block
 terminator. The trailer ends the file. The Netscape 2.0 application extension
 is written so the animation loops forever.
+
+The bytes of that container are fixed here, down to the flags, because the
+reference in `tools/gifref/` has to write exactly the same ones for the
+comparison to be exact: the reference is the plainest possible version of
+*this* format, not of some other one.
+
+**Every tick writes a frame.** A frame in which nothing changed is written as
+a 1x1 frame whose one pixel is the transparent index: the picture does not
+change, and the file grows by about twenty bytes. The alternative — leaving
+the frame out — would make the delay of the next frame the sum of all the
+ones in between, and that sum does not fit in the one byte a GIF gives a
+delay. A recording of a still screen would then play too fast.
 
 ### The file on disk
 
